@@ -1540,7 +1540,6 @@ setBaseInfo <- function(parameter, files)
       mixtureAssignment <- tempEnv$paramBase$curMixAssignment
       latestSample <- tempEnv$paramBase$latestSample
       max <- tempEnv$paramBase$latestSample + 1
-      print(paste0("max set to ", max))
       grouplist <- tempEnv$paramBase$grouplist
       
       stdDevSynthesisRateTraces <- vector("list", length = numSelectionCategories)
@@ -1685,7 +1684,6 @@ setBaseInfo <- function(parameter, files)
   trace$setCodonSpecificAcceptanceRateTrace(codonSpecificAcceptanceRateTrace)
 
   parameter$setTraceObject(trace)
-  print("Returning parameter")
   return(parameter)
   }
 
@@ -1980,18 +1978,15 @@ geomMean <- function(x, rm.invalid = TRUE, default = 1e-5)
 #Intended to combine 2D traces (vector of vectors) read in from C++. The first
 #element of the second trace is omited since it should be the same as the 
 #last value of the first trace.
-combineTwoDimensionalTrace <- function(trace1, trace2,start=2,end=NULL){
+combineTwoDimensionalTrace <- function(trace1, trace2, start = 2, end=NULL){
   if(start < 2)
   {
-    print("Start must be at least 2 because the last element of first trace is first of second trace. Setting start = 2.")
+      print("Start must be at least 2 because the last element of first trace is first element of second trace. Setting start = 2.")
+      start <- 2
   }
-  if(end <= start)
+  if( is.null(end) || (end <= start) )
   {
-    print("End must be greater than start. Setting end to length of trace2.")
-    end <- trace2
-  }
-  if(end == NULL)
-  {
+    print("End must be greater than start. Setting end to length(trace2) = ", length(trace2))
     end <- length(trace2)
   }
   for (size in 1:length(trace1))
