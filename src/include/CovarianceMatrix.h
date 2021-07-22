@@ -7,7 +7,9 @@
 #include <string>
 
 #ifndef STANDALONE
+
 #include <Rcpp.h>
+
 #endif
 
 class CovarianceMatrix
@@ -17,9 +19,9 @@ class CovarianceMatrix
         std::vector<double> choleskyMatrix; //Cholesky factorization of proposal covariance matrix
         unsigned numVariates; //make static const again
         double sampleMean(std::vector<float> sampleVector, unsigned samples, unsigned latestSample,bool log_scale=false);
-                double lambda = 1; // Scales proposal matrix
+        double lambda = 1; // Scales proposal matrix
                 // Can be fixed or dynamic
-                double gamma = 0.6 // Scales adjustment of lambda; \in (1/2, 1) but 1 is not advised by Vihola2012, p. 999 remark 3
+        double gamma = 0.6; // Scales adjustment of lambda; \in (1/2, 1) but 1 is not advised by Vihola2012, p. 999 remark 3
                 // From equation 29 in LuengoEtAl2020
                 // log(lambda_t) = log(lambda_{t-1}) + gamma_t(alpha_t - alphaStar)
     public:

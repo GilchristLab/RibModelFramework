@@ -72,6 +72,7 @@ class MCMCAlgorithm
 		void varyInitialConditions(Genome& genome, Model& model, unsigned divergenceIterations); //TODO: UNTESTED
 		double calculateGewekeScore(unsigned current_iteration); //TODO: UNTESTED
 
+
 		bool isEstimateSynthesisRate();
 		bool isEstimateCodonSpecificParameter();
 		bool isEstimateHyperParameter();
@@ -83,10 +84,14 @@ class MCMCAlgorithm
 		void setEstimateMixtureAssignment(bool in);
                 void setReportInterval(unsigned reportInterval);
                 void setRestartFileSettings(std::string filename, unsigned interval, bool multiple); //TODO: UNTESTED
-		void setIterationsToAdapt(unsigned iterations);
-		int getIterationsToAdapt();
-                void setStepsToAdapt(unsigned iterations); //Deprecated
+  
+  		int getIterationsToAdapt();
+  		int getSamplesToAdapt();
                 int getStepsToAdapt(); //Deprecated
+
+                void setIterationsToAdapt(unsigned iterations);
+                void setSamplesToAdapt(unsigned _samples);
+                void setStepsToAdapt(unsigned _samples); //Deprecated
 
 		std::vector<double> getLogPosteriorTrace();
 		std::vector<double> getLogLikelihoodTrace();
@@ -103,10 +108,10 @@ class MCMCAlgorithm
 
 #ifndef STANDALONE
 
-		//Other Functions (All tested):
+        //Other Functions (All tested):
     	unsigned getSamples();
     	unsigned getThinning();
-    	unsigned getAdaptiveWidth();
+  unsigned getAdaptiveWidth();
     	void setSamples(unsigned _samples);
     	void setThinning(unsigned _thinning);
     	void setAdaptiveWidth(unsigned _adaptiveWidth);

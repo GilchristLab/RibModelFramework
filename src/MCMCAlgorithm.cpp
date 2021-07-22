@@ -1130,6 +1130,49 @@ void MCMCAlgorithm::setRestartFileSettings(std::string filename, unsigned interv
 //' @title setIterationsToAdapt
 //' @description Method of MCMC class (access via mcmc$<function name>, where mcmc is an object initialized by initializeMCMCObject). Set number of iterations (total iterations = samples * thinning) to allow proposal widths to adapt
 //' @param iterations a postive value
+
+/* getIterationsToAdapt (RCPP EXPOSED)
+ * Arguments: None
+ * Return the value of iterationsToAdapt
+*/
+//' @name getIterationsToAdapt
+//' @title getIterationsToAdapt
+//' @description Method of MCMC class (access via mcmc$<function name>, where mcmc is an object initialized by initializeMCMCObject). Return number of iterations (iterations = samples * thinning) to allow proposal widths to adapt
+//' @return number of iterations to adapt
+int MCMCAlgorithm::getIterationsToAdapt()
+{
+	return iterationsToAdapt;
+}
+
+/* getSamplesToAdapt (RCPP EXPOSED)
+ * Arguments: None
+ * Return the value of iterationsToAdapt
+*/
+//' @name getSamplesToAdapt
+//' @title getSamplesToAdapt
+//' @description Method of MCMC class (access via mcmc$<function name>, where mcmc is an object initialized by initializeMCMCObject). Return number of samples (~= iterations/thinning) to allow proposal widths to adapt
+//' @return number of samples to adapt
+int MCMCAlgorithm::getSamplesToAdapt()
+{
+        return iterationsToAdapt/thinning;
+}
+
+ /* getStepsToAdapt (RCPP EXPOSED)
+ * Arguments: None
+ * DEPRICATED FUNCTION REPLACED BY getIterationsToAdapt and getSamplesToAdapt
+ * Return the value of iterationsToAdapt (formerly stepsToAdapt)
+*/
+//' @name getStepsToAdapt
+//' @title getStepsToAdapt
+//' @description Method of MCMC class (access via mcmc$<function name>, where mcmc is an object initialized by initializeMCMCObject). Return number of iterations (iterations = samples * thinning) to allow proposal widths to adapt
+//' @return number of iterations to adapt
+
+int MCMCAlgorithm::getStepsToAdapt()
+{
+        return iterationsToAdapt;
+}
+
+
 void MCMCAlgorithm::setIterationsToAdapt(unsigned iterations)
 {
 	if (iterations <= samples * thinning)
@@ -1172,47 +1215,6 @@ void MCMCAlgorithm::setStepsToAdapt(unsigned steps)
 		iterationsToAdapt = steps;
 	else
 		my_printError("ERROR: Cannot set steps - value must be smaller than samples times thinning (maxIterations)\n");
-}
-
-/* getIterationsToAdapt (RCPP EXPOSED)
- * Arguments: None
- * Return the value of iterationsToAdapt
-*/
-//' @name getIterationsToAdapt
-//' @title getIterationsToAdapt
-//' @description Method of MCMC class (access via mcmc$<function name>, where mcmc is an object initialized by initializeMCMCObject). Return number of iterations (iterations = samples * thinning) to allow proposal widths to adapt
-//' @return number of iterations to adapt
-int MCMCAlgorithm::getIterationsToAdapt()
-{
-	return iterationsToAdapt;
-}
-
-/* getSamplesToAdapt (RCPP EXPOSED)
- * Arguments: None
- * Return the value of iterationsToAdapt
-*/
-//' @name getSamplesToAdapt
-//' @title getSamplesToAdapt
-//' @description Method of MCMC class (access via mcmc$<function name>, where mcmc is an object initialized by initializeMCMCObject). Return number of samples (~= iterations/thinning) to allow proposal widths to adapt
-//' @return number of samples to adapt
-int MCMCAlgorithm::getSamplesToAdapt()
-{
-	return iterationsToAdapt/thinning;
-}
-
- /* getStepsToAdapt (RCPP EXPOSED)
- * Arguments: None
- * DEPRICATED FUNCTION REPLACED BY getIterationsToAdapt and getSamplesToAdapt
- * Return the value of iterationsToAdapt (formerly stepsToAdapt)
-*/
-//' @name getStepsToAdapt
-//' @title getStepsToAdapt
-//' @description Method of MCMC class (access via mcmc$<function name>, where mcmc is an object initialized by initializeMCMCObject). Return number of iterations (iterations = samples * thinning) to allow proposal widths to adapt
-//' @return number of iterations to adapt
-
-int MCMCAlgorithm::getStepsToAdapt()
-{
-	return iterationsToAdapt;
 }
 
 

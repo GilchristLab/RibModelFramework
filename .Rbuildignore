@@ -6,3 +6,6 @@
 ^\.travis\.yml$     # Used for continuous integration testing with travis
 ^.*\.tar\.gz	    # Build package
 ^\.nfs		    # ignore file system leftovers
+# the following two patterns don't seem to work
+#   (^|/)\\.#[^/]*$     # copied from https://blog.r-hub.io/2020/05/20/rbuildignore/
+#   (^|/)#[^/]*#$       # copied from https://blog.r-hub.io/2020/05/20/rbuildignore/
