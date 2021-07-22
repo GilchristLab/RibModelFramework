@@ -1522,6 +1522,15 @@ setBaseInfo <- function(parameter, files)
   for (i in 1:length(files)) {
     tempEnv <- new.env();
     load(file = files[i], envir = tempEnv)
+
+    ## Deal with legacy objects by adding replacement variable $latestSample to object
+    if(!exists("latestSample", where = tempEnv$paramBase))
+    {
+        if(exists("lastIteration", where = tempEnv$paramBase))
+            tempEnv$paramBase$latestSample <- tempEnv$paramBase$lastIteration
+        if(exists("lastSample", where = tempEnv$paramBase))
+            tempEnv$paramBase$latestSample <- tempEnv$paramBase$lastSample
+    }
     if (i == 1) {
       categories <- tempEnv$paramBase$categories
       categories.matrix <- do.call("rbind", tempEnv$paramBase$categories)
@@ -1531,6 +1540,7 @@ setBaseInfo <- function(parameter, files)
       mixtureAssignment <- tempEnv$paramBase$curMixAssignment
       latestSample <- tempEnv$paramBase$latestSample
       max <- tempEnv$paramBase$latestSample + 1
+      print(paste0("max set to ", max))
       grouplist <- tempEnv$paramBase$grouplist
       
       stdDevSynthesisRateTraces <- vector("list", length = numSelectionCategories)
@@ -1673,8 +1683,9 @@ setBaseInfo <- function(parameter, files)
   trace$setMixtureAssignmentTrace(mixtureAssignmentTrace)
   trace$setMixtureProbabilitiesTrace(mixtureProbabilitiesTrace)
   trace$setCodonSpecificAcceptanceRateTrace(codonSpecificAcceptanceRateTrace)
-  
+
   parameter$setTraceObject(trace)
+  print("Returning parameter")
   return(parameter)
   }
 
@@ -1685,8 +1696,16 @@ loadROCParameterObject <- function(parameter, files)
   parameter <- setBaseInfo(parameter, files)
   for (i in 1:length(files)){
     tempEnv <- new.env();
+    ## QUESTION: Why do we load objects twice? Once in setBaseInfo and again here?
     load(file = files[i], envir = tempEnv)
-    
+    ## Deal with legacy objects by adding replacement variable $latestSample to object
+    if(!exists("latestSample", where = tempEnv$paramBase))
+    {
+        if(exists("lastIteration", where = tempEnv$paramBase))
+            tempEnv$paramBase$latestSample <- tempEnv$paramBase$lastIteration
+        if(exists("lastSample", where = tempEnv$paramBase))
+            tempEnv$paramBase$latestSample <- tempEnv$paramBase$lastSample
+    }
     numMutationCategories <- tempEnv$paramBase$numMut
     numSelectionCategories <- tempEnv$paramBase$numSel
     max <- tempEnv$paramBase$latestSample + 1
@@ -1966,9 +1985,13 @@ combineTwoDimensionalTrace <- function(trace1, trace2,start=2,end=NULL){
   {
     print("Start must be at least 2 because the last element of first trace is first of second trace. Setting start = 2.")
   }
-  if(is.null(end) ||  end <= start)
+  if(end <= start)
   {
     print("End must be greater than start. Setting end to length of trace2.")
+    end <- trace2
+  }
+  if(end == NULL)
+  {
     end <- length(trace2)
   }
   for (size in 1:length(trace1))
