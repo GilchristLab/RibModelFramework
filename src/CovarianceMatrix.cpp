@@ -203,6 +203,7 @@ int CovarianceMatrix::getNumVariates()
 }
 
 
+// This function multiplies the cholesky decomposition of the proposal matrix by the vector of indepdendent iid random variables (iidNumbers ~ N(0, 1))
 std::vector<double> CovarianceMatrix::transformIidNumbersIntoCovaryingNumbers(std::vector <double> iidNumbers)
 {
     std::vector<double> covaryingNumbers;
@@ -334,6 +335,152 @@ double CovarianceMatrix::sampleMean(std::vector<float> sampleVector, unsigned sa
 	return posteriorMean / (double)samples;
 }
 
+// Based on ramcmc package which is based on Vihola2012's method
+// - Uses uniform iid variates u
+// - Should be applied *after* the acceptance/rejection step
+//
+// ramcmc code
+//    inline void adapt_S(arma::mat& S, arma::vec& u, double current, double target,
+//      unsigned int n, double gamma) {
+//    
+//      double change = current - target;
+//      u = S * u / arma::norm(u) * sqrt(std::min(1.0, u.n_elem * pow(n, -gamma)) *
+//        std::abs(change));
+//    
+//      if(change > 0.0) {
+//        chol_update(S, u);
+//      } else {
+//        chol_downdate(S, u);
+//      }
+//    }
+//
+//  
+void adaptCholesky(std::vector<double> &u, double current, double target)
+{
+  double error  = current - target;
+  //Treat vector form of matrix as an array
+  // See: https://stackoverflow.com/q/2923272/5322644
+  double *S = &choleskyMatrix.data(); 
+  double uNorm = 0;
+
+  for (int i = 0; i < n; ++i) {
+    uNorm += u[i] * u[i];
+  }
+  uNorm = sqrt(uNorm);
+
+    
+  u = S * u/uNorm * sqrt(std::min(1.0, u.n_elem * pow(n, -gamma)) * std::abs(error) );
+
+  if(error > 0.0)  {
+    updateCholesky(u);
+  } else {
+    downdateCholesky(u);
+  }
+}
+
+// Based on ramcmc package which is based on Vihola2012's method
+void checkCholeskyArgs()
+{
+}
+
+
+void initCholesky() // may not need
+{
+  
+}
+
+
+// updateCholesky()
+// - Based on ramcmc package which is based on Vihola2012's method
+// - ramcmc code
+//
+//     inline arma::mat chol_update(arma::mat& L, arma::vec& u) {
+//       unsigned int n = u.n_elem - 1;
+//       for (arma::uword i = 0; i < n; i++) {             //uword = unsigned int
+//         double r = sqrt(L(i,i) * L(i,i) + u(i) * u(i));
+//         double c = r / L(i, i);
+//         double s = u(i) / L(i, i);
+//         L(i, i) = r;
+//         L(arma::span(i + 1, n), i) =
+//           (L(arma::span(i + 1, n), i) + s * u.rows(i + 1, n)) / c;
+//         u.rows(i + 1, n) = c * u.rows(i + 1, n) -
+//           s * L(arma::span(i + 1, n), i);
+//       }
+//       L(n, n) = sqrt(L(n, n) * L(n, n) + u(n) * u(n));
+//       return L;
+//     }
+// Given the lower triangular matrix L obtained from the Cholesky decomposition of a 
+// theoretical proposal matrix
+// - ramcmc terminology
+// - A is the proposal matrix
+// - S is its Cholesky decomposition of A
+// - L is a generic lower diagonal matrix
+//   - That is, S is a specific instance of L
+// - u is the vector of iid random variables, we use N(0,1)
+// Updates choleskyMatrix (ramcmc uses L for general matrix to updateThis usually corresponds to the adapative S for proposal matrix) such that it corresponds to the decomposition of A + u*u'.
+// Where u are the random iid numbers (iidNumbers in our code)  used to generate the proposed parameters (i.e. theta') or 
+// Our code uses a flattened matrix (i.e. a 1 D vector) instead of a matrix 
+void updateCholesky(std::vector<double> u) 
+{
+  //Treat vector form of matrix as an array
+  // See: https://stackoverflow.com/q/2923272/5322644
+  double *L = &choleskyMatrix.data(); 
+  unsigned int n = numVariates - 1;//ramcmc: u.n_elem - 1;
+
+  for (unsigned int i = 0u; i < n; i++) {
+    double r = sqrt(L(i,i) * L(i,i) + u(i) * u(i)); // downdateCholesky uses "... - u(i) * u(i) 
+    double c = r / L(i, i);
+    double s = u(i) / L(i, i);
+    L(i, i) = r;
+    //    L(arma::span(i + 1, n), i) = (L(arma::span(i + 1, n), i) + s * u.rows(i + 1, n)) / c;
+    for (unsigned j = i + 1; j <= n; j++) {
+      L(j, i) = (L(j, i) + s * u(j)) / c;
+      u(j) = c * u(j) - s * L(j, i);
+    }
+  }
+  L(n, n) = sqrt(L(n, n) * L(n, n) + u(n) * u(n));
+  return L;
+}
+
+//see updateCholesky for details
+//
+// ramcmc code
+//   inline arma::mat chol_downdate(arma::mat& L, arma::vec& u) {
+//      unsigned int n = u.n_elem - 1;
+//      for (arma::uword i = 0; i < n; i++) {
+//        double r = sqrt(L(i,i) * L(i,i) - u(i) * u(i));
+//        double c = r / L(i, i);
+//        double s = u(i) / L(i, i);
+//        L(i, i) = r;
+//        L(arma::span(i + 1, n), i) =
+//          (L(arma::span(i + 1, n), i) - s * u.rows(i + 1, n)) / c;
+//        u.rows(i + 1, n) = c * u.rows(i + 1, n) -
+//          s * L(arma::span(i + 1, n), i);
+//      }
+//      L(n, n) = sqrt(L(n, n) * L(n, n) - u(n) * u(n));
+//      return L;
+
+void downdateCholesky(std::vector<double> u)
+{
+  //Treat vector form of matrix as an array
+  // See: https://stackoverflow.com/q/2923272/5322644
+  double *L = &choleskyMatrix.data(); 
+  unsigned int n = numVariates - 1;//ramcmc: u.n_elem - 1;
+
+  for (unsigned int i = 0u; i < n; i++) {
+    double r = sqrt(L(i,i) * L(i,i) - u(i) * u(i)); // updateCholesky uses "... + u(i) * u(i) 
+    double c = r / L(i, i);
+    double s = u(i) / L(i, i);
+    L(i, i) = r;
+    //    L(arma::span(i + 1, n), i) = (L(arma::span(i + 1, n), i) + s * u.rows(i + 1, n)) / c;
+    for (unsigned j = i + 1; j <= n; j++) {
+      L(j, i) = (L(j, i) + s * u(j)) / c;
+      u(j) = c * u(j) - s * L(j, i);
+    }
+  }
+  L(n, n) = sqrt(L(n, n) * L(n, n) + u(n) * u(n));
+  return L;
+}
 
 
 // -----------------------------------------------------------------------------------------------------//
