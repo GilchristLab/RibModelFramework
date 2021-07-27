@@ -815,14 +815,14 @@ void ROCParameter::proposeCodonSpecificParameter()
                 {
                         for (unsigned i = 0; i < numMutationCategories; i++)
                         {
-                                for (unsigned j = i * numCodons, l = aaStart; j < (i * numCodons) + numCodons; j++, l++)
+                          for (unsigned j = i * numCodons, l = aaStart; j < ((i * numCodons) + numCodons); j++, l++)
                                 {
                                         proposedCodonSpecificParameter[dM][i][l] = randNorm(mutation_prior_mean[i][l], mutation_prior_sd[i][l]);
                                 }
                         }
                         for (unsigned i = 0; i < numSelectionCategories; i++)
                         {
-                                for (unsigned j = i * numCodons, l = aaStart; j < (i * numCodons) + numCodons; j++, l++)
+                          for (unsigned j = i * numCodons, l = aaStart; j < ((i * numCodons) + numCodons); j++, l++)
                                 {
                                         proposedCodonSpecificParameter[dEta][i][l] = randNorm(currentCodonSpecificParameter[dEta][i][l], std_csp[l]);
                                 }
@@ -836,7 +836,7 @@ void ROCParameter::proposeCodonSpecificParameter()
                         // need to use the proposal values for Vihola2012 adaptive MCMC
                         for (unsigned i = 0; i < numMutationCategories; i++)
                         {
-                                for (unsigned j = i * numCodons, j < (i + 1) * numCodons; j++)
+                          for (unsigned j = i * numCodons; j < ((i + 1) * numCodons); j++)
                                 {
                                         if (fix_dM)
                                         {
@@ -851,7 +851,7 @@ void ROCParameter::proposeCodonSpecificParameter()
                         
                         for (unsigned i = 0; i < numSelectionCategories; i++)
                         {
-                                for (unsigned j = i * numCodons; j < (i + 1) * numCodons; j++)
+                          for (unsigned j = i * numCodons; j < ((i + 1) * numCodons); j++)
                                 {
                                         if (fix_dEta)
                                         {
@@ -869,7 +869,7 @@ void ROCParameter::proposeCodonSpecificParameter()
                         covaryingNums = covarianceMatrix[SequenceSummary::AAToAAIndex(aa)].transformIidNumbersIntoCovaryingNumbers(iidProposed);
                         for (unsigned i = 0; i < numMutationCategories; i++)
                         {
-                                for (unsigned j = i * numCodons, l = aaStart; j < (i * numCodons) + numCodons; j++, l++)
+                          for (unsigned j = i * numCodons, l = aaStart; j < ((i * numCodons) + numCodons); j++, l++)
                                 {
                                         proposedCodonSpecificParameter[dM][i][l] = currentCodonSpecificParameter[dM][i][l] + covaryingNums[j];
                                         
@@ -877,7 +877,7 @@ void ROCParameter::proposeCodonSpecificParameter()
                         }
                         for (unsigned i = 0; i < numSelectionCategories; i++)
                         {
-                                for (unsigned j = i * numCodons, l = aaStart; j < (i * numCodons) + numCodons; j++, l++)
+                          for (unsigned j = i * numCodons, l = aaStart; j < ((i * numCodons) + numCodons); j++, l++)
                                 {
                                         proposedCodonSpecificParameter[dEta][i][l] = currentCodonSpecificParameter[dEta][i][l]
                                                 + covaryingNums[(numMutationCategories * numCodons) + j];
