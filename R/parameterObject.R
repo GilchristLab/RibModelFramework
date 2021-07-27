@@ -1991,10 +1991,6 @@ combineTwoDimensionalTrace <- function(trace1, trace2,start=2,end=NULL){
     print(paste0("End must be greater than start. Setting end to length(trace2) = ", length(trace2)))
     end <- length(trace2)
   }
-  if(end == NULL)
-  {
-    end <- length(trace2)
-  }
   for (size in 1:length(trace1))
   {
     trace1[[size]]<- c(trace1[[size]], trace2[[size]][start:end])
