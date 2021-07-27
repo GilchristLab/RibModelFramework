@@ -805,52 +805,87 @@ void ROCParameter::proposeCodonSpecificParameter()
 		unsigned aaStart, aaEnd;
 		SequenceSummary::AAToCodonRange(aa, aaStart, aaEnd, true);
 		unsigned numCodons = aaEnd - aaStart;
-		for (unsigned i = 0u; i < (numCodons * (numMutationCategories + numSelectionCategories)); i++)
-		{
-			iidProposed.push_back(randNorm(0.0, 1.0));
-		}
-
-		std::vector<double> covaryingNums;
-		covaryingNums = covarianceMatrix[SequenceSummary::AAToAAIndex(aa)].transformIidNumbersIntoCovaryingNumbers(iidProposed);
-		for (unsigned i = 0; i < numMutationCategories; i++)
-		{
-			for (unsigned j = i * numCodons, l = aaStart; j < (i * numCodons) + numCodons; j++, l++)
-			{
-				if (fix_dM)
-				{
-					proposedCodonSpecificParameter[dM][i][l] = currentCodonSpecificParameter[dM][i][l];
-				}
-				else if (propose_by_prior)
-				{
-					proposedCodonSpecificParameter[dM][i][l] = randNorm(mutation_prior_mean[i][l],mutation_prior_sd[i][l]);
-				}
-				else
-				{
-					proposedCodonSpecificParameter[dM][i][l] = currentCodonSpecificParameter[dM][i][l] + covaryingNums[j];
-				}
-			}
-		}
-		for (unsigned i = 0; i < numSelectionCategories; i++)
-		{
-			for (unsigned j = i * numCodons, l = aaStart; j < (i * numCodons) + numCodons; j++, l++)
-			{
-				if (fix_dEta)
-				{
-					proposedCodonSpecificParameter[dEta][i][l] = currentCodonSpecificParameter[dEta][i][l];
-				}
-				else if (propose_by_prior) //Don't estimate covariance matrix. 
-				{
-					proposedCodonSpecificParameter[dEta][i][l] = randNorm(currentCodonSpecificParameter[dEta][i][l] , std_csp[l]);
-			
-				}
-				else
-				{
-					proposedCodonSpecificParameter[dEta][i][l] = currentCodonSpecificParameter[dEta][i][l]
-												   + covaryingNums[(numMutationCategories * numCodons) + j];
-				}
-			}
-		}
-	}
+                // mikeg 2021-07-27
+                //   Note propose_by_prior is *not* a Gibbs sampling method.
+                //   It allows parameters to be 'fixed' with a distribution rather than a single value.
+                //   Proposing should be split by further for dM and dEta.
+                //   This would allow the estimation of the other set of parameters
+                //   with the propose_by_prior set treated as known values with noise
+                if(propose_by_prior)
+                {
+                        for (unsigned i = 0; i < numMutationCategories; i++)
+                        {
+                          for (unsigned j = i * numCodons, l = aaStart; j < ((i * numCodons) + numCodons); j++, l++)
+                                {
+                                        proposedCodonSpecificParameter[dM][i][l] = randNorm(mutation_prior_mean[i][l], mutation_prior_sd[i][l]);
+                                }
+                        }
+                        for (unsigned i = 0; i < numSelectionCategories; i++)
+                        {
+                          for (unsigned j = i * numCodons, l = aaStart; j < ((i * numCodons) + numCodons); j++, l++)
+                                {
+                                        proposedCodonSpecificParameter[dEta][i][l] = randNorm(currentCodonSpecificParameter[dEta][i][l], std_csp[l]);
+                                }
+                        }
+                }
+                else //Proposal's based on random walk
+                {
+                 
+                        //Generate IID values (or not if parameter is fixed)
+                        // Making the code more complex and less than before, but ensuring that we don't have problems later if we
+                        // need to use the proposal values for Vihola2012 adaptive MCMC
+                        for (unsigned i = 0; i < numMutationCategories; i++)
+                        {
+                          for (unsigned j = i * numCodons; j < ((i + 1) * numCodons); j++)
+                                {
+                                        if (fix_dM)
+                                        {
+                                                iidProposed.push_back(0);
+                                        }
+                                        else
+                                        {
+                                                iidProposed.push_back(randNorm(0.0, 1.0));
+                                        }
+                                }
+                        }
+                        
+                        for (unsigned i = 0; i < numSelectionCategories; i++)
+                        {
+                          for (unsigned j = i * numCodons; j < ((i + 1) * numCodons); j++)
+                                {
+                                        if (fix_dEta)
+                                        {
+                                                iidProposed.push_back(0);
+                                        }
+                                        else
+                                        {
+                                                iidProposed.push_back(randNorm(0.0, 1.0));
+                                        }
+                                }
+                        }
+                        
+                        // Generate proposal values
+                        std::vector<double> covaryingNums;
+                        covaryingNums = covarianceMatrix[SequenceSummary::AAToAAIndex(aa)].transformIidNumbersIntoCovaryingNumbers(iidProposed);
+                        for (unsigned i = 0; i < numMutationCategories; i++)
+                        {
+                          for (unsigned j = i * numCodons, l = aaStart; j < ((i * numCodons) + numCodons); j++, l++)
+                                {
+                                        proposedCodonSpecificParameter[dM][i][l] = currentCodonSpecificParameter[dM][i][l] + covaryingNums[j];
+                                        
+                                }
+                        }
+                        for (unsigned i = 0; i < numSelectionCategories; i++)
+                        {
+                          for (unsigned j = i * numCodons, l = aaStart; j < ((i * numCodons) + numCodons); j++, l++)
+                                {
+                                        proposedCodonSpecificParameter[dEta][i][l] = currentCodonSpecificParameter[dEta][i][l]
+                                                + covaryingNums[(numMutationCategories * numCodons) + j];
+                                        
+                                }
+                        }
+                }
+        }
 }
 
 void ROCParameter::setProposeByPrior(bool _propose_by_prior)
