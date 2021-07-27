@@ -88,6 +88,9 @@ class MCMCAlgorithm
   		int getIterationsToAdapt();
   		int getSamplesToAdapt();
                 int getStepsToAdapt(); //Deprecated
+                void setSamplesToAdapt(unsigned _samples);
+                int getSamplesToAdapt(); 
+  
 
                 void setIterationsToAdapt(unsigned iterations);
                 void setSamplesToAdapt(unsigned _samples);
