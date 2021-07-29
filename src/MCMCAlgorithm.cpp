@@ -658,12 +658,7 @@ void MCMCAlgorithm::run(Genome& genome, Model& model, unsigned numCores, unsigne
 			
             //TODO:Probably do a nan check
 			if ((iteration % adaptiveWidthIterations) == 0u)
-                          //model.adaptCodonSpecificParameterProposalWidth(adaptiveWidth, iteration / thinning, iteration <= iterationsToAdapt);
-                          model.adaptCodonSpecificParmeterProposalCholesky(unsigned adaptationWidth, unsigned latestSample, bool adapt);
-{
-	parameter->adaptCholesky(adaptiveWidth, latestSample, adapt);
-}
-                          
+				model.adaptCodonSpecificParameterProposalWidth(adaptiveWidth, iteration / thinning, iteration <= iterationsToAdapt);
 		}
 		// update hyper parameter
 		if (estimateHyperParameter)
