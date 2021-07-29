@@ -391,7 +391,8 @@ void MCMCAlgorithm::acceptRejectCodonSpecificParameter(Genome& genome, PANSEMode
 	std::string param_1,param_2;
 	std::uniform_int_distribution<int> uni(0,1);
 
-	int x = uni(e);
+	int x = uni(e); //choose order of processing parameters
+	// Should be able to do this in a single loop as opposed to a separate loop for each parameter
 
 	if (x == 0)
 	{
@@ -493,7 +494,7 @@ void MCMCAlgorithm::acceptRejectCodonSpecificParameter(Genome& genome, Model& mo
 			// moves proposed codon specific parameters to current codon specific parameters
 			if (std::isnan(acceptanceRatioForAllMixtures[0]))
 			{
-				my_print("ERROR: Accepted proposed value that results in NaN\n");
+			  my_print("ERROR: Accepted proposed value that results in NaN\n"); // mikeg: 2021-07-29: Why are we accepting parameters that return NAN?  Seems like these should be rejected
 			}
 			model.updateCodonSpecificParameter(grouping);
 			if ((iteration % thinning) == 0)
@@ -517,7 +518,7 @@ void MCMCAlgorithm::acceptRejectCodonSpecificParameter(Genome& genome, Model& mo
 	}
 	if ((iteration % thinning) == 0)
 	{
-		for (unsigned i = 0;i < size; i++)
+		for (unsigned i = 0; i < size; i++)
 		{
 			std::string grouping = model.getGrouping(i);
 			model.updateCodonSpecificParameterTrace(iteration/thinning, grouping);
