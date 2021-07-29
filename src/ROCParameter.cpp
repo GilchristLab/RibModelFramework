@@ -789,7 +789,8 @@ double ROCParameter::getCurrentCodonSpecificProposalWidth(unsigned aa)
 	return std_csp[aaStart];
 }
 
-/* Cedric: I decided to use a normal distribution to propose Sphi and phi instead of a lognormal because:
+/* Cedric: I decided to use a normal distribution to propose Sphi and phi (really log(Sphi) and log(phi)) instead of a proposing on lognormal because:
+ *         
  * 1. It is a symmetric distribution and you therefore do not have to account for the unsymmetry in jump probabilities
  * 2. The one log and exp operation that have to be performed per parameter are cheaper than the operations necessary to draw from a lognormal
  * 3. phi has to be on a non log scale for the likelihood evaluation thus it does not help to keep phi on th elog scale all the time
@@ -805,51 +806,74 @@ void ROCParameter::proposeCodonSpecificParameter()
 		unsigned aaStart, aaEnd;
 		SequenceSummary::AAToCodonRange(aa, aaStart, aaEnd, true);
 		unsigned numCodons = aaEnd - aaStart;
-		for (unsigned i = 0u; i < (numCodons * (numMutationCategories + numSelectionCategories)); i++)
-		{
-			iidProposed.push_back(randNorm(0.0, 1.0));
-		}
 
+                // 
+                if (propose_by_prior) //Don't estimate covariance matrix. 
+                  {
+                    for (unsigned i = 0u; i < (numCodons * numMutationCategories); i++)
+                      {
+                        if(fix_dM)
+                          {
+                            proposedCodonSpecificParameter[dM][i][l] = randNorm(currentCodonSpecificParameter[dM][i][l] , std_csp[l]);
+                          }
+                        else
+                          {
+                          }
+                      }
+                    for (unsigned i = 0u; i < (numCodons * numSelectionCategories); i++)
+                      {
+                    proposedCodonSpecificParameter[dEta][i][l] = randNorm(currentCodonSpecificParameter[dEta][i][l] , std_csp[l]);
+                      }
+                  }
+                else
+                  {
+                //Generate vector of random variates for cholesky matrix
+                // Start with vector elements related to mutation
+                // Set to 0 if it is fixed
+		for (unsigned i = 0u; i < (numCodons * numMutationCategories); i++)
+		{
+                  if(fix_dM)
+                  {
+                    iidProposed.push_back(0.0);
+                  } else
+                  {
+                    iidProposed.push_back(randNorm(0.0, 1.0));
+                  }
+                }
+                
+		for (unsigned i = 0u; i < (numCodons * numSelectionCategories); i++)
+		{
+                  if(fix_dEta)
+                  {
+                    iidProposed.push_back(0.0);
+                  } else
+                  {
+                    iidProposed.push_back(randNorm(0.0, 1.0));
+                  }
+                }
+
+                
+                // Transform IID numbers in to proposed changes based on Cholesky Decomposition of the covariance matrix
 		std::vector<double> covaryingNums;
 		covaryingNums = covarianceMatrix[SequenceSummary::AAToAAIndex(aa)].transformIidNumbersIntoCovaryingNumbers(iidProposed);
+
+                //Calculate new proposal values
 		for (unsigned i = 0; i < numMutationCategories; i++)
 		{
 			for (unsigned j = i * numCodons, l = aaStart; j < (i * numCodons) + numCodons; j++, l++)
 			{
-				if (fix_dM)
-				{
-					proposedCodonSpecificParameter[dM][i][l] = currentCodonSpecificParameter[dM][i][l];
-				}
-				else if (propose_by_prior)
-				{
-					proposedCodonSpecificParameter[dM][i][l] = randNorm(mutation_prior_mean[i][l],mutation_prior_sd[i][l]);
-				}
-				else
-				{
-					proposedCodonSpecificParameter[dM][i][l] = currentCodonSpecificParameter[dM][i][l] + covaryingNums[j];
-				}
+                          proposedCodonSpecificParameter[dM][i][l] = currentCodonSpecificParameter[dM][i][l] + covaryingNums[j];
 			}
 		}
 		for (unsigned i = 0; i < numSelectionCategories; i++)
-		{
-			for (unsigned j = i * numCodons, l = aaStart; j < (i * numCodons) + numCodons; j++, l++)
-			{
-				if (fix_dEta)
-				{
-					proposedCodonSpecificParameter[dEta][i][l] = currentCodonSpecificParameter[dEta][i][l];
-				}
-				else if (propose_by_prior) //Don't estimate covariance matrix. 
-				{
-					proposedCodonSpecificParameter[dEta][i][l] = randNorm(currentCodonSpecificParameter[dEta][i][l] , std_csp[l]);
-			
-				}
-				else
-				{
-					proposedCodonSpecificParameter[dEta][i][l] = currentCodonSpecificParameter[dEta][i][l]
-												   + covaryingNums[(numMutationCategories * numCodons) + j];
-				}
-			}
-		}
+                  {
+                    for (unsigned j = i * numCodons, l = aaStart; j < (i * numCodons) + numCodons; j++, l++)
+                      {
+                        proposedCodonSpecificParameter[dEta][i][l] = currentCodonSpecificParameter[dEta][i][l]
+                          + covaryingNums[(numMutationCategories * numCodons) + j];
+
+                      }
+                  }
 	}
 }
 
@@ -858,7 +882,8 @@ void ROCParameter::setProposeByPrior(bool _propose_by_prior)
 	propose_by_prior = _propose_by_prior;
 }
 
-
+// This function does not appear to be used in MCMCAlogrithm
+// Seems to be designed to replace current functions used in divergence.iterations
 void ROCParameter::completeUpdateCodonSpecificParameter()
 {
 	for (std::string grouping : CSPToUpdate)

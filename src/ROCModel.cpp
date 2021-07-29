@@ -531,6 +531,10 @@ void ROCModel::adaptCodonSpecificParameterProposalWidth(unsigned adaptiveWidth, 
 	parameter->adaptCodonSpecificParameterProposalWidth(adaptiveWidth, latestSample, adapt);
 }
 
+void ROCModel::adaptCodonSpecificParameterProposalCholesky(unsigned adaptiveWidth, unsigned latestSample, bool adapt)
+{
+	parameter->adaptCodonSpecificParameterProposalCholesky(adaptiveWidth, latestSample, adapt);
+}
 
 void ROCModel::adaptHyperParameterProposalWidths(unsigned adaptiveWidth, bool adapt)
 {

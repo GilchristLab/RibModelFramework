@@ -287,16 +287,19 @@ class Parameter {
 	protected:
 		Trace traces;
 
-		unsigned adaptiveStepPrev;
-		unsigned adaptiveStepCurr;
-		
+		unsigned int adaptiveStepPrev;
+		unsigned int adaptiveStepCurr;
+                double targetAcceptanceRate = 0.234; //Std value based on Gelman 
+                double update_gamma = 2/3; // scaling term for adaptive MCMC
+
+  
 		std::vector<CovarianceMatrix> covarianceMatrix;
 		std::vector<mixtureDefinition> categories;
 		std::vector<double> categoryProbabilities;
 		std::vector<std::vector<unsigned>> mutationIsInMixture;
 		std::vector<std::vector<unsigned>> selectionIsInMixture;
-		unsigned numMutationCategories; //TODO Probably needs to be renamed
-		unsigned numSelectionCategories; //TODO Probably needs to be renamed
+		unsigned int numMutationCategories; //TODO Probably needs to be renamed
+		unsigned int numSelectionCategories; //TODO Probably needs to be renamed
 		std::vector<unsigned> numAcceptForCodonSpecificParameters;
 		std::string mutationSelectionState; //TODO: Probably needs to be renamed
 

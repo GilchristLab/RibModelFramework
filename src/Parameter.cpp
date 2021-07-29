@@ -1338,7 +1338,12 @@ void Parameter::updateMixtureProbabilitiesTrace(unsigned samples)
 //---------- Adaptive Width Functions ----------//
 //----------------------------------------------//
 
+void Parameter::updateProposalWidth(double &S, double currentAR, double targetAR) // scalar version of CovarianceMatris::adaptCholesky()
+{
+  
+}
 
+  
 void Parameter::adaptNoiseOffsetProposalWidth(unsigned adaptationWidth, bool adapt)
 {
 	for (unsigned i = 0; i < getNumObservedPhiSets(); i++)
@@ -1441,8 +1446,8 @@ void Parameter::adaptCodonSpecificParameterProposalWidth(unsigned adaptationWidt
   //Gelman BDA 3rd Edition suggests a target acceptance rate of 0.23
   // for high dimensional problems
   // For CSP the combined selection and mutation dimensions range from 2 to 10
-  //Adjust proposal variance to try and get within this range
-
+  // Adjust proposal variance to try and get within this range
+  // Function has been supplated by adaptProposal()
   unsigned acceptanceUnder = 0u;
   unsigned acceptanceOver = 0u;
 
@@ -1548,6 +1553,117 @@ void Parameter::adaptCodonSpecificParameterProposalWidth(unsigned adaptationWidt
   }
 }
 
+void Parameter::adaptCodonSpecificParameterProposalCholesky(unsigned adaptationWidth, unsigned latestSample, bool adapt)
+{
+  //Gelman BDA 3rd Edition suggests a target acceptance rate of 0.23
+  // for high dimensional problems
+  // For CSP the combined selection and mutation dimensions range from 2 to 10
+  // Adjust proposal variance to try and get within this range
+  // Function has been supplated by adaptProposal()
+  unsigned acceptanceUnder = 0u;
+  unsigned acceptanceOver = 0u;
+
+  double acceptanceTargetLow = 0.225; //below this value weighted sum adjustment is applied, was 0.2
+  double acceptanceTargetHigh = 0.325;///above this value weighted sum adjustment is applied, was 0.3
+  double diffFactorAdjust = 0.05; //sets when multiplication factor adjustment is applied, was 0.1 and 0.0, respectively
+  double factorCriteriaLow;
+  double factorCriteriaHigh;
+  double adjustFactorLow = 0.9; //factor by which to reduce proposal widths (sort of)
+  double adjustFactorHigh = 2; //factor by which to increase proposal widths (sort of)
+  // Why (sort of)? Effects of adjustFactor* seem to be lost if too close to 1.
+  // I suspect this is due to effect of covPrevWeight
+  double adjustFactor = 1.0; //variable assigned value of either adjustFactorLow or adjustFactorHigh
+  double covPrevWeight = 0.6; //covPrevWeight + covCurrWeight = 1
+  double covCurrWeight = 0.4;
+  
+  factorCriteriaLow = acceptanceTargetLow - diffFactorAdjust;  //below this value weighted sum and factor adjustments are applied
+  factorCriteriaHigh = acceptanceTargetHigh + diffFactorAdjust;  //above this value weighted sum and factor adjustments are applied
+
+  adaptiveStepPrev = adaptiveStepCurr;
+  adaptiveStepCurr = latestSample;
+  unsigned samples = adaptiveStepCurr - adaptiveStepPrev;
+
+  my_print("Acceptance rates for Codon Specific Parameters\n");
+  my_print("Target range: %-% \n", factorCriteriaLow, factorCriteriaHigh );
+  my_print("Adjustment range: < % or > % \n", acceptanceTargetLow, acceptanceTargetHigh );
+  my_print("\tAA\tAcc.Rat\n"); //Prop.Width\n";
+
+  for (unsigned i = 0; i < groupList.size(); i++) //cycle through all of the aa
+  {
+    std::string aa = groupList[i];
+    unsigned aaIndex = SequenceSummary::AAToAAIndex(aa);
+    double acceptanceLevel = (double)numAcceptForCodonSpecificParameters[aaIndex] / (double)adaptationWidth;
+    int numCodonsForAA = SequenceSummary::GetNumCodonsForAA(aa, FALSE);
+    my_print("\t% (%):\t%\n", aa.c_str(), numCodonsForAA, acceptanceLevel);
+
+    traces.updateCodonSpecificAcceptanceRateTrace(aaIndex, acceptanceLevel);
+
+    unsigned aaStart, aaEnd;
+    SequenceSummary::AAToCodonRange(aa, aaStart, aaEnd, true);
+
+    //Evaluate current acceptance ratio  performance
+    if (acceptanceLevel < factorCriteriaLow) acceptanceUnder++;
+    else if (acceptanceLevel > factorCriteriaHigh) acceptanceOver++;
+
+    if (adapt)
+      {
+        
+        if( (acceptanceLevel < acceptanceTargetLow) || (acceptanceLevel > acceptanceTargetHigh) )// adjust proposal width
+          {
+
+            //Update cov matrix based on previous window to improve efficiency of sampling
+            //Previously, Cedric only did this when the acceptance level was too low.
+            //Mike updated the code to do this every time we're out of the adaptive range.
+            CovarianceMatrix covcurr(covarianceMatrix[aaIndex].getNumVariates());
+            covcurr.calculateSampleCovariance(*traces.getCodonSpecificParameterTrace(), aa, samples, adaptiveStepCurr);
+            CovarianceMatrix covprev = covarianceMatrix[aaIndex];
+            covprev = (covprev*covPrevWeight);
+            covcurr = (covcurr*covCurrWeight);
+            covarianceMatrix[aaIndex] = covprev + covcurr;
+            //replace cov matrix based on previous window
+            //The is approach was commented out and above code uncommented to replace it in commit ec63bb21a1e9 (2016).  Should remove
+            //covarianceMatrix[aaIndex].calculateSampleCovariance(*traces.getCodonSpecificParameterTrace(), aa, samples, adaptiveStepCurr);
+
+
+            // define adjustFactor
+            if (acceptanceLevel < factorCriteriaLow)
+	      {
+                adjustFactor = adjustFactorLow;
+		  	
+              }
+            else if(acceptanceLevel > factorCriteriaHigh)
+	      {
+                adjustFactor = adjustFactorHigh;
+              }
+            else //Don't adjust
+	      {
+                adjustFactor = 1.0;
+              }
+
+            if( adjustFactor != 1.0 )
+              {
+		 
+                //Adjust proposal width for codon specific parameters
+                for (unsigned k = aaStart; k < aaEnd; k++)
+                  {
+                    std_csp[k] *= adjustFactor;
+		    	
+                  }
+                covarianceMatrix[aaIndex] *= adjustFactor;
+                //Adjust widths if using cov matrix
+		   	
+	  	   
+              }
+
+            //Decomposing of cov matrix to convert iid samples to covarying samples using matrix decomposition
+            //The decomposed matrix is used in the proposal of new samples
+            covarianceMatrix[aaIndex].choleskyDecomposition();
+          }// end adjust loop
+      } // end if(adapt)
+
+    numAcceptForCodonSpecificParameters[aaIndex] = 0u;
+  }
+}
 
 
 
