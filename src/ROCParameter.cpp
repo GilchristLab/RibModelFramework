@@ -789,7 +789,8 @@ double ROCParameter::getCurrentCodonSpecificProposalWidth(unsigned aa)
 	return std_csp[aaStart];
 }
 
-/* Cedric: I decided to use a normal distribution to propose Sphi and phi instead of a lognormal because:
+/* Cedric: I decided to use a normal distribution to propose Sphi and phi (really log(Sphi) and log(phi)) instead of a proposing on lognormal because:
+ *         
  * 1. It is a symmetric distribution and you therefore do not have to account for the unsymmetry in jump probabilities
  * 2. The one log and exp operation that have to be performed per parameter are cheaper than the operations necessary to draw from a lognormal
  * 3. phi has to be on a non log scale for the likelihood evaluation thus it does not help to keep phi on th elog scale all the time
@@ -893,7 +894,7 @@ void ROCParameter::setProposeByPrior(bool _propose_by_prior)
 	propose_by_prior = _propose_by_prior;
 }
 
-
+//Need to ensure this function is used and how
 void ROCParameter::completeUpdateCodonSpecificParameter()
 {
 	for (std::string grouping : CSPToUpdate)

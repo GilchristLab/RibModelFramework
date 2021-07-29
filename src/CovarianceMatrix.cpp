@@ -204,6 +204,8 @@ int CovarianceMatrix::getNumVariates()
 
 
 // This function multiplies the cholesky decomposition of the proposal matrix by the vector of indepdendent iid random variables (iidNumbers ~ N(0, 1))
+// Thus it generates the shift in parameters from the current to the proposed values.
+// Could be named proposedShiftCurrentParameters or the like
 std::vector<double> CovarianceMatrix::transformIidNumbersIntoCovaryingNumbers(std::vector <double> iidNumbers)
 {
     std::vector<double> covaryingNumbers;

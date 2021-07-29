@@ -409,8 +409,8 @@ void MCMCAlgorithm::acceptRejectCodonSpecificParameter(Genome& genome, PANSEMode
 	{
 
 		std::string grouping = model.getGrouping(groups[i]);
-		model.calculateLogLikelihoodRatioPerGroupingPerCategory(grouping, genome, acceptanceRatioForAllMixtures,param_1);
-    	double threshold = -Parameter::randExp(1);
+		model.calculateLogLikelihoodRatioPerGroupingPerCategory(grouping, genome, acceptanceRatioForAllMixtures, param_1);
+    	        double threshold = -Parameter::randExp(1);
  		if (threshold < acceptanceRatioForAllMixtures[0] && std::isfinite(acceptanceRatioForAllMixtures[0]) && !std::isnan(acceptanceRatioForAllMixtures[2]))
 		{	
 			if (std::isnan(acceptanceRatioForAllMixtures[0]))
@@ -479,24 +479,27 @@ void MCMCAlgorithm::acceptRejectCodonSpecificParameter(Genome& genome, Model& mo
 {
 	std::vector<double> acceptanceRatioForAllMixtures(5,0.0);
 	unsigned size = model.getGroupListSize();
-	
+
 	for (unsigned i = 0; i < size; i++)
 	{
 
 		std::string grouping = model.getGrouping(i);
 		// calculate likelihood ratio for every Category for current AA (ROC, FONSE) or Codon (PA, PANSE)
 		model.calculateLogLikelihoodRatioPerGroupingPerCategory(grouping, genome, acceptanceRatioForAllMixtures);
-    	double threshold = -Parameter::randExp(1);
- 		if (threshold < acceptanceRatioForAllMixtures[0] && std::isfinite(acceptanceRatioForAllMixtures[0]) && !std::isnan(acceptanceRatioForAllMixtures[2]))
+                double log_acceptance_ratio = acceptanceRatioForAllMixtures[0];
+                double threshold = -Parameter::randExp(1);
+                
+ 		if (threshold < log_acceptance_ratio && std::isfinite(log_acceptance_ratio) && !std::isnan(acceptanceRatioForAllMixtures[2]))
 		{	
 			//my_print("AA % Threshold % Acceptance Ratio % \n",grouping,threshold,acceptanceRatioForAllMixtures[0]);
 			
 			// moves proposed codon specific parameters to current codon specific parameters
-			if (std::isnan(acceptanceRatioForAllMixtures[0]))
+			if (std::isnan(log_acceptance_ratio))
 			{
 			  my_print("ERROR: Accepted proposed value that results in NaN\n"); // mikeg: 2021-07-29: Why are we accepting parameters that return NAN?  Seems like these should be rejected
 			}
 			model.updateCodonSpecificParameter(grouping);
+                        model.updateCodonSpecificParameterCholesky(grouping);
 			if ((iteration % thinning) == 0)
 			{
 				likelihoodTrace[(iteration / thinning)] += acceptanceRatioForAllMixtures[2];//will be 0
@@ -655,7 +658,12 @@ void MCMCAlgorithm::run(Genome& genome, Model& model, unsigned numCores, unsigne
 			
             //TODO:Probably do a nan check
 			if ((iteration % adaptiveWidthIterations) == 0u)
-				model.adaptCodonSpecificParameterProposalWidth(adaptiveWidth, iteration / thinning, iteration <= iterationsToAdapt);
+                          //model.adaptCodonSpecificParameterProposalWidth(adaptiveWidth, iteration / thinning, iteration <= iterationsToAdapt);
+                          model.adaptCodonSpecificParmeterProposalCholesky(unsigned adaptationWidth, unsigned latestSample, bool adapt);
+{
+	parameter->adaptCholesky(adaptiveWidth, latestSample, adapt);
+}
+                          
 		}
 		// update hyper parameter
 		if (estimateHyperParameter)
