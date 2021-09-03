@@ -39,16 +39,16 @@ class CovarianceMatrix
 	void setDiag(double val);
         void choleskyDecomposition();
 	void printCovarianceMatrix();
-        void printCholesky();
+        void printCholeskyMatrix();
         std::vector<double>* getCovMatrix();
 	std::vector<double>* getCholeskyMatrix(); //Only for unit testing.
         int getNumVariates();
         std::vector<double> transformIidNumbersIntoCovaryingNumbers(std::vector<double> iidNumbers);
 	void calculateSampleCovariance(std::vector<std::vector<std::vector<std::vector<float>>>> codonSpecificParameterTrace, std::string aa, unsigned samples, unsigned latestSample);
         void calculateSampleCovarianceForPANSE(std::vector<std::vector<std::vector<std::vector<float>>>> codonSpecificParameterTrace, std::string codon, unsigned samples, unsigned latestSample);
-        void updateSampleCovariance(std::vector<std::vector<std::vector<std::vector<float>>>> codonSpecificParameterTrace, std::string aa, unsigned samples, unsigned latestSample); //TODO
-      	void adaptCholesky(std::vector<std::vector<std::vector<std::vector<float>>>> codonSpecificParameterTrace, std::string aa, unsigned samples, unsigned latestSample); //TODO
-        void checkCholeskyArgs(std::vector<std::vector<std::vector<std::vector<float>>>> codonSpecificParameterTrace, std::string aa, unsigned samples, unsigned latestSample); //TODO
+	void updateSampleCovariance(std::vector<std::vector<std::vector<std::vector<float>>>> codonSpecificParameterTrace, std::string aa, unsigned samples, unsigned latestSample); //TODO
+  void adaptCholeskyMatrix(std::vector<double> &u, double current, double target, int updateNum);
+	void checkCholeskyArgs(std::vector<std::vector<std::vector<std::vector<float>>>> codonSpecificParameterTrace, std::string aa, unsigned samples, unsigned latestSample); //TODO
         void initCholesky(std::vector<std::vector<std::vector<std::vector<float>>>> codonSpecificParameterTrace, std::string aa, unsigned samples, unsigned latestSample); //TODO
     	void updateCholesky(std::vector<std::vector<std::vector<std::vector<float>>>> codonSpecificParameterTrace, std::string aa, unsigned samples, unsigned latestSample); //TODO
   

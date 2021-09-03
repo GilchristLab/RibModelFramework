@@ -357,21 +357,36 @@ double CovarianceMatrix::sampleMean(std::vector<float> sampleVector, unsigned sa
 //    }
 //
 //  
-void adaptCholesky(std::vector<double> &u, double current, double target)
+void CovarianceMatrix::adaptCholeskyMatrix(std::vector<double> &u, double current, double target, int updateNum)
 {
   double error  = current - target;
   //Treat vector form of matrix as an array
   // See: https://stackoverflow.com/q/2923272/5322644
-  double *S = &choleskyMatrix.data(); 
+  std::vector<double> S = choleskyMatrix; // this compiles
+  //std::vector<double> *S2 = &choleskyMatrix; // this compiles
+  vector<double>::iterator i; 
+
   double uNorm = 0;
 
-  for (int i = 0; i < n; ++i) {
-    uNorm += u[i] * u[i];
+  for (i = u.begin(); i < u.end(); ++i)
+  {
+	  uNorm += u[i] * u[i];
   }
+  
   uNorm = sqrt(uNorm);
+  // ramcmc does the following
+  // Why the u.n_elem? 
+    //u = S * u/uNorm * sqrt(std::min(1.0, u.n_elem * pow(updateNum, -gamma)) * std::abs(error) );
+  //first step of transformation
+  double secondTerm = sqrt(std::min(1.0, u.n_elem * pow(updateNum, -gamma)) * std::abs(error) );
+  for (i = u.begin(); i < u.end(); ++i)
+  {
+	  u[i] = u[i]/uNorm * secondTerm;
+  }
 
-    
-  u = S * u/uNorm * sqrt(std::min(1.0, u.n_elem * pow(n, -gamma)) * std::abs(error) );
+ 
+  
+
 
   if(error > 0.0)  {
     updateCholesky(u);
