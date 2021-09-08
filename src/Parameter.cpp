@@ -1451,8 +1451,8 @@ void Parameter::adaptCodonSpecificParameterProposalWidth(unsigned adaptationWidt
   double diffFactorAdjust = 0.05; //sets when multiplication factor adjustment is applied, was 0.1 and 0.0, respectively
   double factorCriteriaLow;
   double factorCriteriaHigh;
-  double adjustFactorLow = 0.9; //factor by which to reduce proposal widths (sort of)
-  double adjustFactorHigh = 2; //factor by which to increase proposal widths (sort of)
+  double adjustFactorLow = 0.8; //factor by which to reduce proposal widths (sort of)
+  double adjustFactorHigh = 1.2; //factor by which to increase proposal widths (sort of)
   // Why (sort of)? Effects of adjustFactor* seem to be lost if too close to 1.
   // I suspect this is due to effect of covPrevWeight
   double adjustFactor = 1.0; //variable assigned value of either adjustFactorLow or adjustFactorHigh
