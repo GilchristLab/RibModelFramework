@@ -1,0 +1,199 @@
+src/PANSEParameter.cpp-
+src/PANSEParameter.cpp-
+src/PANSEParameter.cpp:void PANSEParameter::adaptCodonSpecificParameterProposalWidth(unsigned adaptationWidth, unsigned lastIteration, bool adapt)
+src/PANSEParameter.cpp-{
+src/PANSEParameter.cpp-  //Gelman BDA 3rd Edition suggests a target acceptance rate of 0.23
+src/PANSEParameter.cpp-  // for high dimensional problems
+src/PANSEParameter.cpp-  //Adjust proposal variance to try and get within this range
+src/PANSEParameter.cpp-  unsigned acceptanceUnder = 0u;
+--
+src/PANSEParameter.cpp-  	std::string codon = groupList[i];
+src/PANSEParameter.cpp-    unsigned codonIndex = SequenceSummary::codonToIndex(codon);
+src/PANSEParameter.cpp:    double acceptanceLevel_elong = (double)numAcceptForCodonSpecificParameters[codonIndex] / (double)adaptationWidth;
+src/PANSEParameter.cpp:    double acceptanceLevel_nse = (double)numAcceptForNSERates[codonIndex] / (double)adaptationWidth;
+src/PANSEParameter.cpp-    my_print("\t%:\t%\t%\n", codon.c_str(), acceptanceLevel_elong,acceptanceLevel_nse);
+src/PANSEParameter.cpp-   	//my_print("\t%:\t%\n", codon.c_str(), acceptanceLevel_elong);
+src/PANSEParameter.cpp-   
+src/PANSEParameter.cpp-    traces.updateCodonSpecificAcceptanceRateTrace(codonIndex, acceptanceLevel_elong);
+src/PANSEParameter.cpp-    traces.updateNseRateSpecificAcceptanceRateTrace(codonIndex, acceptanceLevel_nse);
+--
+src/PANSEParameter.cpp-
+src/PANSEParameter.cpp- */
+src/PANSEParameter.cpp:void PANSEParameter::adaptPartitionFunctionProposalWidth(unsigned adaptationWidth, bool adapt)
+src/PANSEParameter.cpp-{
+src/PANSEParameter.cpp:    double acceptanceLevel = (double)numAcceptForPartitionFunction / (double)adaptationWidth;
+src/PANSEParameter.cpp-    traces.updatePartitionFunctionAcceptanceRateTrace(acceptanceLevel);
+src/PANSEParameter.cpp-    my_print("Acceptance level for partition function: %\n", acceptanceLevel);
+src/PANSEParameter.cpp-    if (adapt)
+src/PANSEParameter.cpp-    {
+src/PANSEParameter.cpp-        if (acceptanceLevel < 0.2)
+--
+src/PAParameter.cpp- * NOTE: This function extends Parameter's adaptCodonSpecificParameterProposalWidth function!
+src/PAParameter.cpp- */
+src/PAParameter.cpp:void PAParameter::adaptCodonSpecificParameterProposalWidth(unsigned adaptationWidth, unsigned lastIteration, bool adapt)
+src/PAParameter.cpp-{
+src/PAParameter.cpp-	my_print("Acceptance rate for Codon Specific Parameter\n");
+src/PAParameter.cpp-	my_print("\tCodon\tAcc.Rat\n"); //Prop.Width\n";
+src/PAParameter.cpp-	for (unsigned i = 0; i < groupList.size(); i++)
+src/PAParameter.cpp-	{
+src/PAParameter.cpp-        unsigned codonIndex = SequenceSummary::codonToIndex(groupList[i]);
+src/PAParameter.cpp:		double acceptanceLevel = (double)numAcceptForCodonSpecificParameters[codonIndex] / (double)adaptationWidth;
+src/PAParameter.cpp-		my_print("\t%:\t%\n", groupList[i].c_str(), acceptanceLevel);
+src/PAParameter.cpp-		traces.updateCodonSpecificAcceptanceRateTrace(codonIndex, acceptanceLevel);
+src/PAParameter.cpp-		if (adapt)
+src/PAParameter.cpp-		{
+src/PAParameter.cpp-			if (acceptanceLevel < 0.2)
+--
+src/FONSEParameter.cpp-
+src/FONSEParameter.cpp-
+src/FONSEParameter.cpp:void FONSEParameter::adaptInitiationCostProposalWidth(unsigned adaptationWidth, bool adapt)
+src/FONSEParameter.cpp-{
+src/FONSEParameter.cpp:    double acceptanceLevel = (double)numAcceptForA1 / (double)adaptationWidth;
+src/FONSEParameter.cpp-    my_print("Accepted Initiation Cost a_1: %\n",acceptanceLevel);
+src/FONSEParameter.cpp-    traces.updateInitiationCostAcceptanceRateTrace(acceptanceLevel);
+src/FONSEParameter.cpp-    if (adapt)
+src/FONSEParameter.cpp-    {
+src/FONSEParameter.cpp-        if (acceptanceLevel < 0.2)
+--
+src/ROCParameter.cpp-
+src/ROCParameter.cpp-
+src/ROCParameter.cpp:// void ROCParameter::adaptNoiseOffsetProposalWidth(unsigned adaptationWidth, bool adapt)
+src/ROCParameter.cpp-// {
+src/ROCParameter.cpp-// 	for (unsigned i = 0; i < getNumObservedPhiSets(); i++)
+src/ROCParameter.cpp-// 	{
+src/ROCParameter.cpp:// 		double acceptanceLevel = numAcceptForNoiseOffset[i] / (double)adaptationWidth;
+src/ROCParameter.cpp-// 		traces.updateSynthesisOffsetAcceptanceRateTrace(i, acceptanceLevel);
+src/ROCParameter.cpp-// 		if (adapt)
+src/ROCParameter.cpp-// 		{
+src/ROCParameter.cpp-// 			if (acceptanceLevel < 0.2)
+src/ROCParameter.cpp-// 				std_NoiseOffset[i] *= 0.8;
+--
+src/Parameter.cpp-
+src/Parameter.cpp-
+src/Parameter.cpp:void Parameter::adaptNoiseOffsetProposalWidth(unsigned adaptationWidth, bool adapt)
+src/Parameter.cpp-{
+src/Parameter.cpp-	for (unsigned i = 0; i < getNumObservedPhiSets(); i++)
+src/Parameter.cpp-	{
+src/Parameter.cpp:		double acceptanceLevel = numAcceptForNoiseOffset[i] / (double)adaptationWidth;
+src/Parameter.cpp-		traces.updateSynthesisOffsetAcceptanceRateTrace(i, acceptanceLevel);
+src/Parameter.cpp-		if (adapt)
+src/Parameter.cpp-		{
+src/Parameter.cpp-			if (acceptanceLevel < 0.2)
+src/Parameter.cpp-				std_NoiseOffset[i] *= 0.8;
+--
+src/Parameter.cpp-
+src/Parameter.cpp-//Adjust s_phi proposal distribution
+src/Parameter.cpp:void Parameter::adaptStdDevSynthesisRateProposalWidth(unsigned adaptationWidth, bool adapt)
+src/Parameter.cpp-{
+src/Parameter.cpp:	double acceptanceLevel = (double)numAcceptForStdDevSynthesisRate / (double)adaptationWidth;
+src/Parameter.cpp-	traces.updateStdDevSynthesisRateAcceptanceRateTrace(acceptanceLevel);
+src/Parameter.cpp-	if (adapt)
+src/Parameter.cpp-	{
+src/Parameter.cpp-		if (acceptanceLevel < 0.2)
+src/Parameter.cpp-			std_stdDevSynthesisRate *= 0.8;
+--
+src/Parameter.cpp-
+src/Parameter.cpp-
+src/Parameter.cpp:void Parameter::adaptSynthesisRateProposalWidth(unsigned adaptationWidth, bool adapt)
+src/Parameter.cpp-{
+src/Parameter.cpp-	unsigned acceptanceUnder = 0u;
+src/Parameter.cpp-	unsigned acceptanceOver = 0u;
+src/Parameter.cpp-
+src/Parameter.cpp-	// mikeg: variables below should likely be made global or added to parameter so that the same criteria is used in all adaptive proposal width routines.
+--
+src/Parameter.cpp-		for (unsigned i = 0; i < numGenes; i++)
+src/Parameter.cpp-		{
+src/Parameter.cpp:			double acceptanceLevel = (double)numAcceptForSynthesisRate[cat][i] / (double)adaptationWidth;
+src/Parameter.cpp-			traces.updateSynthesisRateAcceptanceRateTrace(cat, i, acceptanceLevel);
+src/Parameter.cpp-
+src/Parameter.cpp-			//Evaluate acceptance rates relative to target region
+src/Parameter.cpp-			if (acceptanceLevel < acceptanceTargetLow) acceptanceUnder++;
+src/Parameter.cpp-			else if (acceptanceLevel > acceptanceTargetHigh) acceptanceOver++;
+--
+src/Parameter.cpp-
+src/Parameter.cpp-
+src/Parameter.cpp:void Parameter::adaptCodonSpecificParameterProposalWidth(unsigned adaptationWidth, unsigned lastIteration, bool adapt)
+src/Parameter.cpp-{
+src/Parameter.cpp-  //Gelman BDA 3rd Edition suggests a target acceptance rate of 0.23
+src/Parameter.cpp-  // for high dimensional problems
+src/Parameter.cpp-  // For CSP the combined selection and mutation dimensions range from 2 to 10
+src/Parameter.cpp-  //Adjust proposal variance to try and get within this range
+--
+src/Parameter.cpp-    std::string aa = groupList[i];
+src/Parameter.cpp-    unsigned aaIndex = SequenceSummary::AAToAAIndex(aa);
+src/Parameter.cpp:    double acceptanceLevel = (double)numAcceptForCodonSpecificParameters[aaIndex] / (double)adaptationWidth;
+src/Parameter.cpp-    int numCodonsForAA = SequenceSummary::GetNumCodonsForAA(aa, FALSE);
+src/Parameter.cpp-    my_print("\t% (%):\t%\n", aa.c_str(), numCodonsForAA, acceptanceLevel);
+src/Parameter.cpp-
+src/Parameter.cpp-    traces.updateCodonSpecificAcceptanceRateTrace(aaIndex, acceptanceLevel);
+src/Parameter.cpp-
+--
+src/modified-ROCParameter.cpp--not.done-
+src/modified-ROCParameter.cpp--not.done-
+src/modified-ROCParameter.cpp--not.done:// void ROCParameter::adaptNoiseOffsetProposalWidth(unsigned adaptationWidth, bool adapt)
+src/modified-ROCParameter.cpp--not.done-// {
+src/modified-ROCParameter.cpp--not.done-// 	for (unsigned i = 0; i < getNumObservedPhiSets(); i++)
+src/modified-ROCParameter.cpp--not.done-// 	{
+src/modified-ROCParameter.cpp--not.done:// 		double acceptanceLevel = numAcceptForNoiseOffset[i] / (double)adaptationWidth;
+src/modified-ROCParameter.cpp--not.done-// 		traces.updateSynthesisOffsetAcceptanceRateTrace(i, acceptanceLevel);
+src/modified-ROCParameter.cpp--not.done-// 		if (adapt)
+src/modified-ROCParameter.cpp--not.done-// 		{
+src/modified-ROCParameter.cpp--not.done-// 			if (acceptanceLevel < 0.2)
+src/modified-ROCParameter.cpp--not.done-// 				std_NoiseOffset[i] *= 0.8;
+--
+src/include/ROC/ROCParameter.h-
+src/include/ROC/ROCParameter.h-		//Adaptive Width Functions:
+src/include/ROC/ROCParameter.h:		//void adaptNoiseOffsetProposalWidth(unsigned adaptationWidth, bool adapt);
+src/include/ROC/ROCParameter.h-
+src/include/ROC/ROCParameter.h-		//Other Functions:
+src/include/ROC/ROCParameter.h-		//void setNumObservedPhiSets(unsigned _phiGroupings);
+src/include/ROC/ROCParameter.h-		void getParameterForCategory(unsigned category, unsigned parameter, std::string aa, bool proposal, double *returnValue);
+src/include/ROC/ROCParameter.h-
+--
+src/include/base/Parameter.h-
+src/include/base/Parameter.h-		//Adaptive Width Functions:
+src/include/base/Parameter.h:		void adaptNoiseOffsetProposalWidth(unsigned adaptationWidth, bool adapt);
+src/include/base/Parameter.h-
+src/include/base/Parameter.h-		//Iteration Functions: All tested
+src/include/base/Parameter.h-		unsigned getLastIteration();
+src/include/base/Parameter.h-		void setLastIteration(unsigned iteration);
+src/include/base/Parameter.h-
+--
+src/include/base/Parameter.h-
+src/include/base/Parameter.h-		//Adaptive Width Functions: TODO: test
+src/include/base/Parameter.h:		void adaptStdDevSynthesisRateProposalWidth(unsigned adaptationWidth, bool adapt);
+src/include/base/Parameter.h:		void adaptSynthesisRateProposalWidth(unsigned adaptationWidth, bool adapt);
+src/include/base/Parameter.h:		virtual void adaptCodonSpecificParameterProposalWidth(unsigned adaptationWidth, unsigned lastIteration, bool adapt);
+src/include/base/Parameter.h-
+src/include/base/Parameter.h-
+src/include/base/Parameter.h-		//Posterior, Variance, and Estimates Functions: TODO: test
+src/include/base/Parameter.h-		double getStdDevSynthesisRatePosteriorMean(unsigned samples, unsigned mixture);
+src/include/base/Parameter.h-		double getSynthesisRatePosteriorMean(unsigned samples, unsigned geneIndex, bool log_scale=false);
+--
+src/include/PANSE/PANSEParameter.h-
+src/include/PANSE/PANSEParameter.h-		//Adaptive Width Functions:
+src/include/PANSE/PANSEParameter.h:		void adaptCodonSpecificParameterProposalWidth(unsigned adaptationWidth, unsigned lastIteration, bool adapt); //may make virtual
+src/include/PANSE/PANSEParameter.h:		void adaptPartitionFunctionProposalWidth(unsigned adaptationWidth, bool adapt);
+src/include/PANSE/PANSEParameter.h-
+src/include/PANSE/PANSEParameter.h-		//Other functions:
+src/include/PANSE/PANSEParameter.h-		double getParameterForCategory(unsigned category, unsigned paramType, std::string codon, bool proposal);
+src/include/PANSE/PANSEParameter.h-
+src/include/PANSE/PANSEParameter.h-		//For setting Y value
+--
+src/include/PA/PAParameter.h-
+src/include/PA/PAParameter.h-		//Adaptive Width Functions:
+src/include/PA/PAParameter.h:		void adaptCodonSpecificParameterProposalWidth(unsigned adaptationWidth, unsigned lastIteration, bool adapt); //may make virtual
+src/include/PA/PAParameter.h-
+src/include/PA/PAParameter.h-
+src/include/PA/PAParameter.h-		//Other functions:
+src/include/PA/PAParameter.h-		double getParameterForCategory(unsigned category, unsigned paramType, std::string codon, bool proposal);
+src/include/PA/PAParameter.h-
+--
+src/include/FONSE/FONSEParameter.h-		void updateInitiationCost();
+src/include/FONSE/FONSEParameter.h-		double getCurrentInitiationCostProposalWidth();
+src/include/FONSE/FONSEParameter.h:		void adaptInitiationCostProposalWidth(unsigned adaptationWidth, bool adapt);
+src/include/FONSE/FONSEParameter.h-
+src/include/FONSE/FONSEParameter.h-		void fixDM();
+src/include/FONSE/FONSEParameter.h-		void fixDOmega();
+src/include/FONSE/FONSEParameter.h-		bool isDMFixed();
+src/include/FONSE/FONSEParameter.h-		bool isDOmegaFixed();

@@ -1,0 +1,945 @@
+man/initializeMCMCObject.Rd-samples <- 2500
+man/initializeMCMCObject.Rd-thinning <- 50
+man/initializeMCMCObject.Rd:adaptiveWidth <- 25
+man/initializeMCMCObject.Rd-
+man/initializeMCMCObject.Rd-## estimate all parameter types
+man/initializeMCMCObject.Rd:mcmc <- initializeMCMCObject(samples = samples, thinning = thinning, adaptive.width=adaptiveWidth, 
+man/initializeMCMCObject.Rd-                             est.expression=TRUE, est.csp=TRUE, est.hyper=TRUE, est.mix = TRUE) 
+man/initializeMCMCObject.Rd-                             
+man/initializeMCMCObject.Rd-## do not estimate expression values, initial conditions will remain constant
+man/initializeMCMCObject.Rd:mcmc <- initializeMCMCObject(samples = samples, thinning = thinning, adaptive.width=adaptiveWidth, 
+man/initializeMCMCObject.Rd-                             est.expression=FALSE, est.csp=TRUE, est.hyper=TRUE, est.mix = TRUE) 
+man/initializeMCMCObject.Rd-                             
+man/initializeMCMCObject.Rd-## do not estimate hyper parameters, initial conditions will remain constant
+man/initializeMCMCObject.Rd:mcmc <- initializeMCMCObject(samples = samples, thinning = thinning, adaptive.width=adaptiveWidth, 
+man/initializeMCMCObject.Rd-                             est.expression=TRUE, est.csp=TRUE, est.hyper=FALSE, est.mix = TRUE) 
+man/initializeMCMCObject.Rd-
+man/initializeMCMCObject.Rd-}
+--
+man/getCSPEstimates.Rd-samples <- 2500
+man/getCSPEstimates.Rd-thinning <- 50
+man/getCSPEstimates.Rd:adaptiveWidth <- 25
+man/getCSPEstimates.Rd-mcmc <- initializeMCMCObject(samples = samples, thinning = thinning, 
+man/getCSPEstimates.Rd:                             adaptive.width=adaptiveWidth, est.expression=TRUE, 
+man/getCSPEstimates.Rd-                             est.csp=TRUE, est.hyper=TRUE, est.mix = TRUE) 
+man/getCSPEstimates.Rd-divergence.iteration <- 10
+man/getCSPEstimates.Rd-\dontrun{
+man/getCSPEstimates.Rd-runMCMC(mcmc = mcmc, genome = genome, model = model, 
+man/getCSPEstimates.Rd-        ncores = 4, divergence.iteration = divergence.iteration)
+--
+man/getSelectionCoefficients.Rd-samples <- 2500
+man/getSelectionCoefficients.Rd-thinning <- 50
+man/getSelectionCoefficients.Rd:adaptiveWidth <- 25
+man/getSelectionCoefficients.Rd-mcmc <- initializeMCMCObject(samples = samples, thinning = thinning, 
+man/getSelectionCoefficients.Rd:                             adaptive.width=adaptiveWidth, est.expression=TRUE, 
+man/getSelectionCoefficients.Rd-                             est.csp=TRUE, est.hyper=TRUE, est.mix = TRUE) 
+man/getSelectionCoefficients.Rd-divergence.iteration <- 10
+man/getSelectionCoefficients.Rd-\dontrun{
+man/getSelectionCoefficients.Rd-runMCMC(mcmc = mcmc, genome = genome, model = model, 
+man/getSelectionCoefficients.Rd-        ncores = 4, divergence.iteration = divergence.iteration)
+--
+man/convergence.test.Rd-samples <- 2500
+man/convergence.test.Rd-thinning <- 50
+man/convergence.test.Rd:adaptiveWidth <- 25
+man/convergence.test.Rd-mcmc <- initializeMCMCObject(samples = samples, thinning = thinning, 
+man/convergence.test.Rd:                             adaptive.width=adaptiveWidth, est.expression=TRUE, 
+man/convergence.test.Rd-                             est.csp=TRUE, est.hyper=TRUE, est.mix = TRUE) 
+man/convergence.test.Rd-divergence.iteration <- 10
+man/convergence.test.Rd-\dontrun{
+man/convergence.test.Rd-runMCMC(mcmc = mcmc, genome = genome, model = model, 
+man/convergence.test.Rd-        ncores = 4, divergence.iteration = divergence.iteration)
+--
+man/setRestartSettings.Rd-samples <- 2500
+man/setRestartSettings.Rd-thinning <- 50
+man/setRestartSettings.Rd:adaptiveWidth <- 25
+man/setRestartSettings.Rd-
+man/setRestartSettings.Rd-## estimate all parameter types
+man/setRestartSettings.Rd-mcmc <- initializeMCMCObject(samples = samples, thinning = thinning, 
+man/setRestartSettings.Rd:                             adaptive.width=adaptiveWidth, est.expression=TRUE, 
+man/setRestartSettings.Rd-                             est.csp=TRUE, est.hyper=TRUE, est.mix = TRUE) 
+man/setRestartSettings.Rd-                             
+man/setRestartSettings.Rd-# prompts the mcmc to write a restart file every 100 samples during the run.
+man/setRestartSettings.Rd-setRestartSettings(mcmc = mcmc, filename = "test_restart", samples = 100)
+man/setRestartSettings.Rd-
+--
+man/getMixtureAssignmentEstimate.Rd-samples <- 2500
+man/getMixtureAssignmentEstimate.Rd-thinning <- 50
+man/getMixtureAssignmentEstimate.Rd:adaptiveWidth <- 25
+man/getMixtureAssignmentEstimate.Rd:mcmc <- initializeMCMCObject(samples = samples, thinning = thinning, adaptive.width=adaptiveWidth, 
+man/getMixtureAssignmentEstimate.Rd-                             est.expression=TRUE, est.csp=TRUE, est.hyper=TRUE, est.mix = TRUE) 
+man/getMixtureAssignmentEstimate.Rd-divergence.iteration <- 10
+man/getMixtureAssignmentEstimate.Rd-\dontrun{
+man/getMixtureAssignmentEstimate.Rd-runMCMC(mcmc = mcmc, genome = genome, model = model, 
+man/getMixtureAssignmentEstimate.Rd-        ncores = 4, divergence.iteration = divergence.iteration)
+--
+man/setAdaptiveWidth.Rd-\title{setAdaptiveWidth}
+man/setAdaptiveWidth.Rd-\arguments{
+man/setAdaptiveWidth.Rd:\item{_adaptiveWidth}{postive value}
+man/setAdaptiveWidth.Rd-}
+man/setAdaptiveWidth.Rd-\description{
+man/setAdaptiveWidth.Rd:Method of MCMC class (access via mcmc$<function name>, where mcmc is an object initialized by initializeMCMCObject). Set sample adaptiveWidth value, which is the number of samples (not iterations) between adapting parameter proposal widths
+man/setAdaptiveWidth.Rd-}
+--
+man/writeMCMCObject.Rd-samples <- 2500
+man/writeMCMCObject.Rd-thinning <- 50
+man/writeMCMCObject.Rd:adaptiveWidth <- 25
+man/writeMCMCObject.Rd-mcmc <- initializeMCMCObject(samples = samples, thinning = thinning, 
+man/writeMCMCObject.Rd:                             adaptive.width=adaptiveWidth, est.expression=TRUE, 
+man/writeMCMCObject.Rd-                             est.csp=TRUE, est.hyper=TRUE, est.mix = TRUE) 
+man/writeMCMCObject.Rd-divergence.iteration <- 10
+man/writeMCMCObject.Rd-\dontrun{
+man/writeMCMCObject.Rd-runMCMC(mcmc = mcmc, genome = genome, model = model, 
+man/writeMCMCObject.Rd-        ncores = 4, divergence.iteration = divergence.iteration)
+--
+man/getExpressionEstimates.Rd-samples <- 2500
+man/getExpressionEstimates.Rd-thinning <- 50
+man/getExpressionEstimates.Rd:adaptiveWidth <- 25
+man/getExpressionEstimates.Rd-mcmc <- initializeMCMCObject(samples = samples, thinning = thinning, 
+man/getExpressionEstimates.Rd:                             adaptive.width=adaptiveWidth, est.expression=TRUE,
+man/getExpressionEstimates.Rd-                             est.csp=TRUE, est.hyper=TRUE, est.mix = TRUE) 
+man/getExpressionEstimates.Rd-divergence.iteration <- 10
+man/getExpressionEstimates.Rd-\dontrun{
+man/getExpressionEstimates.Rd-runMCMC(mcmc = mcmc, genome = genome, model = model, 
+man/getExpressionEstimates.Rd-        ncores = 4, divergence.iteration = divergence.iteration)
+--
+man/runMCMC.Rd-samples <- 2500
+man/runMCMC.Rd-thinning <- 50
+man/runMCMC.Rd:adaptiveWidth <- 25
+man/runMCMC.Rd-mcmc <- initializeMCMCObject(samples = samples, thinning = thinning, 
+man/runMCMC.Rd:                             adaptive.width=adaptiveWidth, est.expression=TRUE, 
+man/runMCMC.Rd-                             est.csp=TRUE, est.hyper=TRUE, est.mix = TRUE) 
+man/runMCMC.Rd-divergence.iteration <- 10
+man/runMCMC.Rd-\dontrun{
+man/runMCMC.Rd-runMCMC(mcmc = mcmc, genome = genome, model = model, 
+man/runMCMC.Rd-        ncores = 4, divergence.iteration = divergence.iteration)
+--
+man/getAdaptiveWidth.Rd-}
+man/getAdaptiveWidth.Rd-\description{
+man/getAdaptiveWidth.Rd:Return sample adaptiveWidth value, which is the number of samples (not iterations) between adapting parameter proposal widths
+man/getAdaptiveWidth.Rd-}
+--
+man/findOptimalCodon.Rd-samples <- 2500
+man/findOptimalCodon.Rd-thinning <- 50
+man/findOptimalCodon.Rd:adaptiveWidth <- 25
+man/findOptimalCodon.Rd-mcmc <- initializeMCMCObject(samples = samples, thinning = thinning, 
+man/findOptimalCodon.Rd:                             adaptive.width=adaptiveWidth, est.expression=TRUE, 
+man/findOptimalCodon.Rd-                             est.csp=TRUE, est.hyper=TRUE, est.mix = TRUE) 
+man/findOptimalCodon.Rd-divergence.iteration <- 10
+man/findOptimalCodon.Rd-\dontrun{
+man/findOptimalCodon.Rd-runMCMC(mcmc = mcmc, genome = genome, model = model, 
+man/findOptimalCodon.Rd-        ncores = 4, divergence.iteration = divergence.iteration)
+--
+R/mcmcObject.R-#' samples <- 2500
+R/mcmcObject.R-#' thinning <- 50
+R/mcmcObject.R:#' adaptiveWidth <- 25
+R/mcmcObject.R-#' 
+R/mcmcObject.R-#' ## estimate all parameter types
+R/mcmcObject.R:#' mcmc <- initializeMCMCObject(samples = samples, thinning = thinning, adaptive.width=adaptiveWidth, 
+R/mcmcObject.R-#'                              est.expression=TRUE, est.csp=TRUE, est.hyper=TRUE, est.mix = TRUE) 
+R/mcmcObject.R-#'                              
+R/mcmcObject.R-#' ## do not estimate expression values, initial conditions will remain constant
+R/mcmcObject.R:#' mcmc <- initializeMCMCObject(samples = samples, thinning = thinning, adaptive.width=adaptiveWidth, 
+R/mcmcObject.R-#'                              est.expression=FALSE, est.csp=TRUE, est.hyper=TRUE, est.mix = TRUE) 
+R/mcmcObject.R-#'                              
+R/mcmcObject.R-#' ## do not estimate hyper parameters, initial conditions will remain constant
+R/mcmcObject.R:#' mcmc <- initializeMCMCObject(samples = samples, thinning = thinning, adaptive.width=adaptiveWidth, 
+R/mcmcObject.R-#'                              est.expression=TRUE, est.csp=TRUE, est.hyper=FALSE, est.mix = TRUE) 
+R/mcmcObject.R-#' 
+R/mcmcObject.R-initializeMCMCObject <- function(samples, thinning=1, adaptive.width=100, 
+R/mcmcObject.R-                                 est.expression=TRUE, est.csp=TRUE, 
+R/mcmcObject.R-                                 est.hyper=TRUE, est.mix=TRUE){
+--
+R/mcmcObject.R-#' samples <- 2500
+R/mcmcObject.R-#' thinning <- 50
+R/mcmcObject.R:#' adaptiveWidth <- 25
+R/mcmcObject.R-#' mcmc <- initializeMCMCObject(samples = samples, thinning = thinning, 
+R/mcmcObject.R:#'                              adaptive.width=adaptiveWidth, est.expression=TRUE, 
+R/mcmcObject.R-#'                              est.csp=TRUE, est.hyper=TRUE, est.mix = TRUE) 
+R/mcmcObject.R-#' divergence.iteration <- 10
+R/mcmcObject.R-#' \dontrun{
+R/mcmcObject.R-#' runMCMC(mcmc = mcmc, genome = genome, model = model, 
+R/mcmcObject.R-#'         ncores = 4, divergence.iteration = divergence.iteration)
+--
+R/mcmcObject.R-#' samples <- 2500
+R/mcmcObject.R-#' thinning <- 50
+R/mcmcObject.R:#' adaptiveWidth <- 25
+R/mcmcObject.R-#' 
+R/mcmcObject.R-#' ## estimate all parameter types
+R/mcmcObject.R-#' mcmc <- initializeMCMCObject(samples = samples, thinning = thinning, 
+R/mcmcObject.R:#'                              adaptive.width=adaptiveWidth, est.expression=TRUE, 
+R/mcmcObject.R-#'                              est.csp=TRUE, est.hyper=TRUE, est.mix = TRUE) 
+R/mcmcObject.R-#'                              
+R/mcmcObject.R-#' # prompts the mcmc to write a restart file every 100 samples during the run.
+R/mcmcObject.R-#' setRestartSettings(mcmc = mcmc, filename = "test_restart", samples = 100)
+R/mcmcObject.R-#' 
+--
+R/mcmcObject.R-#' samples <- 2500
+R/mcmcObject.R-#' thinning <- 50
+R/mcmcObject.R:#' adaptiveWidth <- 25
+R/mcmcObject.R-#' mcmc <- initializeMCMCObject(samples = samples, thinning = thinning, 
+R/mcmcObject.R:#'                              adaptive.width=adaptiveWidth, est.expression=TRUE, 
+R/mcmcObject.R-#'                              est.csp=TRUE, est.hyper=TRUE, est.mix = TRUE) 
+R/mcmcObject.R-#' divergence.iteration <- 10
+R/mcmcObject.R-#' \dontrun{
+R/mcmcObject.R-#' runMCMC(mcmc = mcmc, genome = genome, model = model, 
+R/mcmcObject.R-#'         ncores = 4, divergence.iteration = divergence.iteration)
+--
+R/mcmcObject.R-#' samples <- 2500
+R/mcmcObject.R-#' thinning <- 50
+R/mcmcObject.R:#' adaptiveWidth <- 25
+R/mcmcObject.R-#' mcmc <- initializeMCMCObject(samples = samples, thinning = thinning, 
+R/mcmcObject.R:#'                              adaptive.width=adaptiveWidth, est.expression=TRUE, 
+R/mcmcObject.R-#'                              est.csp=TRUE, est.hyper=TRUE, est.mix = TRUE) 
+R/mcmcObject.R-#' divergence.iteration <- 10
+R/mcmcObject.R-#' \dontrun{
+R/mcmcObject.R-#' runMCMC(mcmc = mcmc, genome = genome, model = model, 
+R/mcmcObject.R-#'         ncores = 4, divergence.iteration = divergence.iteration)
+--
+R/mcmcObject.R-  samples <- mcmc$getSamples()
+R/mcmcObject.R-  thinning <- mcmc$getThinning()
+R/mcmcObject.R:  adaptiveWidth <- mcmc$getAdaptiveWidth()
+R/mcmcObject.R:  save(list = c("logPostTrace","logLikeTrace", "samples", "thinning", "adaptiveWidth"), file=file)
+R/mcmcObject.R-}
+R/mcmcObject.R-
+R/mcmcObject.R-
+R/mcmcObject.R-#' Load MCMC Object
+R/mcmcObject.R-#' 
+--
+R/mcmcObject.R-    mcmc$setSamples(samples)
+R/mcmcObject.R-    mcmc$setThinning(tempEnv$thinning) #not needed?
+R/mcmcObject.R:    mcmc$setAdaptiveWidth(tempEnv$adaptiveWidth) #not needed?
+R/mcmcObject.R-    mcmc$setLogPosteriorTrace(logPostTrace)
+R/mcmcObject.R-    mcmc$setLogLikelihoodTrace(logLikeTrace)
+R/mcmcObject.R-
+R/mcmcObject.R-  return(mcmc)
+R/mcmcObject.R-}
+--
+R/RcppExports.R-#' @name getAdaptiveWidth
+R/RcppExports.R-#' @title getAdaptiveWidth
+R/RcppExports.R:#' @description Return sample adaptiveWidth value, which is the number of samples (not iterations) between adapting parameter proposal widths
+R/RcppExports.R-#' @return number of sample steps between adapting proposal widths
+R/RcppExports.R-NULL
+R/RcppExports.R-
+R/RcppExports.R-#' @name setSamples
+R/RcppExports.R-#' @title setSamples
+--
+R/RcppExports.R-#' @name setAdaptiveWidth
+R/RcppExports.R-#' @title setAdaptiveWidth
+R/RcppExports.R:#' @description  Method of MCMC class (access via mcmc$<function name>, where mcmc is an object initialized by initializeMCMCObject). Set sample adaptiveWidth value, which is the number of samples (not iterations) between adapting parameter proposal widths
+R/RcppExports.R:#' @param _adaptiveWidth postive value
+R/RcppExports.R-NULL
+R/RcppExports.R-
+R/RcppExports.R-#' @name simulateGenome
+R/RcppExports.R-#' @title simulateGenome
+R/RcppExports.R-#' @description Method of Model class (access via model$<function name>, where model is an object initialized by initializeModelObject). Will simulate a version of the given genome using the current set of parameters stored in the Parameter object. This can be written to a FASTA file using genome$writeFasta(<filename>,simulated = TRUE).
+--
+R/parameterObject.R-#' samples <- 2500
+R/parameterObject.R-#' thinning <- 50
+R/parameterObject.R:#' adaptiveWidth <- 25
+R/parameterObject.R-#' mcmc <- initializeMCMCObject(samples = samples, thinning = thinning, 
+R/parameterObject.R:#'                              adaptive.width=adaptiveWidth, est.expression=TRUE, 
+R/parameterObject.R-#'                              est.csp=TRUE, est.hyper=TRUE, est.mix = TRUE) 
+R/parameterObject.R-#' divergence.iteration <- 10
+R/parameterObject.R-#' \dontrun{
+R/parameterObject.R-#' runMCMC(mcmc = mcmc, genome = genome, model = model, 
+R/parameterObject.R-#'         ncores = 4, divergence.iteration = divergence.iteration)
+--
+R/parameterObject.R-#' samples <- 2500
+R/parameterObject.R-#' thinning <- 50
+R/parameterObject.R:#' adaptiveWidth <- 25
+R/parameterObject.R-#' mcmc <- initializeMCMCObject(samples = samples, thinning = thinning, 
+R/parameterObject.R:#'                              adaptive.width=adaptiveWidth, est.expression=TRUE, 
+R/parameterObject.R-#'                              est.csp=TRUE, est.hyper=TRUE, est.mix = TRUE) 
+R/parameterObject.R-#' divergence.iteration <- 10
+R/parameterObject.R-#' \dontrun{
+R/parameterObject.R-#' runMCMC(mcmc = mcmc, genome = genome, model = model, 
+R/parameterObject.R-#'         ncores = 4, divergence.iteration = divergence.iteration)
+--
+R/parameterObject.R-#' samples <- 2500
+R/parameterObject.R-#' thinning <- 50
+R/parameterObject.R:#' adaptiveWidth <- 25
+R/parameterObject.R-#' mcmc <- initializeMCMCObject(samples = samples, thinning = thinning, 
+R/parameterObject.R:#'                              adaptive.width=adaptiveWidth, est.expression=TRUE, 
+R/parameterObject.R-#'                              est.csp=TRUE, est.hyper=TRUE, est.mix = TRUE) 
+R/parameterObject.R-#' divergence.iteration <- 10
+R/parameterObject.R-#' \dontrun{
+R/parameterObject.R-#' runMCMC(mcmc = mcmc, genome = genome, model = model, 
+R/parameterObject.R-#'         ncores = 4, divergence.iteration = divergence.iteration)
+--
+R/parameterObject.R-#' samples <- 2500
+R/parameterObject.R-#' thinning <- 50
+R/parameterObject.R:#' adaptiveWidth <- 25
+R/parameterObject.R:#' mcmc <- initializeMCMCObject(samples = samples, thinning = thinning, adaptive.width=adaptiveWidth, 
+R/parameterObject.R-#'                              est.expression=TRUE, est.csp=TRUE, est.hyper=TRUE, est.mix = TRUE) 
+R/parameterObject.R-#' divergence.iteration <- 10
+R/parameterObject.R-#' \dontrun{
+R/parameterObject.R-#' runMCMC(mcmc = mcmc, genome = genome, model = model, 
+R/parameterObject.R-#'         ncores = 4, divergence.iteration = divergence.iteration)
+--
+R/parameterObject.R-#' samples <- 2500
+R/parameterObject.R-#' thinning <- 50
+R/parameterObject.R:#' adaptiveWidth <- 25
+R/parameterObject.R-#' mcmc <- initializeMCMCObject(samples = samples, thinning = thinning, 
+R/parameterObject.R:#'                              adaptive.width=adaptiveWidth, est.expression=TRUE,
+R/parameterObject.R-#'                              est.csp=TRUE, est.hyper=TRUE, est.mix = TRUE) 
+R/parameterObject.R-#' divergence.iteration <- 10
+R/parameterObject.R-#' \dontrun{
+R/parameterObject.R-#' runMCMC(mcmc = mcmc, genome = genome, model = model, 
+R/parameterObject.R-#'         ncores = 4, divergence.iteration = divergence.iteration)
+--
+src/MCMCAlgorithm.cpp-* this case, so every iteration trace values will be stored. All parameters are estimated.
+src/MCMCAlgorithm.cpp-*/
+src/MCMCAlgorithm.cpp:MCMCAlgorithm::MCMCAlgorithm() : samples(1000), thinning(1), adaptiveWidth(100 * thinning), estimateSynthesisRate(true),
+src/MCMCAlgorithm.cpp-	estimateCodonSpecificParameter(true), estimateHyperParameter(true)
+src/MCMCAlgorithm.cpp-{
+src/MCMCAlgorithm.cpp-	posteriorTrace.resize(samples + 1); // +1 for storing initial evaluation
+src/MCMCAlgorithm.cpp-	likelihoodTrace.resize(samples + 1);
+src/MCMCAlgorithm.cpp-
+--
+src/MCMCAlgorithm.cpp-* can be changed, bool for where the synthesis rate, codon specific, and hyper parameters are estimated (respectively)
+src/MCMCAlgorithm.cpp-* Sets up the object with the given parameters. 
+src/MCMCAlgorithm.cpp:* NOTE: Internally, adaptiveWidth reset to adaptiveWidth * thinning.
+src/MCMCAlgorithm.cpp-* NOTE: hyper parameters normally affect synthesis rate parameters, so either both should be turned on or neither (mikeg: Why?).
+src/MCMCAlgorithm.cpp-*/
+src/MCMCAlgorithm.cpp:MCMCAlgorithm::MCMCAlgorithm(unsigned _samples, unsigned _thinning, unsigned _adaptiveWidth, bool _estimateSynthesisRate,
+src/MCMCAlgorithm.cpp-							 bool _estimateCodonSpecificParameter, bool _estimateHyperParameter) : samples(_samples),
+src/MCMCAlgorithm.cpp:							 thinning(_thinning), adaptiveWidth(_adaptiveWidth * thinning),
+src/MCMCAlgorithm.cpp-							 estimateSynthesisRate(_estimateSynthesisRate),
+src/MCMCAlgorithm.cpp-							 estimateCodonSpecificParameter(_estimateCodonSpecificParameter),
+src/MCMCAlgorithm.cpp-							 estimateHyperParameter(_estimateHyperParameter)
+src/MCMCAlgorithm.cpp-{
+src/MCMCAlgorithm.cpp-	posteriorTrace.resize(samples + 1);// +1 for storing initial evaluation
+--
+src/MCMCAlgorithm.cpp-			
+src/MCMCAlgorithm.cpp-            //TODO:Probably do a nan check
+src/MCMCAlgorithm.cpp:            // NOTE: adaptiveWidth in units of iteration, not samples
+src/MCMCAlgorithm.cpp:			if ((iteration % adaptiveWidth) == 0u)
+src/MCMCAlgorithm.cpp:				model.adaptCodonSpecificParameterProposalWidth(adaptiveWidth, iteration / thinning, iteration <= stepsToAdapt);
+src/MCMCAlgorithm.cpp-		}
+src/MCMCAlgorithm.cpp-		// update hyper parameter
+src/MCMCAlgorithm.cpp-		if (estimateHyperParameter)
+src/MCMCAlgorithm.cpp-		{
+src/MCMCAlgorithm.cpp-			model.updateGibbsSampledHyperParameters(genome);
+--
+src/MCMCAlgorithm.cpp-			acceptRejectHyperParameter(genome, model, iteration);
+src/MCMCAlgorithm.cpp-            //TODO:Probably do a nan check
+src/MCMCAlgorithm.cpp:			if ((iteration % adaptiveWidth) == 0u)
+src/MCMCAlgorithm.cpp:				model.adaptHyperParameterProposalWidths(adaptiveWidth, iteration <= stepsToAdapt);
+src/MCMCAlgorithm.cpp-
+src/MCMCAlgorithm.cpp-		}
+src/MCMCAlgorithm.cpp-		// update expression level values
+src/MCMCAlgorithm.cpp-		if (estimateSynthesisRate || estimateMixtureAssignment)
+src/MCMCAlgorithm.cpp-		{
+--
+src/MCMCAlgorithm.cpp-				}
+src/MCMCAlgorithm.cpp-			}
+src/MCMCAlgorithm.cpp:			if ((iteration % adaptiveWidth) == 0u)
+src/MCMCAlgorithm.cpp:				model.adaptSynthesisRateProposalWidth(adaptiveWidth, iteration <= stepsToAdapt);
+src/MCMCAlgorithm.cpp-  		}
+src/MCMCAlgorithm.cpp-
+src/MCMCAlgorithm.cpp-
+src/MCMCAlgorithm.cpp-
+src/MCMCAlgorithm.cpp:		if ((iteration % (50 * adaptiveWidth)) == 0u)
+src/MCMCAlgorithm.cpp-		{
+src/MCMCAlgorithm.cpp-			double gewekeScore = calculateGewekeScore(iteration/thinning);
+src/MCMCAlgorithm.cpp-
+src/MCMCAlgorithm.cpp-			my_print("##################################################\n");
+src/MCMCAlgorithm.cpp-			my_print("Geweke Score after % iterations: %\n", iteration, gewekeScore);
+--
+src/MCMCAlgorithm.cpp-			
+src/MCMCAlgorithm.cpp-            //TODO:Probably do a nan check
+src/MCMCAlgorithm.cpp:			if ((iteration % adaptiveWidth) == 0u)
+src/MCMCAlgorithm.cpp:				model.adaptCodonSpecificParameterProposalWidth(adaptiveWidth, iteration / thinning, iteration <= stepsToAdapt);
+src/MCMCAlgorithm.cpp-		}
+src/MCMCAlgorithm.cpp-		// update hyper parameter
+src/MCMCAlgorithm.cpp-		if (estimateHyperParameter)
+src/MCMCAlgorithm.cpp-		{
+src/MCMCAlgorithm.cpp-			model.updateGibbsSampledHyperParameters(genome);
+--
+src/MCMCAlgorithm.cpp-			acceptRejectHyperParameter(genome, model, iteration);
+src/MCMCAlgorithm.cpp-            //TODO:Probably do a nan check
+src/MCMCAlgorithm.cpp:			if ((iteration % adaptiveWidth) == 0u)
+src/MCMCAlgorithm.cpp:				model.adaptHyperParameterProposalWidths(adaptiveWidth, iteration <= stepsToAdapt);
+src/MCMCAlgorithm.cpp-
+src/MCMCAlgorithm.cpp-		}
+src/MCMCAlgorithm.cpp-		// update expression level values
+src/MCMCAlgorithm.cpp-		if (estimateSynthesisRate || estimateMixtureAssignment)
+src/MCMCAlgorithm.cpp-		{
+--
+src/MCMCAlgorithm.cpp-				}
+src/MCMCAlgorithm.cpp-			}
+src/MCMCAlgorithm.cpp:			if ((iteration % adaptiveWidth) == 0u)
+src/MCMCAlgorithm.cpp:				model.adaptSynthesisRateProposalWidth(adaptiveWidth, iteration <= stepsToAdapt);
+src/MCMCAlgorithm.cpp-  		}
+src/MCMCAlgorithm.cpp-
+src/MCMCAlgorithm.cpp-
+src/MCMCAlgorithm.cpp-
+src/MCMCAlgorithm.cpp:		if ((iteration % (50 * adaptiveWidth)) == 0u)
+src/MCMCAlgorithm.cpp-		{
+src/MCMCAlgorithm.cpp-			double gewekeScore = calculateGewekeScore(iteration/thinning);
+src/MCMCAlgorithm.cpp-
+src/MCMCAlgorithm.cpp-			my_print("##################################################\n");
+src/MCMCAlgorithm.cpp-			my_print("Geweke Score after % iterations: %\n", iteration, gewekeScore);
+--
+src/MCMCAlgorithm.cpp-/* getAdaptiveWidth (RCPP EXPOSED)
+src/MCMCAlgorithm.cpp- * Arguments: None
+src/MCMCAlgorithm.cpp: * Return adaptiveWidth.
+src/MCMCAlgorithm.cpp-*/
+src/MCMCAlgorithm.cpp-//' @name getAdaptiveWidth
+src/MCMCAlgorithm.cpp-//' @title getAdaptiveWidth
+src/MCMCAlgorithm.cpp://' @description Return sample adaptiveWidth value, which is the number of samples (not iterations) between adapting parameter proposal widths
+src/MCMCAlgorithm.cpp-//' @return number of sample steps between adapting proposal widths
+src/MCMCAlgorithm.cpp-unsigned MCMCAlgorithm::getAdaptiveWidth()
+src/MCMCAlgorithm.cpp-{
+src/MCMCAlgorithm.cpp:    return adaptiveWidth;
+src/MCMCAlgorithm.cpp-}
+src/MCMCAlgorithm.cpp-
+src/MCMCAlgorithm.cpp-
+src/MCMCAlgorithm.cpp-/* setSamples (RCPP EXPOSED)
+src/MCMCAlgorithm.cpp- * Arguments: None
+--
+src/MCMCAlgorithm.cpp-/* setAdaptiveWidth (RCPP EXPOSED)
+src/MCMCAlgorithm.cpp- * Arguments: None
+src/MCMCAlgorithm.cpp: * Change adaptiveWidth.
+src/MCMCAlgorithm.cpp-*/
+src/MCMCAlgorithm.cpp-//' @name setAdaptiveWidth
+src/MCMCAlgorithm.cpp-//' @title setAdaptiveWidth
+src/MCMCAlgorithm.cpp://' @description  Method of MCMC class (access via mcmc$<function name>, where mcmc is an object initialized by initializeMCMCObject). Set sample adaptiveWidth value, which is the number of samples (not iterations) between adapting parameter proposal widths
+src/MCMCAlgorithm.cpp://' @param _adaptiveWidth postive value
+src/MCMCAlgorithm.cpp-
+src/MCMCAlgorithm.cpp:void MCMCAlgorithm::setAdaptiveWidth(unsigned _adaptiveWidth)
+src/MCMCAlgorithm.cpp-{
+src/MCMCAlgorithm.cpp:    adaptiveWidth = _adaptiveWidth;
+src/MCMCAlgorithm.cpp-}
+src/MCMCAlgorithm.cpp-
+src/MCMCAlgorithm.cpp-
+src/MCMCAlgorithm.cpp-/* setLogPosteriorTrace (RCPP EXPOSED)
+src/MCMCAlgorithm.cpp- * Arguments: None
+--
+src/FONSEModel.cpp-
+src/FONSEModel.cpp-
+src/FONSEModel.cpp:void FONSEModel::adaptStdDevSynthesisRateProposalWidth(unsigned adaptiveWidth, bool adapt)
+src/FONSEModel.cpp-{
+src/FONSEModel.cpp:	parameter->adaptStdDevSynthesisRateProposalWidth(adaptiveWidth, adapt);
+src/FONSEModel.cpp-}
+src/FONSEModel.cpp-
+src/FONSEModel.cpp-
+src/FONSEModel.cpp:void FONSEModel::adaptInitiationCostProposalWidth(unsigned adaptiveWidth, bool adapt)
+src/FONSEModel.cpp-{
+src/FONSEModel.cpp:	parameter->adaptInitiationCostProposalWidth(adaptiveWidth, adapt);
+src/FONSEModel.cpp-}
+src/FONSEModel.cpp-
+src/FONSEModel.cpp:void FONSEModel::adaptSynthesisRateProposalWidth(unsigned adaptiveWidth, bool adapt)
+src/FONSEModel.cpp-{
+src/FONSEModel.cpp:	parameter->adaptSynthesisRateProposalWidth(adaptiveWidth, adapt);
+src/FONSEModel.cpp-}
+src/FONSEModel.cpp-
+src/FONSEModel.cpp-
+src/FONSEModel.cpp:void FONSEModel::adaptCodonSpecificParameterProposalWidth(unsigned adaptiveWidth, unsigned lastIteration, bool adapt)
+src/FONSEModel.cpp-{
+src/FONSEModel.cpp:	parameter->adaptCodonSpecificParameterProposalWidth(adaptiveWidth, lastIteration, adapt);
+src/FONSEModel.cpp-}
+src/FONSEModel.cpp-
+src/FONSEModel.cpp-
+src/FONSEModel.cpp:void FONSEModel::adaptHyperParameterProposalWidths(unsigned adaptiveWidth, bool adapt)
+src/FONSEModel.cpp-{
+src/FONSEModel.cpp:	adaptStdDevSynthesisRateProposalWidth(adaptiveWidth, adapt);
+src/FONSEModel.cpp:	adaptInitiationCostProposalWidth(adaptiveWidth,adapt);
+src/FONSEModel.cpp-	if (withPhi)
+src/FONSEModel.cpp:		adaptNoiseOffsetProposalWidth(adaptiveWidth, adapt);
+src/FONSEModel.cpp-}
+src/FONSEModel.cpp-
+src/FONSEModel.cpp-
+src/FONSEModel.cpp-
+src/FONSEModel.cpp-
+--
+src/FONSEModel.cpp-
+src/FONSEModel.cpp-
+src/FONSEModel.cpp:void FONSEModel::adaptNoiseOffsetProposalWidth(unsigned adaptiveWidth, bool adapt)
+src/FONSEModel.cpp-{
+src/FONSEModel.cpp:	parameter->adaptNoiseOffsetProposalWidth(adaptiveWidth, adapt);
+src/FONSEModel.cpp-}
+src/FONSEModel.cpp-
+src/FONSEModel.cpp-
+src/FONSEModel.cpp-
+src/FONSEModel.cpp-void FONSEModel::updateGibbsSampledHyperParameters(Genome &genome)
+--
+src/Model.cpp-
+src/Model.cpp-
+src/Model.cpp:// void Model::adaptNoiseOffsetProposalWidth(unsigned adaptiveWidth, bool adapt)
+src/Model.cpp-// {
+src/Model.cpp:// 	parameter->adaptNoiseOffsetProposalWidth(adaptiveWidth, adapt);
+src/Model.cpp-// }
+src/Model.cpp-
+src/Model.cpp-
+src/Model.cpp-
+src/Model.cpp-// void Model::updateGibbsSampledHyperParameters(Genome &genome)
+--
+src/PANSEModel.cpp-
+src/PANSEModel.cpp-
+src/PANSEModel.cpp:void PANSEModel::adaptStdDevSynthesisRateProposalWidth(unsigned adaptiveWidth, bool adapt)
+src/PANSEModel.cpp-{
+src/PANSEModel.cpp:    parameter->adaptStdDevSynthesisRateProposalWidth(adaptiveWidth, adapt);
+src/PANSEModel.cpp-}
+src/PANSEModel.cpp-
+src/PANSEModel.cpp-
+src/PANSEModel.cpp:void PANSEModel::adaptPartitionFunctionProposalWidth(unsigned adaptiveWidth, bool adapt)
+src/PANSEModel.cpp-{
+src/PANSEModel.cpp:    parameter->adaptPartitionFunctionProposalWidth(adaptiveWidth, adapt);
+src/PANSEModel.cpp-}
+src/PANSEModel.cpp-
+src/PANSEModel.cpp-
+src/PANSEModel.cpp:void PANSEModel::adaptSynthesisRateProposalWidth(unsigned adaptiveWidth, bool adapt)
+src/PANSEModel.cpp-{
+src/PANSEModel.cpp:    parameter->adaptSynthesisRateProposalWidth(adaptiveWidth, adapt);
+src/PANSEModel.cpp-}
+src/PANSEModel.cpp-
+src/PANSEModel.cpp-
+src/PANSEModel.cpp:void PANSEModel::adaptCodonSpecificParameterProposalWidth(unsigned adaptiveWidth, unsigned lastIteration, bool adapt)
+src/PANSEModel.cpp-{
+src/PANSEModel.cpp:    parameter->adaptCodonSpecificParameterProposalWidth(adaptiveWidth, lastIteration, adapt);
+src/PANSEModel.cpp-}
+src/PANSEModel.cpp-
+src/PANSEModel.cpp-
+src/PANSEModel.cpp:void PANSEModel::adaptHyperParameterProposalWidths(unsigned adaptiveWidth, bool adapt)
+src/PANSEModel.cpp-{
+src/PANSEModel.cpp:    adaptStdDevSynthesisRateProposalWidth(adaptiveWidth, adapt);
+src/PANSEModel.cpp:    adaptPartitionFunctionProposalWidth(adaptiveWidth, adapt);
+src/PANSEModel.cpp-    if (withPhi)
+src/PANSEModel.cpp:        adaptNoiseOffsetProposalWidth(adaptiveWidth, adapt);
+src/PANSEModel.cpp-}
+src/PANSEModel.cpp-
+src/PANSEModel.cpp-
+src/PANSEModel.cpp-
+src/PANSEModel.cpp-//-------------------------------------//
+--
+src/PANSEModel.cpp-
+src/PANSEModel.cpp-
+src/PANSEModel.cpp:void PANSEModel::adaptNoiseOffsetProposalWidth(unsigned adaptiveWidth, bool adapt)
+src/PANSEModel.cpp-{
+src/PANSEModel.cpp:    parameter->adaptNoiseOffsetProposalWidth(adaptiveWidth, adapt);
+src/PANSEModel.cpp-}
+src/PANSEModel.cpp-
+src/PANSEModel.cpp-
+src/PANSEModel.cpp-
+src/PANSEModel.cpp-void PANSEModel::updateGibbsSampledHyperParameters(Genome &genome)
+--
+src/include/ROC/ROCModel.h-
+src/include/ROC/ROCModel.h-		//Adaptive Width Functions:
+src/include/ROC/ROCModel.h:		virtual void adaptStdDevSynthesisRateProposalWidth(unsigned adaptiveWidth, bool adapt = true);
+src/include/ROC/ROCModel.h:		virtual void adaptSynthesisRateProposalWidth(unsigned adaptiveWidth, bool adapt = true);
+src/include/ROC/ROCModel.h:		virtual void adaptCodonSpecificParameterProposalWidth(unsigned adaptiveWidth, unsigned lastIteration, bool adapt = true);
+src/include/ROC/ROCModel.h:		virtual void adaptHyperParameterProposalWidths(unsigned adaptiveWidth, bool adapt = true);
+src/include/ROC/ROCModel.h-
+src/include/ROC/ROCModel.h-
+src/include/ROC/ROCModel.h-
+src/include/ROC/ROCModel.h-		//Other Functions:
+src/include/ROC/ROCModel.h-		virtual void proposeCodonSpecificParameter();
+--
+src/include/ROC/ROCModel.h-		virtual void updateNoiseOffsetTrace(unsigned sample);
+src/include/ROC/ROCModel.h-		virtual void updateObservedSynthesisNoiseTrace(unsigned sample);
+src/include/ROC/ROCModel.h:		virtual void adaptNoiseOffsetProposalWidth(unsigned adaptiveWidth, bool adapt = true);
+src/include/ROC/ROCModel.h-		virtual void updateGibbsSampledHyperParameters(Genome &genome);
+src/include/ROC/ROCModel.h-
+src/include/ROC/ROCModel.h-
+src/include/ROC/ROCModel.h-		//R Section:
+src/include/ROC/ROCModel.h-#ifndef STANDALONE
+--
+src/include/base/Model.h-
+src/include/base/Model.h-		//Adaptive Width Functions:
+src/include/base/Model.h:		virtual void adaptStdDevSynthesisRateProposalWidth(unsigned adaptiveWidth, bool adapt) = 0;
+src/include/base/Model.h:		virtual void adaptSynthesisRateProposalWidth(unsigned adaptiveWidth, bool adapt) = 0;
+src/include/base/Model.h:		virtual void adaptCodonSpecificParameterProposalWidth(unsigned adaptiveWidth, unsigned lastIteration,
+src/include/base/Model.h-					bool adapt) = 0;
+src/include/base/Model.h:		virtual void adaptHyperParameterProposalWidths(unsigned adaptiveWidth, bool adapt) = 0;
+src/include/base/Model.h-
+src/include/base/Model.h-		//noise functions:
+src/include/base/Model.h-		virtual double getNoiseOffset(unsigned index, bool proposed = false) = 0;
+src/include/base/Model.h-		virtual double getObservedSynthesisNoise(unsigned index) = 0;
+src/include/base/Model.h-		virtual double getCurrentNoiseOffsetProposalWidth(unsigned index) = 0;
+--
+src/include/base/Model.h-		virtual void updateNoiseOffsetTrace(unsigned sample) = 0;
+src/include/base/Model.h-		virtual void updateObservedSynthesisNoiseTrace(unsigned sample) = 0;
+src/include/base/Model.h:		virtual void adaptNoiseOffsetProposalWidth(unsigned adaptiveWidth, bool adapt = true) = 0;
+src/include/base/Model.h-		virtual void updateGibbsSampledHyperParameters(Genome &genome) = 0;
+src/include/base/Model.h-		//Other Functions:
+src/include/base/Model.h-		virtual void proposeCodonSpecificParameter() = 0;
+src/include/base/Model.h-		virtual void proposeHyperParameters() = 0;
+src/include/base/Model.h-		virtual void proposeSynthesisRateLevels() = 0;
+--
+src/include/PANSE/PANSEModel.h-
+src/include/PANSE/PANSEModel.h-		//Adaptive Width Functions:
+src/include/PANSE/PANSEModel.h:		virtual void adaptStdDevSynthesisRateProposalWidth(unsigned adaptiveWidth, bool adapt = true);
+src/include/PANSE/PANSEModel.h:        virtual void adaptPartitionFunctionProposalWidth(unsigned adaptiveWidth, bool adapt = true);
+src/include/PANSE/PANSEModel.h:		virtual void adaptSynthesisRateProposalWidth(unsigned adaptiveWidth, bool adapt = true);
+src/include/PANSE/PANSEModel.h:		virtual void adaptCodonSpecificParameterProposalWidth(unsigned adaptiveWidth, unsigned lastIteration, bool adapt = true);
+src/include/PANSE/PANSEModel.h:		virtual void adaptHyperParameterProposalWidths(unsigned adaptiveWidth, bool adapt = true);
+src/include/PANSE/PANSEModel.h-
+src/include/PANSE/PANSEModel.h-
+src/include/PANSE/PANSEModel.h-		//Other Functions:
+src/include/PANSE/PANSEModel.h-		virtual void proposeCodonSpecificParameter();
+src/include/PANSE/PANSEModel.h-		virtual void proposeHyperParameters();
+--
+src/include/PANSE/PANSEModel.h-		virtual void updateNoiseOffsetTrace(unsigned sample);
+src/include/PANSE/PANSEModel.h-		virtual void updateObservedSynthesisNoiseTrace(unsigned sample);
+src/include/PANSE/PANSEModel.h:		virtual void adaptNoiseOffsetProposalWidth(unsigned adaptiveWidth, bool adapt = true);
+src/include/PANSE/PANSEModel.h-		virtual void updateGibbsSampledHyperParameters(Genome &genome);
+src/include/PANSE/PANSEModel.h-
+src/include/PANSE/PANSEModel.h-		
+src/include/PANSE/PANSEModel.h-		virtual void initializeZ(Genome &genome);
+src/include/PANSE/PANSEModel.h-		virtual void calculateProposedZ(std::string grouping,Genome& genome,std::string param);
+--
+src/include/PA/PAModel.h-
+src/include/PA/PAModel.h-		//Adaptive Width Functions:
+src/include/PA/PAModel.h:		virtual void adaptStdDevSynthesisRateProposalWidth(unsigned adaptiveWidth, bool adapt = true);
+src/include/PA/PAModel.h:		virtual void adaptSynthesisRateProposalWidth(unsigned adaptiveWidth, bool adapt = true);
+src/include/PA/PAModel.h:		virtual void adaptCodonSpecificParameterProposalWidth(unsigned adaptiveWidth, unsigned lastIteration, bool adapt = true);
+src/include/PA/PAModel.h:		virtual void adaptHyperParameterProposalWidths(unsigned adaptiveWidth, bool adapt = true);
+src/include/PA/PAModel.h-
+src/include/PA/PAModel.h-
+src/include/PA/PAModel.h-		//Other Functions:
+src/include/PA/PAModel.h-		virtual void proposeCodonSpecificParameter();
+src/include/PA/PAModel.h-		virtual void proposeHyperParameters();
+--
+src/include/PA/PAModel.h-		virtual void updateNoiseOffsetTrace(unsigned sample);
+src/include/PA/PAModel.h-		virtual void updateObservedSynthesisNoiseTrace(unsigned sample);
+src/include/PA/PAModel.h:		virtual void adaptNoiseOffsetProposalWidth(unsigned adaptiveWidth, bool adapt = true);
+src/include/PA/PAModel.h-		virtual void updateGibbsSampledHyperParameters(Genome &genome);
+src/include/PA/PAModel.h-
+src/include/PA/PAModel.h-
+src/include/PA/PAModel.h-		
+src/include/PA/PAModel.h-
+--
+src/include/FONSE/FONSEModel.h-
+src/include/FONSE/FONSEModel.h-		//Adaptive Width Functions:
+src/include/FONSE/FONSEModel.h:		virtual void adaptStdDevSynthesisRateProposalWidth(unsigned adaptiveWidth, bool adapt = true);
+src/include/FONSE/FONSEModel.h:		virtual void adaptInitiationCostProposalWidth(unsigned adaptiveWidth, bool adapt = true);
+src/include/FONSE/FONSEModel.h:		virtual void adaptSynthesisRateProposalWidth(unsigned adaptiveWidth, bool adapt = true);
+src/include/FONSE/FONSEModel.h:		virtual void adaptCodonSpecificParameterProposalWidth(unsigned adaptiveWidth, unsigned lastIteration, bool adapt = true);
+src/include/FONSE/FONSEModel.h:		virtual void adaptHyperParameterProposalWidths(unsigned adaptiveWidth, bool adapt = true);
+src/include/FONSE/FONSEModel.h-
+src/include/FONSE/FONSEModel.h-
+src/include/FONSE/FONSEModel.h-
+src/include/FONSE/FONSEModel.h-		//Other Functions:
+src/include/FONSE/FONSEModel.h-		virtual void proposeCodonSpecificParameter();
+--
+src/include/FONSE/FONSEModel.h-		virtual void updateNoiseOffsetTrace(unsigned sample);
+src/include/FONSE/FONSEModel.h-		virtual void updateObservedSynthesisNoiseTrace(unsigned sample);
+src/include/FONSE/FONSEModel.h:		virtual void adaptNoiseOffsetProposalWidth(unsigned adaptiveWidth, bool adapt = true);
+src/include/FONSE/FONSEModel.h-		virtual void updateGibbsSampledHyperParameters(Genome &genome);
+src/include/FONSE/FONSEModel.h-
+src/include/FONSE/FONSEModel.h-		//R Section:
+src/include/FONSE/FONSEModel.h-#ifndef STANDALONE
+src/include/FONSE/FONSEModel.h-		std::vector<double> CalculateProbabilitiesForCodons(std::vector<double> mutation, std::vector<double> selection, double phi, double a1_value, unsigned position);
+--
+src/include/MCMCAlgorithm.h-		unsigned samples;
+src/include/MCMCAlgorithm.h-		unsigned thinning;
+src/include/MCMCAlgorithm.h:		unsigned adaptiveWidth;
+src/include/MCMCAlgorithm.h-		unsigned lastConvergenceTest;
+src/include/MCMCAlgorithm.h-                unsigned reportInterval;
+src/include/MCMCAlgorithm.h-		int stepsToAdapt;
+src/include/MCMCAlgorithm.h-  
+src/include/MCMCAlgorithm.h-
+--
+src/include/MCMCAlgorithm.h-		//Constructors & Destructors:
+src/include/MCMCAlgorithm.h-		explicit MCMCAlgorithm();
+src/include/MCMCAlgorithm.h:		MCMCAlgorithm(unsigned samples, unsigned thinning, unsigned _adaptiveWidth = 100,
+src/include/MCMCAlgorithm.h-					  bool _estimateSynthesisRate = true, bool _estimateCodonSpecificParameter = true,
+src/include/MCMCAlgorithm.h-					  bool _estimateHyperParameter = true);
+src/include/MCMCAlgorithm.h-		virtual ~MCMCAlgorithm();
+src/include/MCMCAlgorithm.h-	
+src/include/MCMCAlgorithm.h-
+--
+src/include/MCMCAlgorithm.h-    	void setSamples(unsigned _samples);
+src/include/MCMCAlgorithm.h-    	void setThinning(unsigned _thinning);
+src/include/MCMCAlgorithm.h:    	void setAdaptiveWidth(unsigned _adaptiveWidth);
+src/include/MCMCAlgorithm.h-		void setLogPosteriorTrace(std::vector<double> _posteriorTrace);
+src/include/MCMCAlgorithm.h-		void setLogLikelihoodTrace(std::vector<double> _likelihoodTrace);
+src/include/MCMCAlgorithm.h-#endif //STANDALONE
+src/include/MCMCAlgorithm.h-
+src/include/MCMCAlgorithm.h-
+--
+src/#MCMCAlgorithm.cpp#-* this case, so every iteration trace values will be stored. All parameters are estimated.
+src/#MCMCAlgorithm.cpp#-*/
+src/#MCMCAlgorithm.cpp#:MCMCAlgorithm::MCMCAlgorithm() : samples(1000), thinning(1), adaptiveWidth(100 * thinning), estimateSynthesisRate(true),
+src/#MCMCAlgorithm.cpp#-	estimateCodonSpecificParameter(true), estimateHyperParameter(true)
+src/#MCMCAlgorithm.cpp#-{
+src/#MCMCAlgorithm.cpp#-	posteriorTrace.resize(samples + 1); // +1 for storing initial evaluation
+src/#MCMCAlgorithm.cpp#-	likelihoodTrace.resize(samples + 1);
+src/#MCMCAlgorithm.cpp#-
+--
+src/#MCMCAlgorithm.cpp#-* can be changed, bool for where the synthesis rate, codon specific, and hyper parameters are estimated (respectively)
+src/#MCMCAlgorithm.cpp#-* Sets up the object with the given parameters. 
+src/#MCMCAlgorithm.cpp#:* NOTE: Here adaptiveWidth actually set to adaptiveWidth * thinning.
+src/#MCMCAlgorithm.cpp#-* NOTE: hyper parameters normally affect synthesis rate parameters, so either both should be turned on or neither (mikeg: Why?).
+src/#MCMCAlgorithm.cpp#-*/
+src/#MCMCAlgorithm.cpp#:MCMCAlgorithm::MCMCAlgorithm(unsigned _samples, unsigned _thinning, unsigned _adaptiveWidth, bool _estimateSynthesisRate,
+src/#MCMCAlgorithm.cpp#-							 bool _estimateCodonSpecificParameter, bool _estimateHyperParameter) : samples(_samples),
+src/#MCMCAlgorithm.cpp#:							 thinning(_thinning), adaptiveWidth(_adaptiveWidth * thinning),
+src/#MCMCAlgorithm.cpp#-							 estimateSynthesisRate(_estimateSynthesisRate),
+src/#MCMCAlgorithm.cpp#-							 estimateCodonSpecificParameter(_estimateCodonSpecificParameter),
+src/#MCMCAlgorithm.cpp#-							 estimateHyperParameter(_estimateHyperParameter)
+src/#MCMCAlgorithm.cpp#-{
+src/#MCMCAlgorithm.cpp#-	posteriorTrace.resize(samples + 1);// +1 for storing initial evaluation
+--
+src/#MCMCAlgorithm.cpp#-			
+src/#MCMCAlgorithm.cpp#-            //TODO:Probably do a nan check
+src/#MCMCAlgorithm.cpp#:            // NOTE: adaptiveWidth in units of iteration, not samples
+src/#MCMCAlgorithm.cpp#:			if ((iteration % adaptiveWidth) == 0u)
+src/#MCMCAlgorithm.cpp#:				model.adaptCodonSpecificParameterProposalWidth(adaptiveWidth, iteration / thinning, iteration <= stepsToAdapt);
+src/#MCMCAlgorithm.cpp#-		}
+src/#MCMCAlgorithm.cpp#-		// update hyper parameter
+src/#MCMCAlgorithm.cpp#-		if (estimateHyperParameter)
+src/#MCMCAlgorithm.cpp#-		{
+src/#MCMCAlgorithm.cpp#-			model.updateGibbsSampledHyperParameters(genome);
+--
+src/#MCMCAlgorithm.cpp#-			acceptRejectHyperParameter(genome, model, iteration);
+src/#MCMCAlgorithm.cpp#-            //TODO:Probably do a nan check
+src/#MCMCAlgorithm.cpp#:			if ((iteration % adaptiveWidth) == 0u)
+src/#MCMCAlgorithm.cpp#:				model.adaptHyperParameterProposalWidths(adaptiveWidth, iteration <= stepsToAdapt);
+src/#MCMCAlgorithm.cpp#-
+src/#MCMCAlgorithm.cpp#-		}
+src/#MCMCAlgorithm.cpp#-		// update expression level values
+src/#MCMCAlgorithm.cpp#-		if (estimateSynthesisRate || estimateMixtureAssignment)
+src/#MCMCAlgorithm.cpp#-		{
+--
+src/#MCMCAlgorithm.cpp#-				}
+src/#MCMCAlgorithm.cpp#-			}
+src/#MCMCAlgorithm.cpp#:			if ((iteration % adaptiveWidth) == 0u)
+src/#MCMCAlgorithm.cpp#:				model.adaptSynthesisRateProposalWidth(adaptiveWidth, iteration <= stepsToAdapt);
+src/#MCMCAlgorithm.cpp#-  		}
+src/#MCMCAlgorithm.cpp#-
+src/#MCMCAlgorithm.cpp#-
+src/#MCMCAlgorithm.cpp#-
+src/#MCMCAlgorithm.cpp#:		if ((iteration % (50 * adaptiveWidth)) == 0u)
+src/#MCMCAlgorithm.cpp#-		{
+src/#MCMCAlgorithm.cpp#-			double gewekeScore = calculateGewekeScore(iteration/thinning);
+src/#MCMCAlgorithm.cpp#-
+src/#MCMCAlgorithm.cpp#-			my_print("##################################################\n");
+src/#MCMCAlgorithm.cpp#-			my_print("Geweke Score after % iterations: %\n", iteration, gewekeScore);
+--
+src/#MCMCAlgorithm.cpp#-			
+src/#MCMCAlgorithm.cpp#-            //TODO:Probably do a nan check
+src/#MCMCAlgorithm.cpp#:			if ((iteration % adaptiveWidth) == 0u)
+src/#MCMCAlgorithm.cpp#:				model.adaptCodonSpecificParameterProposalWidth(adaptiveWidth, iteration / thinning, iteration <= stepsToAdapt);
+src/#MCMCAlgorithm.cpp#-		}
+src/#MCMCAlgorithm.cpp#-		// update hyper parameter
+src/#MCMCAlgorithm.cpp#-		if (estimateHyperParameter)
+src/#MCMCAlgorithm.cpp#-		{
+src/#MCMCAlgorithm.cpp#-			model.updateGibbsSampledHyperParameters(genome);
+--
+src/#MCMCAlgorithm.cpp#-			acceptRejectHyperParameter(genome, model, iteration);
+src/#MCMCAlgorithm.cpp#-            //TODO:Probably do a nan check
+src/#MCMCAlgorithm.cpp#:			if ((iteration % adaptiveWidth) == 0u)
+src/#MCMCAlgorithm.cpp#:				model.adaptHyperParameterProposalWidths(adaptiveWidth, iteration <= stepsToAdapt);
+src/#MCMCAlgorithm.cpp#-
+src/#MCMCAlgorithm.cpp#-		}
+src/#MCMCAlgorithm.cpp#-		// update expression level values
+src/#MCMCAlgorithm.cpp#-		if (estimateSynthesisRate || estimateMixtureAssignment)
+src/#MCMCAlgorithm.cpp#-		{
+--
+src/#MCMCAlgorithm.cpp#-				}
+src/#MCMCAlgorithm.cpp#-			}
+src/#MCMCAlgorithm.cpp#:			if ((iteration % adaptiveWidth) == 0u)
+src/#MCMCAlgorithm.cpp#:				model.adaptSynthesisRateProposalWidth(adaptiveWidth, iteration <= stepsToAdapt);
+src/#MCMCAlgorithm.cpp#-  		}
+src/#MCMCAlgorithm.cpp#-
+src/#MCMCAlgorithm.cpp#-
+src/#MCMCAlgorithm.cpp#-
+src/#MCMCAlgorithm.cpp#:		if ((iteration % (50 * adaptiveWidth)) == 0u)
+src/#MCMCAlgorithm.cpp#-		{
+src/#MCMCAlgorithm.cpp#-			double gewekeScore = calculateGewekeScore(iteration/thinning);
+src/#MCMCAlgorithm.cpp#-
+src/#MCMCAlgorithm.cpp#-			my_print("##################################################\n");
+src/#MCMCAlgorithm.cpp#-			my_print("Geweke Score after % iterations: %\n", iteration, gewekeScore);
+--
+src/#MCMCAlgorithm.cpp#-/* getAdaptiveWidth (RCPP EXPOSED)
+src/#MCMCAlgorithm.cpp#- * Arguments: None
+src/#MCMCAlgorithm.cpp#: * Return adaptiveWidth.
+src/#MCMCAlgorithm.cpp#-*/
+src/#MCMCAlgorithm.cpp#-//' @name getAdaptiveWidth
+src/#MCMCAlgorithm.cpp#-//' @title getAdaptiveWidth
+src/#MCMCAlgorithm.cpp#://' @description Return sample adaptiveWidth value, which is the number of samples (not iterations) between adapting parameter proposal widths
+src/#MCMCAlgorithm.cpp#-//' @return number of sample steps between adapting proposal widths
+src/#MCMCAlgorithm.cpp#-unsigned MCMCAlgorithm::getAdaptiveWidth()
+src/#MCMCAlgorithm.cpp#-{
+src/#MCMCAlgorithm.cpp#:    return adaptiveWidth;
+src/#MCMCAlgorithm.cpp#-}
+src/#MCMCAlgorithm.cpp#-
+src/#MCMCAlgorithm.cpp#-
+src/#MCMCAlgorithm.cpp#-/* setSamples (RCPP EXPOSED)
+src/#MCMCAlgorithm.cpp#- * Arguments: None
+--
+src/#MCMCAlgorithm.cpp#-/* setAdaptiveWidth (RCPP EXPOSED)
+src/#MCMCAlgorithm.cpp#- * Arguments: None
+src/#MCMCAlgorithm.cpp#: * Change adaptiveWidth.
+src/#MCMCAlgorithm.cpp#-*/
+src/#MCMCAlgorithm.cpp#-//' @name setAdaptiveWidth
+src/#MCMCAlgorithm.cpp#-//' @title setAdaptiveWidth
+src/#MCMCAlgorithm.cpp#://' @description  Method of MCMC class (access via mcmc$<function name>, where mcmc is an object initialized by initializeMCMCObject). Set sample adaptiveWidth value, which is the number of samples (not iterations) between adapting parameter proposal widths
+src/#MCMCAlgorithm.cpp#://' @param _adaptiveWidth postive value
+src/#MCMCAlgorithm.cpp#-
+src/#MCMCAlgorithm.cpp#:void MCMCAlgorithm::setAdaptiveWidth(unsigned _adaptiveWidth)
+src/#MCMCAlgorithm.cpp#-{
+src/#MCMCAlgorithm.cpp#:    adaptiveWidth = _adaptiveWidth;
+src/#MCMCAlgorithm.cpp#-}
+src/#MCMCAlgorithm.cpp#-
+src/#MCMCAlgorithm.cpp#-
+src/#MCMCAlgorithm.cpp#-/* setLogPosteriorTrace (RCPP EXPOSED)
+src/#MCMCAlgorithm.cpp#- * Arguments: None
+--
+src/ROCModel.cpp-
+src/ROCModel.cpp-
+src/ROCModel.cpp:void ROCModel::adaptStdDevSynthesisRateProposalWidth(unsigned adaptiveWidth, bool adapt)
+src/ROCModel.cpp-{
+src/ROCModel.cpp:	parameter->adaptStdDevSynthesisRateProposalWidth(adaptiveWidth, adapt);
+src/ROCModel.cpp-}
+src/ROCModel.cpp-
+src/ROCModel.cpp-
+src/ROCModel.cpp:void ROCModel::adaptSynthesisRateProposalWidth(unsigned adaptiveWidth, bool adapt)
+src/ROCModel.cpp-{
+src/ROCModel.cpp:	parameter->adaptSynthesisRateProposalWidth(adaptiveWidth, adapt);
+src/ROCModel.cpp-}
+src/ROCModel.cpp-
+src/ROCModel.cpp-
+src/ROCModel.cpp:void ROCModel::adaptCodonSpecificParameterProposalWidth(unsigned adaptiveWidth, unsigned lastIteration, bool adapt)
+src/ROCModel.cpp-{
+src/ROCModel.cpp:	parameter->adaptCodonSpecificParameterProposalWidth(adaptiveWidth, lastIteration, adapt);
+src/ROCModel.cpp-}
+src/ROCModel.cpp-
+src/ROCModel.cpp-
+src/ROCModel.cpp:void ROCModel::adaptHyperParameterProposalWidths(unsigned adaptiveWidth, bool adapt)
+src/ROCModel.cpp-{
+src/ROCModel.cpp:	adaptStdDevSynthesisRateProposalWidth(adaptiveWidth, adapt);
+src/ROCModel.cpp-	if (withPhi)
+src/ROCModel.cpp:		adaptNoiseOffsetProposalWidth(adaptiveWidth, adapt);
+src/ROCModel.cpp-}
+src/ROCModel.cpp-
+src/ROCModel.cpp-
+src/ROCModel.cpp-//Noise offset functions
+src/ROCModel.cpp-
+--
+src/ROCModel.cpp-
+src/ROCModel.cpp-
+src/ROCModel.cpp:void ROCModel::adaptNoiseOffsetProposalWidth(unsigned adaptiveWidth, bool adapt)
+src/ROCModel.cpp-{
+src/ROCModel.cpp:	parameter->adaptNoiseOffsetProposalWidth(adaptiveWidth, adapt);
+src/ROCModel.cpp-}
+src/ROCModel.cpp-
+src/ROCModel.cpp-
+src/ROCModel.cpp-
+src/ROCModel.cpp-void ROCModel::updateGibbsSampledHyperParameters(Genome &genome)
+--
+src/PAModel.cpp-
+src/PAModel.cpp-
+src/PAModel.cpp:void PAModel::adaptStdDevSynthesisRateProposalWidth(unsigned adaptiveWidth, bool adapt)
+src/PAModel.cpp-{
+src/PAModel.cpp:	parameter->adaptStdDevSynthesisRateProposalWidth(adaptiveWidth, adapt);
+src/PAModel.cpp-}
+src/PAModel.cpp-
+src/PAModel.cpp-
+src/PAModel.cpp:void PAModel::adaptSynthesisRateProposalWidth(unsigned adaptiveWidth, bool adapt)
+src/PAModel.cpp-{
+src/PAModel.cpp:	parameter->adaptSynthesisRateProposalWidth(adaptiveWidth, adapt);
+src/PAModel.cpp-}
+src/PAModel.cpp-
+src/PAModel.cpp-
+src/PAModel.cpp:void PAModel::adaptCodonSpecificParameterProposalWidth(unsigned adaptiveWidth, unsigned lastIteration, bool adapt)
+src/PAModel.cpp-{
+src/PAModel.cpp:	parameter->adaptCodonSpecificParameterProposalWidth(adaptiveWidth, lastIteration, adapt);
+src/PAModel.cpp-}
+src/PAModel.cpp-
+src/PAModel.cpp-
+src/PAModel.cpp:void PAModel::adaptHyperParameterProposalWidths(unsigned adaptiveWidth, bool adapt)
+src/PAModel.cpp-{
+src/PAModel.cpp:	adaptStdDevSynthesisRateProposalWidth(adaptiveWidth, adapt);
+src/PAModel.cpp-	if (withPhi)
+src/PAModel.cpp:		adaptNoiseOffsetProposalWidth(adaptiveWidth, adapt);
+src/PAModel.cpp-}
+src/PAModel.cpp-
+src/PAModel.cpp-
+src/PAModel.cpp-
+src/PAModel.cpp-
+--
+src/PAModel.cpp-
+src/PAModel.cpp-
+src/PAModel.cpp:void PAModel::adaptNoiseOffsetProposalWidth(unsigned adaptiveWidth, bool adapt)
+src/PAModel.cpp-{
+src/PAModel.cpp:	parameter->adaptNoiseOffsetProposalWidth(adaptiveWidth, adapt);
+src/PAModel.cpp-}
+src/PAModel.cpp-
+src/PAModel.cpp-
+src/PAModel.cpp-
+src/PAModel.cpp-void PAModel::updateGibbsSampledHyperParameters(Genome &genome)
+--
+tests/testthat/testPAModel.R-#   samples <- 20000
+tests/testthat/testPAModel.R-#   thinning <- 10
+tests/testthat/testPAModel.R:#   adaptiveWidth <- 10
+tests/testthat/testPAModel.R:#   mcmc <- initializeMCMCObject(samples = samples, thinning = thinning, adaptive.width = adaptiveWidth, 
+tests/testthat/testPAModel.R-#                                est.expression=TRUE, est.csp=TRUE, est.hyper=TRUE)
+tests/testthat/testPAModel.R-#   
+tests/testthat/testPAModel.R-#   model <- initializeModelObject(parameter, "PA")
+tests/testthat/testPAModel.R:#   setRestartSettings(mcmc, "restartFile.rst", adaptiveWidth, TRUE)
+tests/testthat/testPAModel.R-#   
+tests/testthat/testPAModel.R-#   outFile = file.path("UnitTestingOut", "testPAModelLog20000.txt")
+tests/testthat/testPAModel.R-#   
+tests/testthat/testPAModel.R-#   sink(outFile)
+tests/testthat/testPAModel.R-#   system.time(
+--
+tests/testthat/testMCMCROC.R-samples <- 10
+tests/testthat/testMCMCROC.R-thinning <- 10
+tests/testthat/testMCMCROC.R:adaptiveWidth <- 10
+tests/testthat/testMCMCROC.R-divergence.iteration <- 0
+tests/testthat/testMCMCROC.R-
+tests/testthat/testMCMCROC.R:mcmc <- initializeMCMCObject(samples = samples, thinning = thinning, adaptive.width = adaptiveWidth, 
+tests/testthat/testMCMCROC.R-                             est.expression=TRUE, est.csp=TRUE, est.hyper=TRUE)
+tests/testthat/testMCMCROC.R-
+tests/testthat/testMCMCROC.R-### With Phi
+tests/testthat/testMCMCROC.R-set.seed(446141)
+tests/testthat/testMCMCROC.R-
+--
+tests/testthat/testMCMCROC.R-model <- initializeModelObject(parameter, "ROC", with.phi = FALSE)
+tests/testthat/testMCMCROC.R-
+tests/testthat/testMCMCROC.R:mcmc <- initializeMCMCObject(samples = samples, thinning = thinning, adaptive.width = adaptiveWidth,
+tests/testthat/testMCMCROC.R-                             est.expression=FALSE, est.csp=TRUE, est.hyper=TRUE,est.mix = FALSE)
+tests/testthat/testMCMCROC.R-
+tests/testthat/testMCMCROC.R-
+tests/testthat/testMCMCROC.R-outFile = file.path("UnitTestingOut", "testMCMCROCLogWithoutPhi.txt")
+tests/testthat/testMCMCROC.R-
+--
+tests/testthat/testMCMCROC.R-model <- initializeModelObject(parameter, "ROC", with.phi = FALSE) 
+tests/testthat/testMCMCROC.R-
+tests/testthat/testMCMCROC.R:mcmc <- initializeMCMCObject(samples = samples, thinning = thinning, adaptive.width = adaptiveWidth, 
+tests/testthat/testMCMCROC.R-                             est.expression=TRUE, est.csp=TRUE, est.hyper=TRUE)
+tests/testthat/testMCMCROC.R-
+tests/testthat/testMCMCROC.R-
+tests/testthat/testMCMCROC.R-outFile = file.path("UnitTestingOut", "testMCMCROCLogWithoutPhi.txt")
+tests/testthat/testMCMCROC.R-
+--
+tests/testthat/testMCMCROC.R-model <- initializeModelObject(parameter, "ROC", with.phi = FALSE) 
+tests/testthat/testMCMCROC.R-
+tests/testthat/testMCMCROC.R:mcmc <- initializeMCMCObject(samples = samples, thinning = thinning, adaptive.width = adaptiveWidth, 
+tests/testthat/testMCMCROC.R-                             est.expression=TRUE, est.csp=TRUE, est.hyper=TRUE)
+tests/testthat/testMCMCROC.R-
+tests/testthat/testMCMCROC.R-
+tests/testthat/testMCMCROC.R-outFile = file.path("UnitTestingOut", "testMCMCROCLogWithoutPhi.txt")
+tests/testthat/testMCMCROC.R-
+--
+tests/testthat/testMCMCAlgorithm.R-samples <- 1000
+tests/testthat/testMCMCAlgorithm.R-thinning <- 1
+tests/testthat/testMCMCAlgorithm.R:adaptiveWidth <- 100
+tests/testthat/testMCMCAlgorithm.R:mcmc <- new(MCMCAlgorithm, samples, thinning, adaptiveWidth, TRUE, TRUE, TRUE)
+tests/testthat/testMCMCAlgorithm.R-
+tests/testthat/testMCMCAlgorithm.R-test_that("get Samples", {
+tests/testthat/testMCMCAlgorithm.R-  expect_equal(mcmc$getSamples(), samples)
+tests/testthat/testMCMCAlgorithm.R-})
+tests/testthat/testMCMCAlgorithm.R-
+--
+tests/testthat/testMCMCAlgorithm.R-
+tests/testthat/testMCMCAlgorithm.R-test_that("get Adaptive Width", {
+tests/testthat/testMCMCAlgorithm.R:  expect_equal(mcmc$getAdaptiveWidth(), adaptiveWidth)
+tests/testthat/testMCMCAlgorithm.R-})
+tests/testthat/testMCMCAlgorithm.R-
+tests/testthat/testMCMCAlgorithm.R-test_that("set Samples", {
+tests/testthat/testMCMCAlgorithm.R-  mcmc$setSamples(10)
+tests/testthat/testMCMCAlgorithm.R-  expect_equal(mcmc$getSamples(), 10)
