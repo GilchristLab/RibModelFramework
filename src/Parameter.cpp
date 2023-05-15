@@ -2465,7 +2465,9 @@ bool Parameter::checkIndex(unsigned index, unsigned lowerbound, unsigned upperbo
 	}
 	else
 	{
-		my_printError("Error: Index % is out of bounds. Index must be between % & %\n", index, lowerbound, upperbound);
+          
+          //my_printError("Error: line %d; function \"%s\"\n Index % is out of bounds. Index must be between % & %\n", ((__LINE__)-3),__func__, index, lowerbound, upperbound);
+          my_printError("Error: Parameter::checkIndex: Index % is out of bounds. Index must be between % & %\n", index, lowerbound, upperbound);
 	}
 
 	return check;

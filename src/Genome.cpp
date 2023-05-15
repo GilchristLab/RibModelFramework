@@ -992,7 +992,7 @@ bool Genome::checkIndex(unsigned index, unsigned lowerbound, unsigned upperbound
 	}
 	else
 	{
-		my_printError("ERROR: Index % is out of bounds. Index must be between % & %\n", index, lowerbound, upperbound);
+		my_printError("ERROR: Genome::checkIndex: Index % is out of bounds. Index must be between % & %\n", index, lowerbound, upperbound);
 	}
 	return check;
 }
