@@ -780,7 +780,7 @@ getEffectiveSampleSizesByCodon <- function(parameter,codon,samples,paramType,mix
 #' 
 #' }
 
-getCSPEstimates <- function(parameter, filename=NULL, mixture = 1, samples = 10, relative.to.optimal.codon=TRUE, report.original.ref = TRUE, log.scale=FALSE), quantiles = c(0.025, 0.975))
+getCSPEstimates <- function(parameter, filename=NULL, mixture = 1, samples = 10, relative.to.optimal.codon=TRUE, report.original.ref = TRUE, log.scale=FALSE, quantiles = c(0.025, 0.975))
 {
   if((class(parameter)=="Rcpp_ROCParameter" || class(parameter)=="Rcpp_FONSEParameter") && log.scale)
   {
