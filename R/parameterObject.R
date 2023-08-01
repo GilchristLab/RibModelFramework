@@ -64,8 +64,11 @@
 #' 
 #' @param init.sepsilon specifies the initial value for sepsilon. default is 0.1
 #' 
+#' @param init.by.random If TRUE, initialize phi values with randomly chosen values. Overrides init.w.obs.phi if set to TRUE. Default is FALSE.
+#'
 #' @param init.w.obs.phi If TRUE, initialize phi values with observed phi values 
-#' (data from RNAseq, mass spectrometry, ribosome footprinting) Default is FALSE. 
+#' (data from RNAseq, mass spectrometry, ribosome footprinting).
+#' NOTE option is ignored if init.by.random == TRUE.  Default is FALSE. 
 #' If multiple observed phi values exist for a gene, the geometric mean of these values is used as initial phi.
 #' When using this function, one should remove any genes with 
 #' missing phi values, as these genes will not have an initial phi value.
@@ -74,6 +77,7 @@
 #' 
 #' @param init.partition.function FOR PANSE ONLY. initializes the partition function Z.
 #'
+#' 
 #' @return parameter Returns an initialized Parameter object.
 #' 
 #' @description \code{initializeParameterObject} initializes a new parameter object or reconstructs one from a restart file
@@ -126,9 +130,11 @@ initializeParameterObject <- function(genome = NULL, sphi = NULL, num.mixtures =
                                       model = "ROC", split.serine = TRUE, 
                                       mixture.definition = "allUnique", 
                                       mixture.definition.matrix = NULL,
-                                      init.with.restart.file = NULL, mutation.prior.mean = 0.0, mutation.prior.sd = 0.35, propose.by.prior=FALSE,
+                                      init.with.restart.file = NULL, mutation.prior.mean = 0.0,
+                                      mutation.prior.sd = 0.35, propose.by.prior=FALSE,
                                       init.csp.variance = 0.0025, init.sepsilon = 0.1, 
-                                      init.w.obs.phi=FALSE, init.by.random = FALSE ,init.initiation.cost = 4,init.partition.function=1){
+                                      init.w.obs.phi=FALSE, init.by.random = FALSE,
+                                      init.initiation.cost = 4,init.partition.function=1){
   # check input integrity
   if(is.null(init.with.restart.file)){
     if(length(sphi) != num.mixtures){
@@ -742,6 +748,8 @@ getEffectiveSampleSizesByCodon <- function(parameter,codon,samples,paramType,mix
 #' @param report.original.ref Include the original reference codon (Default = TRUE). Note this is only included for the purposes of simulations, which expect the input parameter file to be in a specific format. Later version of AnaCoDa will remove this. 
 #'
 #' @param log.scale Calculate posterior means, standard deviation, and posterior probability intervals on the natural log scale. Should be used for PA and PANSE models only.
+#'
+#' @param quantiles vector of quantiles to return, (default: c(0.025, 0.975))
 #'
 #' @return returns a list data.frame with the posterior estimates of the models 
 #' codon specific parameters or writes it directly to a csv file if \code{filename} is specified
