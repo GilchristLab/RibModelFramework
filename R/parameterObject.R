@@ -796,7 +796,7 @@ getCSPEstimates <- function(parameter, filename=NULL, mixture = 1, samples = 10,
   }
 
   ## Ensure quantiles are in valid range
-  if(all(all(quantiles > 0) & all(quantiles <=1))) stop("quantile argument values must be > 0 and <= 1")
+  if(!all(all(quantiles > 0) & all(quantiles <=1))) stop("quantile argument values must be > 0 and <= 1")
   
   model.conditions <- checkModel(parameter)
   model.uses.ref.codon <- model.conditions$model.uses.ref.codon
