@@ -767,7 +767,7 @@ void MCMCAlgorithm::varyInitialConditions(Genome& genome, Model& model, unsigned
 					unsigned mixture = model.getMixtureAssignment(k);
 					mixture = model.getSynthesisRateCategory(mixture);
 					double stdDevSynthesisRate = model.getStdDevSynthesisRate(mixture, false);
-					double mPhi = 1; // fix mode = exp(mPhi) 
+					double mPhi = 0; // fix mode = exp(mPhi) 
                                         // double mPhi = (-(stdDevSynthesisRate * stdDevSynthesisRate) / 2); //fix mean = exp(mPhi + sphi^2/2) = exp(0) = 1
 
 					// accept/ reject based on prior ratio

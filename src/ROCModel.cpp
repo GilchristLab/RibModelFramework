@@ -117,7 +117,7 @@ void ROCModel::calculateLogLikelihoodRatioPerGene(Gene& gene, unsigned geneIndex
 	//unsigned mixture = getMixtureAssignment(geneIndex);
 	unsigned mixture = getSynthesisRateCategory(expressionCategory);
 	double stdDevSynthesisRate = parameter->getStdDevSynthesisRate(mixture, false);
-	double mPhi = 1; // fix mode = exp(mPhi)
+	double mPhi = 0; // fix mode = exp(mPhi)
         //double mPhi = (-(stdDevSynthesisRate * stdDevSynthesisRate) * 0.5); // fix mean = exp(mPhi + sphi^2/2) = exp(0) = 1
 	double logPhiProbability = Parameter::densityLogNorm(phiValue, mPhi, stdDevSynthesisRate, true);
 	double logPhiProbability_proposed = Parameter::densityLogNorm(phiValue_proposed, mPhi, stdDevSynthesisRate, true);
