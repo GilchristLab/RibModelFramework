@@ -743,6 +743,9 @@ getEffectiveSampleSizesByCodon <- function(parameter,codon,samples,paramType,mix
 #'
 #' @param log.scale Calculate posterior means, standard deviation, and posterior probability intervals on the natural log scale. Should be used for PA and PANSE models only.
 #'
+#'
+#' @param quantiles vector of quantiles, (default: c(0.025, 0.975))
+#' 
 #' @return returns a list data.frame with the posterior estimates of the models 
 #' codon specific parameters or writes it directly to a csv file if \code{filename} is specified
 #' 
@@ -780,8 +783,11 @@ getEffectiveSampleSizesByCodon <- function(parameter,codon,samples,paramType,mix
 #' 
 #' }
 
-getCSPEstimates <- function(parameter, filename=NULL, mixture = 1, samples = 10, relative.to.optimal.codon=T, report.original.ref = T,log.scale=F)
+getCSPEstimates <- function(parameter, filename=NULL, mixture = 1, samples = 10, relative.to.optimal.codon=T, report.original.ref = T, log.scale=F, quantiles=c(0.025, 0.975))
 {
+
+  ## alternative way of formating output
+  percentages <- paste0(quantiles*100,"%")
   if((class(parameter)=="Rcpp_ROCParameter" || class(parameter)=="Rcpp_FONSEParameter") && log.scale)
   {
     stop("Log transformation will be performed on negative values. Stopping execution of getCSPEstimates.")
@@ -814,8 +820,8 @@ getCSPEstimates <- function(parameter, filename=NULL, mixture = 1, samples = 10,
     param.2[codon,"Mean"] <- parameter$getCodonSpecificPosteriorMean(mixtureElement=mixture,samples=samples,codon=codon,paramType=1,withoutReference=model.uses.ref.codon,log_scale=log.scale)
     param.1[codon,"Std.Dev"] <- sqrt(parameter$getCodonSpecificVariance(mixtureElement=mixture,samples=samples,codon=codon,paramType=0,unbiased=T,withoutReference=model.uses.ref.codon,log_scale=log.scale))
     param.2[codon,"Std.Dev"] <- sqrt(parameter$getCodonSpecificVariance(mixtureElement=mixture,samples=samples,codon=codon,paramType=1,unbiased=T,withoutReference=model.uses.ref.codon,log_scale=log.scale))
-    param.1[codon,c("Lower.quant","Upper.quant")] <- parameter$getCodonSpecificQuantile(mixtureElement=mixture, samples=samples,codon=codon,paramType=0, probs=c(0.025, 0.975),withoutReference=model.uses.ref.codon,log_scale=log.scale)
-    param.2[codon,c("Lower.quant","Upper.quant")]  <- parameter$getCodonSpecificQuantile(mixtureElement=mixture, samples=samples,codon=codon,paramType=1, probs=c(0.025, 0.975),withoutReference=model.uses.ref.codon,log_scale=log.scale)
+    param.1[codon, quantiles] <- parameter$getCodonSpecificQuantile(mixtureElement=mixture, samples=samples,codon=codon,paramType=0, probs=quantiles,withoutReference=model.uses.ref.codon,log_scale=log.scale)
+    param.2[codon, quantiles]  <- parameter$getCodonSpecificQuantile(mixtureElement=mixture, samples=samples,codon=codon,paramType=1, probs=quantiles,withoutReference=model.uses.ref.codon,log_scale=log.scale)
   
     if (length(parameter.names) >= 3)
     {
@@ -827,13 +833,13 @@ getCSPEstimates <- function(parameter, filename=NULL, mixture = 1, samples = 10,
       }
       param.3[codon,"Mean"] <- mean(waiting.time.trace)
       param.3[codon,"Std.Dev"] <- sd(waiting.time.trace)
-      param.3[codon,c("Lower.quant","Upper.quant")] <- quantile(waiting.time.trace,probs=c(0.025,0.975),type=8)
+      param.3[codon,quantiles] <- quantile(waiting.time.trace,probs=c(0.025,0.975),type=8)
       
       if (length(parameter.names) == 5)
       {
         param.4[codon,"Mean"] <- parameter$getCodonSpecificPosteriorMean(mixtureElement=mixture,samples=samples,codon=codon,paramType=2,withoutReference=model.uses.ref.codon,log_scale=log.scale)
         param.4[codon,"Std.Dev"] <- sqrt(parameter$getCodonSpecificVariance(mixtureElement=mixture,samples=samples,codon=codon,paramType=2,unbiased=T,withoutReference=model.uses.ref.codon,log_scale=log.scale))
-        param.4[codon,c("Lower.quant","Upper.quant")] <- parameter$getCodonSpecificQuantile(mixtureElement=mixture, samples=samples,codon=codon,paramType=2, probs=c(0.025, 0.975),withoutReference=model.uses.ref.codon,log_scale=log.scale)
+        param.4[codon,quantiles] <- parameter$getCodonSpecificQuantile(mixtureElement=mixture, samples=samples,codon=codon,paramType=2, probs=c(0.025, 0.975),withoutReference=model.uses.ref.codon,log_scale=log.scale)
         prob.nse.trace <- getNSEProbabilityTrace(trace,mixture,codon,samples)
         if (log.scale)
         {
@@ -841,22 +847,23 @@ getCSPEstimates <- function(parameter, filename=NULL, mixture = 1, samples = 10,
         }
         param.5[codon,"Mean"] <- mean(prob.nse.trace)
         param.5[codon,"Std.Dev"] <- sd(prob.nse.trace)
-        param.5[codon,c("Lower.quant","Upper.quant")] <- quantile(prob.nse.trace,probs=c(0.025,0.975),type=8)
+        param.5[codon,quantiles] <- quantile(prob.nse.trace,probs=quantiles,type=8)
         
       }
     }
     
   }
-  colnames(param.1) <- c("Codon", "AA", "Mean","Std.Dev","2.5%", "97.5%")
-  colnames(param.2) <- c("Codon", "AA", "Mean","Std.Dev","2.5%", "97.5%")
-  colnames(param.3) <- c("Codon", "AA", "Mean","Std.Dev","2.5%", "97.5%")
-  colnames(param.4) <- c("Codon", "AA", "Mean","Std.Dev","2.5%", "97.5%")
-  colnames(param.5) <- c("Codon", "AA", "Mean","Std.Dev","2.5%", "97.5%")
+
+  colnames(param.1) <- c("Codon", "AA", "Mean","Std.Dev",percentages)
+  colnames(param.2) <- c("Codon", "AA", "Mean", "Std.Dev", percentages)
+  colnames(param.3) <- c("Codon", "AA", "Mean", "Std.Dev", percentages)
+  colnames(param.4) <- c("Codon", "AA", "Mean", "Std.Dev", percentages)
+  colnames(param.5) <- c("Codon", "AA", "Mean", "Std.Dev", percentages)
   
   ## Only called if model actually uses reference codon
   if(relative.to.optimal.codon && model.uses.ref.codon)
   {
-    csp.param <- optimalAsReference(param.1,param.2,parameter.names,report.original.ref)
+    csp.param <- optimalAsReference(param.1,param.2,parameter.names,report.original.ref, percentages)
   } else if (relative.to.optimal.codon == F || model.uses.ref.codon == F ){
     ## This is just in case the user wants to exclude the original reference codon
     ## TO DO: update C++ function which might expect certain format for the input CSP file parameters
@@ -869,17 +876,17 @@ getCSPEstimates <- function(parameter, filename=NULL, mixture = 1, samples = 10,
     names(csp.param) <- parameter.names
      
 
-    csp.param[[parameter.names[1]]] <- param.1[,c("AA", "Codon", "Mean", "Std.Dev","2.5%", "97.5%")]
-    csp.param[[parameter.names[2]]] <- param.2[,c("AA", "Codon", "Mean", "Std.Dev","2.5%", "97.5%")]
+    csp.param[[parameter.names[1]]] <- param.1[,c("AA", "Codon", "Mean", "Std.Dev",percentages)]
+    csp.param[[parameter.names[2]]] <- param.2[,c("AA", "Codon", "Mean", "Std.Dev",percentages)]
     if (length(parameter.names)==3)
     {
-      csp.param[[parameter.names[3]]] <- param.3[,c("AA", "Codon", "Mean", "Std.Dev","2.5%", "97.5%")]
+      csp.param[[parameter.names[3]]] <- param.3[,c("AA", "Codon", "Mean", "Std.Dev",percentages)]
     }
     if (length(parameter.names)==5)
     {
-      csp.param[[parameter.names[3]]] <- param.3[,c("AA", "Codon", "Mean", "Std.Dev","2.5%", "97.5%")]
-      csp.param[[parameter.names[4]]] <- param.4[,c("AA", "Codon", "Mean", "Std.Dev","2.5%", "97.5%")]
-      csp.param[[parameter.names[5]]] <- param.5[,c("AA", "Codon", "Mean", "Std.Dev","2.5%", "97.5%")]
+      csp.param[[parameter.names[3]]] <- param.3[,c("AA", "Codon", "Mean", "Std.Dev",percentages)]
+      csp.param[[parameter.names[4]]] <- param.4[,c("AA", "Codon", "Mean", "Std.Dev",percentages)]
+      csp.param[[parameter.names[5]]] <- param.5[,c("AA", "Codon", "Mean", "Std.Dev",percentages)]
     }
   }
   if(is.null(filename))
@@ -909,7 +916,7 @@ getCSPEstimates <- function(parameter, filename=NULL, mixture = 1, samples = 10,
   }
 }
 ## NOT EXPOSED
-optimalAsReference <- function(param.1,param.2,parameter.names,report.original.ref)
+optimalAsReference <- function(param.1,param.2,parameter.names,report.original.ref, percentages)
 {
   updated.param.1 <- data.frame()
   updated.param.2 <- data.frame()
@@ -925,19 +932,19 @@ optimalAsReference <- function(param.1,param.2,parameter.names,report.original.r
     ## No reason to do anything if optimal value is 0
     if (optimal.parameter.value != 0.0)
     {
-      tmp.2[,c("Mean","2.5%","97.5%")] <- tmp.2[,c("Mean","2.5%","97.5%")] - optimal.parameter.value
+      tmp.2[,c("Mean",percentages)] <- tmp.2[,c("Mean",percentages)] - optimal.parameter.value
       ##Get row of the optimal codon, which should be 0
       optimal.codon.row <- which(tmp.2[,"Mean"]==0.0)
       tmp.2[current.reference.row,"Std.Dev"] <- tmp.2[optimal.codon.row,"Std.Dev"]
-      tmp.2[current.reference.row,c("2.5%","97.5%")] <- tmp.2[optimal.codon.row,c("2.5%","97.5%")] + tmp.2[current.reference.row,"Mean"]
+      tmp.2[current.reference.row,c(percentages)] <- tmp.2[optimal.codon.row,c(percentages)] + tmp.2[current.reference.row,"Mean"]
       ## Can now change optimal codon values to 0.0
-      tmp.2[optimal.codon.row,c("Mean","Std.Dev","2.5%","97.5%")] <- 0.0
+      tmp.2[optimal.codon.row,c("Mean","Std.Dev",percentages)] <- 0.0
       ## Find corresponding reference value for other parameter
       optimal.parameter.value <- tmp.1[optimal.codon.row,"Mean"]
       tmp.1[current.reference.row,"Std.Dev"] <- tmp.1[optimal.codon.row,"Std.Dev"]
-      tmp.1[,c("Mean","2.5%","97.5%")] <- tmp.1[,c("Mean","2.5%","97.5%")] - optimal.parameter.value
-      tmp.1[current.reference.row,c("2.5%","97.5%")] <- tmp.1[optimal.codon.row,c("2.5%","97.5%")] + tmp.1[current.reference.row,"Mean"]
-      tmp.1[optimal.codon.row,c("Mean","Std.Dev","2.5%","97.5%")] <- 0.0
+      tmp.1[,c("Mean",percentages)] <- tmp.1[,c("Mean",percentages)] - optimal.parameter.value
+      tmp.1[current.reference.row,c(percentages)] <- tmp.1[optimal.codon.row,c(percentages)] + tmp.1[current.reference.row,"Mean"]
+      tmp.1[optimal.codon.row,c("Mean","Std.Dev",percentages)] <- 0.0
     }
     if (!report.original.ref)
     {
@@ -949,8 +956,8 @@ optimalAsReference <- function(param.1,param.2,parameter.names,report.original.r
   }
   csp.param <- vector(mode="list",length=2)
   names(csp.param) <- parameter.names
-  csp.param[[parameter.names[1]]] <- updated.param.1[,c("AA", "Codon", "Mean","Std.Dev", "2.5%", "97.5%")]
-  csp.param[[parameter.names[2]]] <- updated.param.2[,c("AA", "Codon", "Mean","Std.Dev","2.5%", "97.5%")]
+  csp.param[[parameter.names[1]]] <- updated.param.1[,c("AA", "Codon", "Mean","Std.Dev", percentages)]
+  csp.param[[parameter.names[2]]] <- updated.param.2[,c("AA", "Codon", "Mean","Std.Dev",percentages)]
   return(csp.param)
 }
 
@@ -1287,7 +1294,7 @@ getMixtureAssignmentEstimate <- function(parameter, gene.index, samples)
 #' estimatedExpression <- getExpressionEstimates(parameter, 1:length(genome), 1000)
 #' }
 #' 
-getExpressionEstimates <- function(parameter, gene.index, samples, quantiles=c(0.025, 0.975),genome=NULL)
+getExpressionEstimates <- function(parameter, gene.index, samples, quantiles=c(0.025, 0.975), genome=NULL)
 {
   if (!is.null(genome))
   {
@@ -1406,7 +1413,7 @@ calculateExpectedSigmaPerGene <- function(model,sequence,alpha,lambda,nserate)
 #' estimatedExpression <- getExpressionEstimates(parameter, 1:length(genome), 1000)
 #' }
 #' 
-getSigmaEstimates <- function(parameter, model, genome, gene.index, samples, quantiles=c(0.025, 0.975),num.threads=1)
+getSigmaEstimates <- function(parameter, model, genome, gene.index, samples, quantiles=c(0.025, 0.975), num.threads=1)
 {
   if (class(parameter)!="Rcpp_PANSEParameter") {
     stop("ERROR: Parameter object is not of class PANSEParameter.")
