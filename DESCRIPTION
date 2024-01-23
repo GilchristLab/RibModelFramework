@@ -1,4 +1,4 @@
-Package: AnaCoDaFixedMode
+Package: AnaCoDa
 Type: Package
 Title: Analysis of Codon Data under Stationarity using a Bayesian
         Framework
