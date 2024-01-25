@@ -117,9 +117,16 @@ void ROCModel::calculateLogLikelihoodRatioPerGene(Gene& gene, unsigned geneIndex
 	//unsigned mixture = getMixtureAssignment(geneIndex);
 	unsigned mixture = getSynthesisRateCategory(expressionCategory);
 	double stdDevSynthesisRate = parameter->getStdDevSynthesisRate(mixture, false);
-	double mPhi = (stdDevSynthesisRate * stdDevSynthesisRate);// fix mode = exp(mPhi - sphi^2) = exp(0) = 1
-	// double mPhi = 0; // fix median = exp(mPhi)
-        // double mPhi = (-(stdDevSynthesisRate * stdDevSynthesisRate) * 0.5); // fix mean = exp(mPhi + sphi^2/2) = exp(0) = 1
+        // Alternative constraints on prior for phi
+        // fix mode = exp(mPhi - sphi^2)
+        //  mPhi = sphi^2; mode = exp(0) = 1; 
+	double mPhi = (stdDevSynthesisRate * stdDevSynthesisRate);
+	// fix median = exp(mPhi)
+        //  mPhi = 0; median = exp(0) = 1;
+        // double mPhi = 0;
+        // fix mean = exp(mPhi + sphi^2/2)
+        //  mPhi = -sphi^2/2; mean = exp(0) = 1
+        // double mPhi = (-(stdDevSynthesisRate * stdDevSynthesisRate) * 0.5); 
 	double logPhiProbability = Parameter::densityLogNorm(phiValue, mPhi, stdDevSynthesisRate, true);
 	double logPhiProbability_proposed = Parameter::densityLogNorm(phiValue_proposed, mPhi, stdDevSynthesisRate, true);
 
@@ -228,9 +235,23 @@ void ROCModel::calculateLogLikelihoodRatioForHyperParameters(Genome &genome, uns
 	for (unsigned i = 0u; i < selectionCategory; i++)
 	{
 		currentStdDevSynthesisRate[i] = getStdDevSynthesisRate(i, false);
-		currentMphi[i] = -((currentStdDevSynthesisRate[i] * currentStdDevSynthesisRate[i]) * 0.5);
 		proposedStdDevSynthesisRate[i] = getStdDevSynthesisRate(i, true);
-		proposedMphi[i] = -((proposedStdDevSynthesisRate[i] * proposedStdDevSynthesisRate[i]) * 0.5);
+                // Alternative constraints on prior for phi
+                // fix mode = exp(mPhi - sphi^2). 
+                //   mPhi = sphi^2 ->  mode = exp(0) = 1;
+                currentMphi[i] = ((currentStdDevSynthesisRate[i] * currentStdDevSynthesisRate[i]));
+		proposedMphi[i] = ((proposedStdDevSynthesisRate[i] * proposedStdDevSynthesisRate[i]));
+                //
+                // fix median = exp(mPhi)
+                //   mPhi = 0; median = exp(0) = 1;
+                // currentMphi[i] = 0;
+		// proposedMphi[i] = 0;
+                //
+                // fix mean = exp(mPhi + sphi^2/2)
+                //   mPhi = -sphi^2/2; mean = exp(0) = 1
+                // currentMphi[i] = -((currentStdDevSynthesisRate[i] * currentStdDevSynthesisRate[i]) * 0.5);
+		// proposedMphi[i] = -((proposedStdDevSynthesisRate[i] * proposedStdDevSynthesisRate[i]) * 0.5);
+                
 		// take the Jacobian into account for the non-linear transformation from logN to N distribution
 		lpr -= (std::log(currentStdDevSynthesisRate[i]) - std::log(proposedStdDevSynthesisRate[i]));
 	}
