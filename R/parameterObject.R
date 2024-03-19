@@ -30,7 +30,7 @@
 #' The default value for split.serine is TRUE.
 #' 
 #' @param mixture.definition A string describing how each mixture should
-#' be treated with respect to mutation and dEta.
+#' be treated with respect to mutation and selection.
 #' Valid values consist of "allUnique", "mutationShared", and "selectionShared".
 #' The default value for mixture.definition is "allUnique".
 #' See details for more information.
@@ -57,12 +57,12 @@
 #' supply a vector with n * 40 values, where n is the number of mutation categories. Future versions will check the number of rows matches
 #' the number of mutation categories definded by user. 
 #'
-#' @param dEta.prior.mean ROC only. Controlling the mean of the normal prior on selection paramters.
+#' @param selection.prior.mean ROC only. Controlling the mean of the normal prior on selection paramters.
 #' If passed in as single number (default is 0), this will be the mean value for all categories, for all codons. User may also
 #' supply a vector with n * 40 values, where n is the number of selection categories. Future versions will check the number of rows matches
 #' the number of selection categories definded by user. 
 #' 
-#' @param dEta.prior.sd ROC only. Controlling the standard deviation of the normal prior on the selection parameters.
+#' @param selection.prior.sd ROC only. Controlling the standard deviation of the normal prior on the selection parameters.
 #' If passed in as single number (default is 100 which effectively results in a flat prior), this will be the standard deviation value for all categories, for all codons. User may also
 #' supply a vector with n * 40 values, where n is the number of selection categories. Future versions will check the number of rows matches
 #' the number of selection categories definded by user.
@@ -138,8 +138,8 @@ initializeParameterObject <- function(genome = NULL, sphi = NULL, num.mixtures =
                                       mixture.definition.matrix = NULL,
                                       init.with.restart.file = NULL,
                                       mutation.prior.mean = 0.0, mutation.prior.sd = 0.35, propose.by.prior=FALSE,
-                                      dEta.prior.mean = 0.0,
-                                      dEta.prior.sd = 100,
+                                      selection.prior.mean = 0.0,
+                                      selection.prior.sd = 100,
                                       init.csp.variance = 0.0025, init.sepsilon = 0.1, 
                                       init.w.obs.phi=FALSE, init.by.random = FALSE ,init.initiation.cost = 4,init.partition.function=1){
   # check input integrity
@@ -176,8 +176,8 @@ initializeParameterObject <- function(genome = NULL, sphi = NULL, num.mixtures =
     if (any(mutation.prior.sd < 0)) {
       stop("mutation.prior.sd should be positive\n")
     }
-    if (any(dEta.prior.sd < 0)) {
-      stop("dEta.prior.sd should be positive\n")
+    if (any(selection.prior.sd < 0)) {
+      stop("selection.prior.sd should be positive\n")
     }
 
     if (init.csp.variance < 0) {
@@ -201,7 +201,7 @@ initializeParameterObject <- function(genome = NULL, sphi = NULL, num.mixtures =
                                                 gene.assignment, initial.expression.values, split.serine,
                                                 mixture.definition, mixture.definition.matrix, 
                                                 mutation.prior.mean, mutation.prior.sd, propose.by.prior,
-                                                dEta.prior.mean, dEta.prior.sd,
+                                                selection.prior.mean, selection.prior.sd,
                                                 init.csp.variance, init.sepsilon, init.w.obs.phi,init.by.random)    
     }else{
       parameter <- new(ROCParameter, init.with.restart.file)
@@ -244,7 +244,7 @@ initializeROCParameterObject <- function(genome, sphi, numMixtures, geneAssignme
                                          mixture.definition = "allUnique", 
                                          mixture.definition.matrix = NULL,
                                          mutation_prior_mean = 0.0, mutation_prior_sd = 0.35, propose.by.prior=FALSE,
-                                         dEta_prior_mean = 0.0, dEta_prior_sd = 100,                                         
+                                         selection_prior_mean = 0.0, selection_prior_sd = 100,                                         
                                          init.csp.variance = 0.0025, init.sepsilon = 0.1,init.w.obs.phi=FALSE,
                                          init.by.random = FALSE)
 {
@@ -327,21 +327,21 @@ initializeROCParameterObject <- function(genome, sphi, numMixtures, geneAssignme
   parameter$setMutationPriorStandardDeviation(mutation_prior_sd)
   parameter$setProposeByPrior(propose.by.prior)
   # Set Selection Prior
-  if (length(dEta_prior_mean) == 1)
+  if (length(selection_prior_mean) == 1)
   {
-    dEta_prior_mean <- rep(dEta_prior_mean,length=parameter$numSelectionCategories * numCodons)
+    selection_prior_mean <- rep(selection_prior_mean,length=parameter$numSelectionCategories * numCodons)
   } else{
-    dEta_prior_mean <- as.vector(t(dEta_prior_mean))
+    selection_prior_mean <- as.vector(t(selection_prior_mean))
   }
   
-  if (length(dEta_prior_sd) == 1)
+  if (length(selection_prior_sd) == 1)
   {
-    dEta_prior_sd <- rep(dEta_prior_sd,length=parameter$numSelectionCategories * numCodons)
+    selection_prior_sd <- rep(selection_prior_sd,length=parameter$numSelectionCategories * numCodons)
   } else{
-    dEta_prior_sd <- as.vector(t(dEta_prior_sd))
+    selection_prior_sd <- as.vector(t(selection_prior_sd))
   }
-  parameter$setSelectionPriorMean(dEta_prior_mean)
-  parameter$setSelectionPriorStandardDeviation(dEta_prior_sd)
+  parameter$setSelectionPriorMean(selection_prior_mean)
+  parameter$setSelectionPriorStandardDeviation(selection_prior_sd)
 
   if (n.obs.phi.sets != 0){
     parameter$setInitialValuesForSepsilon(as.vector(init.sepsilon))
@@ -1058,7 +1058,7 @@ checkModel <- function(parameter)
 #'         ncores = 4, divergence.iteration = divergence.iteration)
 #' 
 #' ## return estimates for selection coefficients s for each codon in each gene
-#' dEta.coefficients <- getSelectionCoefficients(genome = genome, 
+#' selection.coefficients <- getSelectionCoefficients(genome = genome, 
 #'                                                    parameter = parameter, samples = 1000)
 #' }
 #' 
