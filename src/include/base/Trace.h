@@ -66,7 +66,7 @@ class Trace {
 
 
 		//FONSE Specific:
-                void initInitiationCostTrace(unsigned samples);
+        void initInitiationCostTrace(unsigned samples);
 
 		//PANSE Specific:
 		void initPartitionFunctionTrace(unsigned samples, unsigned numPartitionFunctionsGroupings);
@@ -98,7 +98,7 @@ class Trace {
 
 
 		void initializePANSETrace(unsigned samples, unsigned num_genes, unsigned numAlphaCategories,
-			unsigned numLambdaPrimeCategories, unsigned numParam, unsigned numMixtures,
+			unsigned numLambdaPrimeCategories, unsigned numNSECategores, unsigned numParam, unsigned numMixtures,
 			std::vector<mixtureDefinition> &_categories, unsigned maxGrouping,unsigned numObservedPhiSets,std::vector<double> init_phi,
                         std::vector<unsigned> init_mix_assign, bool estimateSynthesisRate = true);
 
@@ -180,8 +180,13 @@ class Trace {
         void updatePartitionFunctionAcceptanceRateTrace(double value);
 
         void resizeNumberCodonSpecificParameterTrace(unsigned _numCodonSpecificParamTypes);
-        std::vector<std::vector<double>> getPartitionFunctionTraces();
         std::vector<std::vector<double>> getNseRateSpecificAcceptanceRateTrace();
+        void setPartitionFunctionTraces(std::vector<std::vector <double> > _PartitionFunctionTrace);
+        std::vector<std::vector<double>> getPartitionFunctionTraces();
+
+
+
+>>>>>>> 8c5debc358d7c27c0f3e7111abb77b62d3de255e
         //R Section:
 #ifndef STANDALONE
         //Getter Functions:
@@ -192,10 +197,6 @@ class Trace {
         std::vector<double> getMixtureProbabilitiesTraceForMixtureR(unsigned mixtureIndex);//R WRAPPER
         std::vector<std::vector<double>> getStdDevSynthesisRateTraces();
         unsigned getNumberOfMixtures();
-
-
-
-
 
         //Setter Functions:
         void setStdDevSynthesisRateTraces(std::vector<std::vector<double>> _stdDevSynthesisRateTrace);
@@ -210,7 +211,7 @@ class Trace {
 
 
         //ROC Specific:updateSynthesisOffsetAcceptanceRateTrace
-	std::vector<float> getCodonSpecificParameterTraceByMixtureElementForCodonR(unsigned mixtureElement, std::string& codon, unsigned paramType,
+	      std::vector<float> getCodonSpecificParameterTraceByMixtureElementForCodonR(unsigned mixtureElement, std::string& codon, unsigned paramType,
 		        bool withoutReference);
         std::vector<std::vector<double>> getSynthesisOffsetTraceR();
         std::vector<std::vector<double>> getObservedSynthesisNoiseTraceR();
@@ -226,8 +227,6 @@ class Trace {
         //PANSE Specific:
 
         std::vector<double> getPartitionFunctionTraceR(unsigned mixtureIndex);
-        void setPartitionFunctionTraces(std::vector<std::vector <double> > _PartitionFunctionTrace);
-
 
         bool checkIndex(unsigned index, unsigned lowerbound, unsigned upperbound);
 

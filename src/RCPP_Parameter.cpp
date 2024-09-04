@@ -373,15 +373,12 @@ RCPP_MODULE(Parameter_mod)
 		//Constructors & Destructors:
         .constructor()
 		.constructor <std::string>()
-		.constructor <std::vector<double>, std::vector<unsigned>, std::vector<unsigned>, bool>()
-		.constructor <std::vector<double>, unsigned, std::vector<unsigned>, bool, std::string>()
+		.constructor <std::vector<double>, std::vector<unsigned>, std::vector<unsigned>, unsigned, bool>()
+		.constructor <std::vector<double>, unsigned, std::vector<unsigned>, unsigned, bool, std::string>()
 
 
 
 		//Initialization, Restart, Index Checking:
-		.method("initAlpha", &PANSEParameter::initAlphaR)
-		.method("initLambdaPrime", &PANSEParameter::initLambdaPrimeR)
-		.method("initNSERate", &PANSEParameter::initNSERateR)
 		.method("initMutationSelectionCategories", &PANSEParameter::initMutationSelectionCategoriesR)
 		.method("fixAlpha",&PANSEParameter::fixAlpha)
 		.method("fixLambdaPrime",&PANSEParameter::fixLambdaPrime)

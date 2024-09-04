@@ -7,7 +7,7 @@
 #include <cstdio>
 #include <cstdlib>
 
-//#define JEREMY
+//#define ALEX
 //#define STANDALONE
 
 #ifdef CEDRIC
@@ -1329,90 +1329,119 @@ int main()
 #ifdef ALEX
 int main()
 {
-	std::cout << "Initializing MCMCAlgorithm object---------------" << std::endl;
-		int samples = 100;
-		int thinning = 5;
-		int useSamples = 20;
-		std::cout << "\t# Samples: " << samples << "\n";
-		std::cout << "\tThinning: " << thinning << "\n";
-		std::cout << "\t# Samples used: " << useSamples << "\n";
-		MCMCAlgorithm mcmc = MCMCAlgorithm(samples, thinning, 20, true, true, true);
-		mcmc.setRestartFileSettings(std::string("test"), 20, false);
+<<<<<<< HEAD
+	srand(1500);
+    std::vector <double> alphas;
+    std::vector <double> lambdas;
+    std::vector <std::string> cspFiles;
+    Genome genome;
+	unsigned numMixtures = 1;
+	std::vector<double> sphi_init(numMixtures, 1);
+	std::vector<unsigned> geneAssignment;
+	genome.readRFPData("/Users/alexandercope/Test_PANSE/Test_codon_mix/Test_codon_mix/Data/Simulation/2_mixtures_allUnique_same_nse/simulated_rfp.csv", false);
+	Gene gene = genome.getGene(0);
+	std::vector<unsigned> position = gene.geneData.getPositionCodonID();
+	std::vector<unsigned> mixture = gene.geneData.getPositionMixture();
 
-		//mcmc.setRestartFileSettings("RestartFile.txt", 20, true);
-		std::cout << "Done!-------------------------------\n\n\n";
+	std::vector<unsigned long> rfp = gene.geneData.getRFPCount(0);
+	my_print("%\n",genome.getSumRFP());
+    geneAssignment.resize(genome.getGenomeSize());
+    for (int i = 0; i < geneAssignment.size(); i++)
+    {
+    	if (i == 1)
+    	{
+    		geneAssignment[i] = 0;
+    	}
+    	else
+    	{
+    		geneAssignment[i] = 0;
+    	}
+    }
 
-
-		std::cout << "initialize Genome object--------------------------" << std::endl;
-		bool withPhi = true;
-
-		Genome genome;
-		genome.readFasta("/Users/alexandercope/RibModelFramework/tests/testthat/UnitTestingData/testMCMCROCFiles/simulatedAllUniqueR.fasta");
-		if(withPhi)
+//
+	std::vector<double> phi;
+	std::size_t pos;
+	std::ifstream currentFile;
+	std::string tmpString;
+	my_print("Initializing gene expression...\n");
+	currentFile.open("/Users/alexandercope/Test_PANSE/Test_codon_mix/Test_codon_mix/Data/Simulation/2_mixtures_allUnique_same_nse/phi.csv");
+	currentFile >> tmpString;
+	while (currentFile >> tmpString)
+	{
+		pos = tmpString.find(',');
+		if (pos != std::string::npos)
 		{
 			genome.readObservedPhiValues("/Users/alexandercope/RibModelFramework/tests/testthat/UnitTestingData/testMCMCROCFiles/simulatedAllUniqueR_phi_withPhiSet.csv", false);
 			//genome.readObservedPhiValues("E:/RibosomeModel/RibModelDev/data/twoMixtures/simulatedAllUniqueR_phi_unevenMixtures.csv", false);
 		}
+	}
+	my_print("Initializing CSP\n");
+	std::vector<std::vector<unsigned>> mixtureDefinitionMatrix;
+	std::string mixDef = Parameter::allUnique;
+	unsigned numElongationMixtures = 2;
+	PANSEParameter parameter("/Users/alexandercope/Test_PANSE/Test_codon_mix/Test_codon_mix/Results/2022-12-15_simulated_2_mixtures_allUnique_div_truth_same_nse/restart_1/Restart_files/rstartFile.rst_final");
+//	PANSEParameter parameter(sphi_init, numMixtures, geneAssignment, mixtureDefinitionMatrix, numElongationMixtures, true, mixDef);
+//	parameter.setPartitionFunction(275222,0,false);
+//	parameter.setPartitionFunction(275222,0,true);
+//	parameter.printMixtureDefinitionMatrix();
+////
+//    cspFiles.push_back("/Users/alexandercope/Test_PANSE/Test_codon_mix/Data/Simulation/2_mixtures_allUnique/alpha_1.csv");
+//    cspFiles.push_back("/Users/alexandercope/Test_PANSE/Test_codon_mix/Data/Simulation/2_mixtures_allUnique/alpha_2.csv");
+//    parameter.initMutationSelectionCategories(cspFiles, 2, parameter.alp);
+//
+//    cspFiles[0] = ("/Users/alexandercope/Test_PANSE/Test_codon_mix/Data/Simulation/2_mixtures_allUnique/lambda_1.csv");
+//    cspFiles[1] = ("/Users/alexandercope/Test_PANSE/Test_codon_mix/Data/Simulation/2_mixtures_allUnique/lambda_2.csv");
+//    parameter.initMutationSelectionCategories(cspFiles, 2, parameter.lmPri);
+//
+//
+//    cspFiles[0] = ("/Users/alexandercope/Test_PANSE/Test_codon_mix/Data/Simulation/2_mixtures_allUnique/nserate_1.csv");
+//    cspFiles[1] = ("/Users/alexandercope/Test_PANSE/Test_codon_mix/Data/Simulation/2_mixtures_allUnique/nserate_2.csv");
+//    parameter.initMutationSelectionCategories(cspFiles, 2, parameter.nse);
+//
+//    parameter.InitializeSynthesisRate(phi);
+//    my_print("Done\n");
+//    double nse_1 = parameter.getParameterForCategory(0, 2, "GCA",false);
+//    double nse_2 = parameter.getParameterForCategory(1, 2, "GCA",false);
+//    my_print("%\n",nse_1);
+//    my_print("%\n",nse_2);
+    //
+	PANSEModel model;
+	model.setParameter(parameter);
+	my_print("Initializing MCMCAlgorithm object---------------\n");
+	unsigned samples = 20;
+	unsigned thinning = 2;
 
-		std::cout << "Done!-------------------------------\n\n\n";
-		std::cout << "Initializing shared parameter variables---------------\n";
-
-		std::cout << "Done!-------------------------------\n\n\n";
-		std::cout << "Initializing shared parameter variables---------------\n";
-		std::vector<unsigned> geneAssignment(genome.getGenomeSize());
-
-		unsigned numMixtures = 1;
-		std::vector<double> sphi_init(numMixtures, 1);
-
-		/* For 2 mixture */
-		for (unsigned i = 0u; i < genome.getGenomeSize(); i++)
-		{
-			//geneAssignment[i] = ( ((double)rand() / (double)RAND_MAX) < 0.5 ? 0u : 1u );
-			geneAssignment[i] = 0u;
-
-		}
-		std::vector<std::vector<unsigned>> mixtureDefinitionMatrix;
-		std::cout << "Done!------------------------\n\n\n";
-
-		std::cout << "initialize ROCParameter object" << std::endl;
-		std::string mixDef = ROCParameter::allUnique;
-		ROCParameter parameter(sphi_init, numMixtures, geneAssignment, mixtureDefinitionMatrix, true, mixDef);
-
-		for (unsigned i = 0u; i < numMixtures; i++)
-		{
-			unsigned selectionCategry = parameter.getSelectionCategory(i);
-			std::cout << "Sphi_init for selection category " << selectionCategry << ": " << sphi_init[selectionCategry] << std::endl;
-		}
-		std::cout << "\t# mixtures: " << numMixtures << "\n";
-		std::cout << "\tmixture definition: " << mixDef << "\n";
-
-     	std::vector<std::string> files(1);
-		files[0] = std::string("/Users/alexandercope/RibModelFramework/tests/testthat/UnitTestingData/testMCMCROCFiles/mutation_1.csv");
-		parameter.initMutationCategories(files, parameter.getNumMutationCategories());
-		files.resize(1);
-		files[0] = std::string("/Users/alexandercope/RibModelFramework/tests/testthat/UnitTestingData/testMCMCROCFiles/selection_1.csv");
-
-		parameter.InitializeSynthesisRate(genome, sphi_init[0]);
-		parameter.setNumObservedPhiSets(1);
-		my_print("Number of phi sets: %\n", parameter.getNumObservedPhiSets());
-		//std::vector<double> phiVals = parameter.readPhiValues("/home/clandere/CodonUsageBias/RibosomeModel/RibModelFramework/ribModel/data/Skluyveri_ChrA_ChrCleft_phi_est.csv");
-		//parameter.InitializeSynthesisRate(phiVals);
-		std::cout << "done initialize ROCParameter object" << std::endl;
+	my_print("\t# Samples: %\n", samples);
+	my_print("\tThinning: %\n", thinning);
+	MCMCAlgorithm mcmc = MCMCAlgorithm(samples, thinning, 10, false, true,false);
+	mcmc.setRestartFileSettings("RestartFile.txt", 20, true);
+	my_print("Done!-------------------------------\n\n\n");
 
 
-		std::cout << "Initializing ROCModel object\n";
+	my_print("Running MCMC.............\n\n");
+	mcmc.run(genome, model, 1, 50);
+	my_print("Done!----------------------------------\n\n\n");
 
-		ROCModel model(withPhi);
-		model.setParameter(parameter);
-
-
-		std::cout << "starting MCMC for ROC" << std::endl;
-		mcmc.run(genome, model, 1, 0);
-		std::cout << std::endl << "Finished MCMC for ROC" << std::endl;
-
-
-		std::cout << std::endl << "Exiting" << std::endl;
-
+//	std::vector<std::string> codons = parameter.getGroupList();
+//	std::vector<double> alpha,lmprime,nse;
+//	double tmp;
+//	for (unsigned i=0; i < codons.size();i++)
+//	{
+//		tmp = parameter.getCodonSpecificPosteriorMean(0, samples, codons[i],0, true, false);
+//		alpha.push_back(tmp);
+//		tmp = parameter.getCodonSpecificPosteriorMean(0, samples, codons[i],1, true, false);
+//		lmprime.push_back(tmp);
+//		tmp = parameter.getCodonSpecificPosteriorMean(0, samples, codons[i],2, true, false);
+//		nse.push_back(tmp);
+//	}
+//	std::ofstream myFile("cpp_runs_10_24.csv");
+//	myFile << "Codon,Alpha,LambdaPrime,NSE\n";
+//	for (unsigned i=0;i < codons.size();i++)
+//	{
+//		myFile << codons[i] <<","<<alpha[i]<<","<<lmprime[i]<<","<<nse[i]<<"\n";
+//	}
+//	std::cout << mcmc.getLogPosteriorMean(samples);
+//
 
 }
 

@@ -77,6 +77,7 @@ SequenceSummary::SequenceSummary(const SequenceSummary& other)
 	RFPCount = other.RFPCount;
 	sumRFPCount = other.sumRFPCount;
 	positionCodonID = other.positionCodonID;
+	positionMixture = other.positionMixture;
 }
 
 
@@ -90,6 +91,7 @@ SequenceSummary& SequenceSummary::operator=(const SequenceSummary& rhs)
 	RFPCount = rhs.RFPCount;
 	sumRFPCount = rhs.sumRFPCount;
 	positionCodonID = rhs.positionCodonID;
+	positionMixture = rhs.positionMixture;
 
 	return *this;
 }
@@ -105,6 +107,7 @@ bool SequenceSummary::operator==(const SequenceSummary& other) const
 	if (this->RFPCount != other.RFPCount) {match = false; }
 	if (this->sumRFPCount != other.sumRFPCount) {match = false; }
 	if (this->positionCodonID != other.positionCodonID) { match = false; }
+	if (this->positionMixture != other.positionMixture) { match = false; }
 
 	return match;
 }
@@ -264,7 +267,7 @@ unsigned long SequenceSummary::getSumTotalRFPCount(unsigned RFPCountColumn)
     unsigned long sum = 0;
     for (unsigned i = 0u; i < sumRFPCount[RFPCountColumn].size(); i++)
     {
-        sum += sumRFPCount[RFPCountColumn][i];
+       sum += sumRFPCount[RFPCountColumn][i];;
     }
 
     return sum;
@@ -318,6 +321,15 @@ void SequenceSummary::setCodonSpecificSumRFPCount(unsigned codonIndex, unsigned 
 std::vector <unsigned> SequenceSummary::getPositionCodonID()
 {
 	return positionCodonID;
+}
+
+/* getPositionCodonID (NOT EXPOSED)
+ * Arguments: None.
+ * Returns the vector of codon IDs for each position.
+ */
+std::vector <int> SequenceSummary::getPositionMixture()
+{
+  return positionMixture;
 }
 
 
@@ -380,78 +392,23 @@ bool SequenceSummary::processSequence(const std::string& sequence)
 }
 
 
-bool SequenceSummary::processPA(std::vector<std::vector<int>> table)
-{
-    // Table format: Each line of input from a .csv (.pa) file, ordered:
-    // unknown size table (nRows, aka table.size()), each row a vector:
-    // position, codon, category1, ... (may be more than one category)
-
-	bool check = true;
-	codonPositions.resize(64);
-	unsigned nRows = (unsigned)table.size();
-	positionCodonID.resize(nRows);
-
-	// There should be at least 1 table entry to get to this point, so this should be a valid operation
-    unsigned numCats = (unsigned)table[0].size() - 2; // numCats = after position, codon.
-	initRFPCount(numCats);
-	sumRFPCount.resize(numCats);
-
-	for (unsigned j = 0; j < numCats; j++)
-	{
-		RFPCount[j].resize(nRows);
-		sumRFPCount[j].fill(0);
-	}
-
-	for (unsigned i = 0; i < nRows; i++)
-	{
-		std::vector <int> row = table[i];
-
-		unsigned codonID = (unsigned)row[1];
-		std::string codon = indexToCodon(codonID);
-		// Note: Don't bother writing a function to convert codonIndex to aaIndex
-        // Would just perform the exact same steps anyway; redundant code.
-		if (codonID != 64) // if codon id == 64 => codon not found. Ignore, probably N
-		{
-			int aaID = codonToAAIndex(codon);
-			ncodons[codonID]++;
-			naa[aaID]++;
-			codonPositions[codonID].push_back((unsigned) row[0]);
-			positionCodonID[row[0]] = codonID;
-
-			for (unsigned j = 0; j < numCats; j++)
-			{
-				// Category j has an RFPCount at the position equal to the 2-indexed (after position, codon) value of j.
-				RFPCount[j][row[0]] = row[j + 2];
-				if (row[j+2] > 0) sumRFPCount[j][codonID] += row[j + 2];
-                // Recall: We store RFP counts < 0, but do not need to process this information in calculations
-                // So we only add to the sumRFPCount if the value is "valid" (> 0).
-			}
-		}
-		else
-		{
-			my_printError("WARNING: Codon % not recognized!\n Codon will be ignored!\n", codon);
-			check = false;
-		}
-	}
-
-	return check;
-}
 
 //TODO: Turn into equivalent PANSE
-bool SequenceSummary::processPANSE(std::vector<std::vector<int>> table)
+bool SequenceSummary::processRFP(std::vector<std::vector<int>> table)
 {
     // Table format: Each line of input from a .csv (.panse) file, ordered:
     // unknown size table (nRows, aka table.size()), each row a vector:
-    // position, codon, category1, ... (may be more than one category)
+    // position, codon, mixture, RFPCount
 
 	bool check = true;
 	codonPositions.resize(64);
 	unsigned nRows = (unsigned)table.size();
 	positionCodonID.resize(nRows);
+	positionMixture.resize(nRows);
 
 	// There should be at least 1 table entry to get to this point, so this should be a valid operation
-    unsigned numCats = (unsigned)table[0].size() - 2; // numCats = after position, codon.
-	initRFPCount(numCats);
+  unsigned numCats = (unsigned)table[0].size() - 3; // numCats = after position, codon, mixture
+  initRFPCount(numCats);
 	sumRFPCount.resize(numCats);
 
 	for (unsigned j = 0; j < numCats; j++)
@@ -475,12 +432,13 @@ bool SequenceSummary::processPANSE(std::vector<std::vector<int>> table)
 			naa[aaID]++;
 			codonPositions[codonID].push_back((unsigned) row[0]);
 			positionCodonID[row[0]] = codonID;
+			positionMixture[row[0]] = row[2];
 
 			for (unsigned j = 0; j < numCats; j++)
 			{
-				// Category j has an RFPCount at the position equal to the 2-indexed (after position, codon) value of j.
-				RFPCount[j][row[0]] = row[j + 2];
-				if (row[j+2] > 0) sumRFPCount[j][codonID] += row[j + 2];
+				// Category j has an RFPCount at the position equal to the 2-indexed (after position, codon, mixture) value of j.
+				RFPCount[j][row[0]] = row[j + 3];
+				if (row[j+3] > 0) sumRFPCount[j][codonID] += row[j + 3];
                 // Recall: We store RFP counts < 0, but do not need to process this information in calculations
                 // So we only add to the sumRFPCount if the value is "valid" (> 0).
 			}

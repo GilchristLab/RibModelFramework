@@ -44,6 +44,8 @@ class Parameter {
 		static const std::string allUnique;
 		static const std::string selectionShared;
 		static const std::string mutationShared;
+		static const std::string elongationShared;
+		static const std::string nseShared;
 
 		static const unsigned dM;
 		static const unsigned dEta;
@@ -97,6 +99,7 @@ class Parameter {
 		unsigned getSynthesisRateCategory(unsigned mixtureElement); //see Note 1) at top of file.
 		std::vector<unsigned> getMixtureElementsOfMutationCategory(unsigned category); //TODO caveat
 		std::vector<unsigned> getMixtureElementsOfSelectionCategory(unsigned category); //TODO caveat
+		std::vector<unsigned> getMixtureElementsOfSynthesisRateCategory(unsigned category); //TODO caveat
 		std::string getMutationSelectionState();
 		unsigned getNumAcceptForCspForIndex(unsigned i); //Only for unit testing.
 
@@ -298,8 +301,12 @@ class Parameter {
 		std::vector<double> categoryProbabilities;
 		std::vector<std::vector<unsigned>> mutationIsInMixture;
 		std::vector<std::vector<unsigned>> selectionIsInMixture;
+		std::vector<std::vector<unsigned>> phiIsInMixture;
 		unsigned numMutationCategories; //TODO Probably needs to be renamed
 		unsigned numSelectionCategories; //TODO Probably needs to be renamed
+		unsigned numSynthesisRateCategories;
+
+
 		std::vector<unsigned> numAcceptForCodonSpecificParameters;
 		std::string mutationSelectionState; //TODO: Probably needs to be renamed
 
@@ -336,6 +343,7 @@ class Parameter {
 
 		unsigned int numParam;
 		unsigned numMixtures;
+		unsigned numElongationMixtures; // Intended for just PA and PANSE for now, but can begin thinking of expanding to other models.
 		unsigned obsPhiSets;
 
 		double bias_phi; //NOTE: Currently, this value is always set to 0.0

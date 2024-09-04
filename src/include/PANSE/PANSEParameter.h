@@ -32,29 +32,31 @@ class PANSEParameter: public Parameter {
         double std_partitionFunction;
         unsigned numAcceptForPartitionFunction;
         std::vector<unsigned> numAcceptForNSERates;
+        std::vector<CovarianceMatrix> nse_covarianceMatrix;
+        std::vector<std::vector<unsigned>> nseIsInMixture;
+		unsigned numNSECategories;
+
 		double bias_csp;
+
 
 		// Sum of all RFP counts
 		unsigned Y;
 
 	public:
-        //Testing Functions
-        std::vector<double> oneMixLambda();
-        std::vector<double> oneMixAlpha();
-        std::vector<double> oneMixNSE();
 
 		//Constructors & Destructors:
 		explicit PANSEParameter();
 		PANSEParameter(std::string filename);
 		PANSEParameter(std::vector<double> stdDevSynthesisRate, unsigned _numMixtures, std::vector<unsigned> geneAssignment,
-				std::vector<std::vector<unsigned>> thetaKMatrix, bool splitSer = true,
+				std::vector<std::vector<unsigned>> thetaKMatrix, unsigned _numElongationMixtures, bool splitSer = true,
 				std::string _mutationSelectionState = "allUnique");
 		PANSEParameter& operator=(const PANSEParameter& rhs);
 		virtual ~PANSEParameter();
 
 
 		//Initialization, Restart, Index Checking:
-		void initPANSEParameterSet();
+		void initPANSEParameterSet( std::vector<std::vector<unsigned>> mixtureDefinitionMatrix,
+				std::string _mutationSelectionState, unsigned _numElongationMixtures);
 		void initPANSEValuesFromFile(std::string filename);
 		void writeEntireRestartFile(std::string filename);
 		void writePANSERestartFile(std::string filename);
@@ -66,6 +68,11 @@ class PANSEParameter: public Parameter {
 		void initNonsenseErrorRate(double nonsenseErrorRateValue, unsigned mixtureElement, std::string codon);
 		void initMutationSelectionCategories(std::vector<std::string> files, unsigned numCategories,
 				unsigned paramType); //TODO: function needs to be changed
+
+		void setNumMutationSelectionValues(std::string mutationSelectionState,
+					std::vector<std::vector<unsigned>> mixtureDefinitionMatrix); //TODO: test
+		void initCategoryDefinitions(std::string mutationSelectionState,
+					std::vector<std::vector<unsigned>> mixtureDefinitionMatrix);
 		void fixAlpha();
 		void fixLambdaPrime();
 		void fixNSERate();
@@ -76,10 +83,12 @@ class PANSEParameter: public Parameter {
 		bool isNSEFixed();
 		bool isNSEShared();
 
-        //CSP Read Functions:
-        void readAlphaValues(std::string filename);
-        void readLambdaValues(std::string filename);
-        void readNSEValues(std::string filename);
+
+
+    //CSP Read Functions:
+    void readAlphaValues(std::string filename);
+    void readLambdaValues(std::string filename);
+    void readNSEValues(std::string filename);
 
 		//Trace Functions:
 		void updateCodonSpecificParameterTrace(unsigned sample, std::string codon);
@@ -91,15 +100,15 @@ class PANSEParameter: public Parameter {
 		void proposeCodonSpecificParameter();
 		void updateCodonSpecificParameter(std::string grouping);
 		void updateCodonSpecificParameter(std::string grouping,std::string param);
-        void completeUpdateCodonSpecificParameter();
+    void completeUpdateCodonSpecificParameter();
 
-        //partitionFunction Functions: Mostly tested, see comments.
-        double getPartitionFunction(unsigned mixtureCategory, bool proposed); //TODO: test
-        virtual void proposePartitionFunction(); //TODO: test
-        void setPartitionFunction(double newPartitionFunction, unsigned mixtureCategory, bool proposed); //TODO: test
-        double getCurrentPartitionFunctionProposalWidth(); //TODO: test
-        unsigned getNumAcceptForPartitionFunction(); //Only for unit testing.
-        void updatePartitionFunction(); //TODO: test
+    //partitionFunction Functions: Mostly tested, see comments.
+    double getPartitionFunction(unsigned mixtureCategory, bool proposed); //TODO: test
+    virtual void proposePartitionFunction(); //TODO: test
+    void setPartitionFunction(double newPartitionFunction, unsigned mixtureCategory, bool proposed); //TODO: test
+    double getCurrentPartitionFunctionProposalWidth(); //TODO: test
+    unsigned getNumAcceptForPartitionFunction(); //Only for unit testing.
+    void updatePartitionFunction(); //TODO: test
 
 		//Adaptive Width Functions:
 		void adaptCodonSpecificParameterProposalWidth(unsigned adaptationWidth, unsigned lastIteration, bool adapt); //may make virtual
@@ -107,7 +116,11 @@ class PANSEParameter: public Parameter {
 
 		//Other functions:
 		double getParameterForCategory(unsigned category, unsigned paramType, std::string codon, bool proposal);
+		unsigned getNumNSECategories();
+		unsigned getNSECategory(unsigned mixtureElement);
+		unsigned getNumElongationMixtureElements();
 
+		void printMixtureDefinitionMatrix();
 		//For setting Y value
 		void setTotalRFPCount(Genome& genome);
 		unsigned long getTotalRFPCount();
@@ -121,17 +134,14 @@ class PANSEParameter: public Parameter {
 
 		//Constructors & Destructors:
 		PANSEParameter(std::vector<double> stdDevSynthesisRate, std::vector<unsigned> geneAssignment,
-			std::vector<unsigned> _matrix, bool splitSer = true);
-		PANSEParameter(std::vector<double> stdDevSynthesisRate, unsigned _numMixtures, std::vector<unsigned> geneAssignment,
+			std::vector<unsigned> _matrix, unsigned _numElongationMixtures, bool splitSer = true);
+		PANSEParameter(std::vector<double> stdDevSynthesisRate, unsigned _numMixtures, std::vector<unsigned> geneAssignment, unsigned _numElongationMixtures,
 			bool splitSer = true, std::string _mutationSelectionState = "allUnique");
 
 
 
 		//Initialization, Restart, Index Checking:
 		void initCovarianceMatrix(SEXP matrix, std::string codon);
-		void initAlphaR(double alphaValue, unsigned mixtureElement, std::string codon);
-		void initLambdaPrimeR(double lambdaPrimeValue, unsigned mixtureElement, std::string codon);
-        void initNSERateR(double NSETRateValue, unsigned mixtureElement, std::string codon);
 		void initMutationSelectionCategoriesR(std::vector<std::string> files, unsigned numCategories, std::string paramType);
 
 		//CSP Functions:
@@ -139,15 +149,15 @@ class PANSEParameter: public Parameter {
 		std::vector<std::vector<double>> getProposedLambdaPrimeParameter();
 		std::vector<std::vector<double>> getCurrentAlphaParameter();
 		std::vector<std::vector<double>> getCurrentLambdaPrimeParameter();
-        std::vector<std::vector<double>> getProposedNSERateParameter();
-        std::vector<std::vector<double>> getCurrentNSERateParameter();
+    std::vector<std::vector<double>> getProposedNSERateParameter();
+    std::vector<std::vector<double>> getCurrentNSERateParameter();
 
 		void setProposedAlphaParameter(std::vector<std::vector<double>> alpha);
-        void setProposedLambdaPrimeParameter(std::vector<std::vector<double>> lambdaPrime);
-        void setProposedNSERateParameter(std::vector<std::vector<double>> nseRate);
+    void setProposedLambdaPrimeParameter(std::vector<std::vector<double>> lambdaPrime);
+    void setProposedNSERateParameter(std::vector<std::vector<double>> nseRate);
 		void setCurrentAlphaParameter(std::vector<std::vector<double>> alpha);
 		void setCurrentLambdaPrimeParameter(std::vector<std::vector<double>> lambdaPrime);
-        void setCurrentNSERateParameter(std::vector<std::vector<double>> nseRate);
+    void setCurrentNSERateParameter(std::vector<std::vector<double>> nseRate);
 
 		//Posterior, Variance, and Estimates Functions:
 		double getAlphaPosteriorMeanForCodon(unsigned mixtureElement, unsigned samples, std::string codon);
@@ -155,7 +165,7 @@ class PANSEParameter: public Parameter {
 
 		double getAlphaVarianceForCodon(unsigned mixtureElement, unsigned samples, std::string codon, bool unbiased);
 		double getLambdaPrimeVarianceForCodon(unsigned mixtureElement, unsigned samples, std::string codon, bool unbiased);
-        double getNSERateVarianceForCodon(unsigned mixtureElement, unsigned samples, std::string codon, bool unbiased);
+    double getNSERateVarianceForCodon(unsigned mixtureElement, unsigned samples, std::string codon, bool unbiased);
 
 
 
@@ -165,6 +175,7 @@ class PANSEParameter: public Parameter {
 #endif //STANDALONE
 
 	protected:
+
 };
 
 #endif // PANSEPARAMETER_H
