@@ -224,7 +224,7 @@ void PANSEParameter::initPANSEParameterSet(std::vector<std::vector<unsigned>> mi
     	    categories[i].nse = -1;
     	 }
     }
-    bias_csp = 0;
+  bias_csp = 0;
 	std_csp.resize(numParam,0.1);
 	std_nse.resize(numParam,0.1);
 	std_partitionFunction = 0.1;
