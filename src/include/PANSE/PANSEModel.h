@@ -161,14 +161,26 @@ class PANSEModel: public Model
 		double UpperIncompleteGamma(double s, double x);
 		double UpperIncompleteGammaLog(double s, double x);
       
+
     double elongationProbability(double currAlpha, double currLambda, double currNSE);
     double elongationProbabilityLog(double currAlpha, double currLambda, double currNSE);
-    
+        
     double elongationUntilIndexApproximation1Probability(double alpha, double lambda, double v, double current);
     double elongationUntilIndexApproximation2Probability(double alpha, double lambda, double v, bool proposed);
     double elongationUntilIndexApproximation1ProbabilityLog(double alpha, double lambda, double v);
     double elongationUntilIndexApproximation2ProbabilityLog(double alpha, double lambda, double v);
-		
+
+        
+
+    double getNoiseOffset(unsigned index, bool proposed = false);
+		double getObservedSynthesisNoise(unsigned index) ;
+		double getCurrentNoiseOffsetProposalWidth(unsigned index);
+		void updateNoiseOffset(unsigned index);
+		void updateNoiseOffsetTrace(unsigned sample);
+		void updateObservedSynthesisNoiseTrace(unsigned sample);
+		void adaptNoiseOffsetProposalWidth(unsigned adaptiveWidth, bool adapt = true);
+		void updateGibbsSampledHyperParameters(Genome &genome);
+
 		virtual bool shareNSE();
 		virtual bool fixedAlpha();
 		virtual bool fixedLambda();

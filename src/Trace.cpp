@@ -519,6 +519,12 @@ unsigned Trace::getCodonSpecificCategory(unsigned mixtureElement, unsigned param
 //--------------------------------------//
 //----------- PANSE Specific -----------//
 //--------------------------------------//
+void Trace::setPartitionFunctionTraces(std::vector<std::vector <double> > _PartitionFunctionTrace)
+{
+  partitionFunctionTrace = _PartitionFunctionTrace;
+}
+
+
 std::vector<double> Trace::getPartitionFunctionTrace(unsigned mixtureIndex)
 {
     return partitionFunctionTrace[mixtureIndex];
@@ -898,14 +904,6 @@ void Trace::setCodonSpecificParameterTrace(std::vector<std::vector<std::vector<f
 
 }
 
-
-//----------------------------------//
-//--------- PANSE Specific ---------//
-//----------------------------------//
-void Trace::setPartitionFunctionTraces(std::vector<std::vector <double> > _PartitionFunctionTrace)
-{
-    partitionFunctionTrace = _PartitionFunctionTrace;
-}
 
 
 //----------------------------------//

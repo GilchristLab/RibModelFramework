@@ -1329,6 +1329,7 @@ int main()
 #ifdef ALEX
 int main()
 {
+<<<<<<< HEAD
 	srand(1500);
     std::vector <double> alphas;
     std::vector <double> lambdas;
@@ -1370,8 +1371,8 @@ int main()
 		pos = tmpString.find(',');
 		if (pos != std::string::npos)
 		{
-			std::string val = tmpString.substr(pos + 1, std::string::npos);
-			phi.push_back(std::atof(val.c_str()));
+			genome.readObservedPhiValues("/Users/alexandercope/RibModelFramework/tests/testthat/UnitTestingData/testMCMCROCFiles/simulatedAllUniqueR_phi_withPhiSet.csv", false);
+			//genome.readObservedPhiValues("E:/RibosomeModel/RibModelDev/data/twoMixtures/simulatedAllUniqueR_phi_unevenMixtures.csv", false);
 		}
 	}
 	my_print("Initializing CSP\n");

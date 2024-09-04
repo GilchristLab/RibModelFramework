@@ -1422,6 +1422,50 @@ bool PANSEParameter::isNSEShared()
 	return(share_nse);
 }
 
+void PANSEParameter::fixAlpha()
+{
+	fix_alpha = true;
+}
+
+void PANSEParameter::fixLambdaPrime()
+{
+	fix_lp = true;
+}
+
+void PANSEParameter::fixNSERate()
+{
+	fix_nse = true;
+}
+
+void PANSEParameter::fixZ()
+{
+	fix_Z = true;
+}
+
+void PANSEParameter::shareNSERate()
+{
+	share_nse = true;
+}
+
+bool PANSEParameter::isAlphaFixed()
+{
+	return(fix_alpha);
+}
+
+bool PANSEParameter::isLambdaFixed()
+{
+	return(fix_lp);
+}
+
+bool PANSEParameter::isNSEFixed()
+{
+	return(fix_nse);
+}
+
+bool PANSEParameter::isNSEShared()
+{
+	return(share_nse);
+}
 
 
 // -----------------------------------------------------------------------------------------------------//
@@ -1505,7 +1549,6 @@ void PANSEParameter::initCovarianceMatrix(SEXP _matrix, std::string codon)
 //---------------------------------------------------------------//
 // ---------- Initialization, Restart, Index Checking ---------- //
 //---------------------------------------------------------------//
-
 
 
 void PANSEParameter::initMutationSelectionCategoriesR(std::vector<std::string> files, unsigned numCategories,

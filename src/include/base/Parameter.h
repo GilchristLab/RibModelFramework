@@ -144,6 +144,7 @@ class Parameter {
 		void proposeNoiseOffset();
 		void setNoiseOffset(unsigned index, double _NoiseOffset);
 		void updateNoiseOffset(unsigned index);
+		void updateGibbsSampledHyperParameters(Genome &genome, bool withPhi,bool fix_sEpsilon);
 
 		void setNumObservedPhiSets(unsigned _phiGroupings);
 

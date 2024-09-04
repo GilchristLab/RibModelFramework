@@ -185,6 +185,8 @@ class Trace {
         std::vector<std::vector<double>> getPartitionFunctionTraces();
 
 
+
+>>>>>>> 8c5debc358d7c27c0f3e7111abb77b62d3de255e
         //R Section:
 #ifndef STANDALONE
         //Getter Functions:
@@ -195,8 +197,6 @@ class Trace {
         std::vector<double> getMixtureProbabilitiesTraceForMixtureR(unsigned mixtureIndex);//R WRAPPER
         std::vector<std::vector<double>> getStdDevSynthesisRateTraces();
         unsigned getNumberOfMixtures();
-
-
 
         //Setter Functions:
         void setStdDevSynthesisRateTraces(std::vector<std::vector<double>> _stdDevSynthesisRateTrace);
@@ -211,7 +211,7 @@ class Trace {
 
 
         //ROC Specific:updateSynthesisOffsetAcceptanceRateTrace
-	std::vector<float> getCodonSpecificParameterTraceByMixtureElementForCodonR(unsigned mixtureElement, std::string& codon, unsigned paramType,
+	      std::vector<float> getCodonSpecificParameterTraceByMixtureElementForCodonR(unsigned mixtureElement, std::string& codon, unsigned paramType,
 		        bool withoutReference);
         std::vector<std::vector<double>> getSynthesisOffsetTraceR();
         std::vector<std::vector<double>> getObservedSynthesisNoiseTraceR();
