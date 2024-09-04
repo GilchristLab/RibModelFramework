@@ -660,46 +660,6 @@ void PANSEParameter::initAllTraces(unsigned samples, unsigned num_genes, bool es
 						 numMixtures, categories, (unsigned)groupList.size(),obsPhiSets,currentSynthesisRateLevel[0],mixtureAssignment,estimateSynthesisRate);
 }
 
-
-/* initAlpha (RCPP EXPOSED VIA WRAPPER)
- * Arguments: alpha value, mixture element, codon string (all caps)
- * Gets the category and index to index into the alpha vector by looking at the mixtureElement and codon respectively.
- * Puts the alphaValue into the indexed location.
- */
-void PANSEParameter::initAlpha(double alphaValue, unsigned mixtureElement, std::string codon)
-{
-	unsigned category = getMutationCategory(mixtureElement);
-	unsigned index = SequenceSummary::codonToIndex(codon);
-	currentCodonSpecificParameter[alp][category][index] = alphaValue;
-}
-
-
-/* initLambdaPrime (RCPP EXPOSED VIA WRAPPER)
- * Arguments: lambda prime value, mixture element, codon string (all caps)
- * Gets the category and index to index into the alpha vector by looking at the mixtureElement and codon respectively.
- * Puts the lambdaPrimeValue into the indexed location.
- */
-void PANSEParameter::initLambdaPrime(double lambdaPrimeValue, unsigned mixtureElement, std::string codon)
-{
-	unsigned category = getSelectionCategory(mixtureElement);
-	unsigned index = SequenceSummary::codonToIndex(codon);
-	currentCodonSpecificParameter[lmPri][category][index] = lambdaPrimeValue;
-}
-
-
-/* initNonsenseErrorRate(RCPP EXPOSED VIA WRAPPER)
- * Arguments: Nonsense Error Rate value, mixture element, codon string (all caps)
- * Gets the category and index to index into the alpha vector by looking at the mixtureElement and codon respectively.
- * Puts the nonsenseErrorRate into the indexed location.
- */
-void PANSEParameter::initNonsenseErrorRate(double nonsenseErrorRateValue, unsigned mixtureElement, std::string codon)
-{
-    unsigned category = getNSECategory(mixtureElement);
-    unsigned index = SequenceSummary::codonToIndex(codon);
-    currentCodonSpecificParameter[nse][category][index] = nonsenseErrorRateValue;
-    //nse_rates[index] = nonsenseErrorRateValue;
-}
-
 /* initMutationSelectionCategories (RCPP EXPOSED VIA WRAPPER)
  * Arguments: vector of file names, number of categories, parameter type to initialize
  * From a file, initialize the alpha or lambda prime values for all categories. The files vector length should
@@ -1547,50 +1507,6 @@ void PANSEParameter::initCovarianceMatrix(SEXP _matrix, std::string codon)
 //---------------------------------------------------------------//
 
 
-void PANSEParameter::initAlphaR(double alphaValue, unsigned mixtureElement, std::string codon)
-{
-	bool check = checkIndex(mixtureElement, 1, numMixtures);
-	if (check)
-	{
-		mixtureElement--;
-		codon[0] = (char)std::toupper(codon[0]);
-		codon[1] = (char)std::toupper(codon[1]);
-		codon[2] = (char)std::toupper(codon[2]);
-
-		initAlpha(alphaValue, mixtureElement, codon);
-	}
-}
-
-
-void PANSEParameter::initLambdaPrimeR(double lambdaPrimeValue, unsigned mixtureElement, std::string codon)
-{
-	bool check = checkIndex(mixtureElement, 1, numMixtures);
-	if (check)
-	{
-		mixtureElement--;
-		codon[0] = (char)std::toupper(codon[0]);
-		codon[1] = (char)std::toupper(codon[1]);
-		codon[2] = (char)std::toupper(codon[2]);
-
-		initLambdaPrime(lambdaPrimeValue, mixtureElement, codon);
-	}
-}
-
-
-
-void PANSEParameter::initNSERateR(double NSERateValue, unsigned mixtureElement, std::string codon)
-{
-    bool check = checkIndex(mixtureElement, 1, numMixtures);
-    if (check)
-    {
-        mixtureElement--;
-        codon[0] = (char)std::toupper(codon[0]);
-        codon[1] = (char)std::toupper(codon[1]);
-        codon[2] = (char)std::toupper(codon[2]);
-
-        initLambdaPrime(NSERateValue, mixtureElement, codon);
-    }
-}
 
 void PANSEParameter::initMutationSelectionCategoriesR(std::vector<std::string> files, unsigned numCategories,
 													std::string paramType)
@@ -1848,16 +1764,6 @@ void PANSEParameter::readNSEValues(std::string filename)
 
 }
 
-
-std::vector<double> PANSEParameter::oneMixLambda(){
-    return currentCodonSpecificParameter[lmPri][0];
-}
-std::vector<double> PANSEParameter::oneMixAlpha(){
-    return currentCodonSpecificParameter[alp][0];
-}
-std::vector<double> PANSEParameter::oneMixNSE(){
-    return currentCodonSpecificParameter[nse][0];
-}
 
 
 void PANSEParameter::setTotalRFPCount(Genome& genome)

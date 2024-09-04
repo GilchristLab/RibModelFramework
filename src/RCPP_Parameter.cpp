@@ -379,9 +379,6 @@ RCPP_MODULE(Parameter_mod)
 
 
 		//Initialization, Restart, Index Checking:
-		.method("initAlpha", &PANSEParameter::initAlphaR)
-		.method("initLambdaPrime", &PANSEParameter::initLambdaPrimeR)
-		.method("initNSERate", &PANSEParameter::initNSERateR)
 		.method("initMutationSelectionCategories", &PANSEParameter::initMutationSelectionCategoriesR)
 		.method("fixAlpha",&PANSEParameter::fixAlpha)
 		.method("fixLambdaPrime",&PANSEParameter::fixLambdaPrime)
