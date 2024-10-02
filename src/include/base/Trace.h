@@ -186,7 +186,6 @@ class Trace {
 
 
 
->>>>>>> 8c5debc358d7c27c0f3e7111abb77b62d3de255e
         //R Section:
 #ifndef STANDALONE
         //Getter Functions:

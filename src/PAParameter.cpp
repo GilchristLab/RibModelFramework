@@ -628,25 +628,6 @@ bool PAParameter::isLambdaFixed()
 	return(fix_lp);
 }
 
-void PAParameter::fixAlpha()
-{
-	fix_alpha = true;
-}
-
-void PAParameter::fixLambdaPrime()
-{
-	fix_lp = true;
-}
-
-bool PAParameter::isAlphaFixed()
-{
-	return(fix_alpha);
-}
-
-bool PAParameter::isLambdaFixed()
-{
-	return(fix_lp);
-}
 
 
 

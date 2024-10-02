@@ -1128,8 +1128,7 @@ void PANSEModel::completeUpdateCodonSpecificParameter()
     parameter->completeUpdateCodonSpecificParameter();
 }
 
-<<<<<<< HEAD
-=======
+
 //Noise offset functions
 
  double PANSEModel::getNoiseOffset(unsigned index, bool proposed)
@@ -1219,8 +1218,6 @@ void PANSEModel::completeUpdateCodonSpecificParameter()
 //         }
 //     }
 // }
->>>>>>> 8c5debc358d7c27c0f3e7111abb77b62d3de255e
-
 
 void PANSEModel::updateAllHyperParameter()
 {
