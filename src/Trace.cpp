@@ -269,20 +269,20 @@ void Trace::initializeFONSETrace(unsigned samples, unsigned num_genes, unsigned 
 
 
 void Trace::initializePANSETrace(unsigned samples, unsigned num_genes, unsigned numAlphaCategories,
-	unsigned numLambdaPrimeCategories, unsigned numParam, unsigned numMixtures,
+	unsigned numLambdaPrimeCategories, unsigned numNSECategories, unsigned numParam, unsigned numMixtures,
 	std::vector<mixtureDefinition> &_categories, unsigned maxGrouping, unsigned numObservedPhiSets,std::vector<double> init_phi,
 	std::vector<unsigned> init_mix_assign, bool estimateSynthesisRate)
 {
     numCodonSpecificParamTypes = 3;
     codonSpecificParameterTrace.resize(numCodonSpecificParamTypes);
 
-	initializeSharedTraces(samples, num_genes, numLambdaPrimeCategories, numMixtures,
+	initializeSharedTraces(samples, num_genes, numMixtures, numMixtures,
 		_categories, maxGrouping,init_phi,init_mix_assign,numObservedPhiSets,estimateSynthesisRate);
 
 	// See Note 1) above.
 	initCodonSpecificParameterTrace(samples, numAlphaCategories,  numParam, 0u); //alp
 	initCodonSpecificParameterTrace(samples, numLambdaPrimeCategories, numParam, 1u); //lmPri
-    initCodonSpecificParameterTrace(samples, numAlphaCategories, numParam, 2u); //nseRate
+    initCodonSpecificParameterTrace(samples, numNSECategories, numParam, 2u); //nseRate
     initPartitionFunctionTrace(samples, numMixtures);
 
     nseSpecificAcceptanceRateTrace.resize(maxGrouping);
@@ -422,7 +422,7 @@ std::vector<std::vector<double>> Trace::getNseRateSpecificAcceptanceRateTrace()
 
 unsigned Trace::getSynthesisRateCategory(unsigned mixtureElement)
 {
-	return categories->at(mixtureElement).delEta;
+	return categories->at(mixtureElement).phi;
 }
 
 
@@ -506,7 +506,7 @@ unsigned Trace::getCodonSpecificCategory(unsigned mixtureElement, unsigned param
 		rv = categories->at(mixtureElement).delEta;
 		break;
     case 2:
-        rv = categories->at(mixtureElement).delM;
+        rv = categories->at(mixtureElement).nse;
         break;
 	default:
 		my_printError("ERROR: Unknown parameter type in getCodonSpecificCategory\n");
@@ -519,6 +519,12 @@ unsigned Trace::getCodonSpecificCategory(unsigned mixtureElement, unsigned param
 //--------------------------------------//
 //----------- PANSE Specific -----------//
 //--------------------------------------//
+void Trace::setPartitionFunctionTraces(std::vector<std::vector <double> > _PartitionFunctionTrace)
+{
+  partitionFunctionTrace = _PartitionFunctionTrace;
+}
+
+
 std::vector<double> Trace::getPartitionFunctionTrace(unsigned mixtureIndex)
 {
     return partitionFunctionTrace[mixtureIndex];
@@ -775,10 +781,10 @@ std::vector<std::vector<double>> Trace::getStdDevSynthesisRateTraces()
 	return stdDevSynthesisRateTrace;
 }
 
-
+//TODO: How well does this generalize?
 unsigned Trace::getNumberOfMixtures()
 {
-	return mixtureProbabilitiesTrace.size();
+	return categories->size();
 }
 
 std::vector<double> Trace::getPartitionFunctionTraceR(unsigned mixtureIndex){
@@ -898,14 +904,6 @@ void Trace::setCodonSpecificParameterTrace(std::vector<std::vector<std::vector<f
 
 }
 
-
-//----------------------------------//
-//--------- PANSE Specific ---------//
-//----------------------------------//
-void Trace::setPartitionFunctionTraces(std::vector<std::vector <double> > _PartitionFunctionTrace)
-{
-    partitionFunctionTrace = _PartitionFunctionTrace;
-}
 
 
 //----------------------------------//

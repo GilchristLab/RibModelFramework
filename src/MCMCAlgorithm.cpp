@@ -389,8 +389,17 @@ double MCMCAlgorithm::acceptRejectSynthesisRateLevelForAllGenes(Genome& genome, 
 	if ((iteration % thinning) == 0)
 	{
 		if (estimateMixtureAssignment)
+		{
 			model.updateMixtureProbabilitiesTrace(iteration/thinning);
-		likelihoodTrace[iteration/thinning] = loglikelihood;
+		}
+		if (std::isnan(loglikelihood))
+		{
+			likelihoodTrace[iteration/thinning] = likelihoodTrace[(iteration/thinning)-1];
+		} 
+		else
+		{
+		  likelihoodTrace[iteration/thinning] = loglikelihood;
+		}
 		
 	}
 	return logPosterior;
@@ -419,19 +428,15 @@ void MCMCAlgorithm::acceptRejectCodonSpecificParameter(Genome& genome, Model& mo
 	bool is_shared;
 	std::vector<std::string> csp_parameters = model.getParameterTypeList();
 	unsigned numCSPParamTypes = csp_parameters.size();
-	//my_print("Number of CSP Parameters: %\n",numCSPParamTypes);
 	for (unsigned param = 0; param < numCSPParamTypes; param++)
 	{
 
 		is_fixed = model.getParameterTypeFixed(csp_parameters[param]);
-		//my_print("Parameter type fixed: %\n",is_fixed);
 		if (! is_fixed)
 		{
 			is_shared = model.isShared(csp_parameters[param]);
-			//my_print("Parameter type is shared: %\n",is_shared);
 			if (is_shared)
 			{
-				//my_print("Shouldn't be here!\n");
 				std::string grouping = model.getGrouping(groups[0]);
 				model.calculateLogLikelihoodRatioPerGroupingPerCategory(grouping, genome, acceptanceRatioForAllMixtures,csp_parameters[param]);
 		    	double threshold = -Parameter::randExp(1);
@@ -464,31 +469,45 @@ void MCMCAlgorithm::acceptRejectCodonSpecificParameter(Genome& genome, Model& mo
 				std::shuffle(groups.begin(), groups.end(), e);
 				for (unsigned i = 0; i < size; i++)
 				{
-					//my_print("AA: %\n", groups[i]);
 					std::string grouping = model.getGrouping(groups[i]);
 					model.calculateLogLikelihoodRatioPerGroupingPerCategory(grouping, genome, acceptanceRatioForAllMixtures,csp_parameters[param]);
-			    	double threshold = -Parameter::randExp(1);
+			    double threshold = -Parameter::randExp(1);
 			 		if (threshold < acceptanceRatioForAllMixtures[0] && std::isfinite(acceptanceRatioForAllMixtures[0]) && !std::isnan(acceptanceRatioForAllMixtures[2]))
 					{	
 						if (std::isnan(acceptanceRatioForAllMixtures[0]))
 						{
 							my_print("ERROR: Accepted proposed value that results in NaN\n");
 						}
-						
 						// moves proposed codon specific parameters to current codon specific parameters
 						model.updateCodonSpecificParameter(grouping,csp_parameters[param]);
 						if ((iteration % thinning) == 0 && acceptanceRatioForAllMixtures[2] != 0 && param  == (numCSPParamTypes - 1))
 						{
-							likelihoodTrace[(iteration / thinning)] += acceptanceRatioForAllMixtures[2];
-							posteriorTrace[(iteration / thinning)] += acceptanceRatioForAllMixtures[4];
+						  if (numCSPParamTypes == 1)
+						  {
+						  	likelihoodTrace[(iteration / thinning)] += acceptanceRatioForAllMixtures[2];
+							  posteriorTrace[(iteration / thinning)] += acceptanceRatioForAllMixtures[4];
+						  } 
+						  else
+						  {
+						    likelihoodTrace[(iteration / thinning)] = acceptanceRatioForAllMixtures[2];
+						    posteriorTrace[(iteration / thinning)] = acceptanceRatioForAllMixtures[4];
+						  }
 						}
 					}
 					else
 					{
 						if ((iteration % thinning) == 0 && acceptanceRatioForAllMixtures[1] != 0 && param  == (numCSPParamTypes - 1))
 						{
-							likelihoodTrace[(iteration / thinning)] += acceptanceRatioForAllMixtures[1];
-							posteriorTrace[(iteration / thinning)] += acceptanceRatioForAllMixtures[3];
+						  if (numCSPParamTypes == 1)
+						  {
+							  likelihoodTrace[(iteration / thinning)] += acceptanceRatioForAllMixtures[1];
+							  posteriorTrace[(iteration / thinning)] += acceptanceRatioForAllMixtures[3];
+						  }
+						  else
+						  {
+						    likelihoodTrace[(iteration / thinning)] = acceptanceRatioForAllMixtures[1];
+						    posteriorTrace[(iteration / thinning)] = acceptanceRatioForAllMixtures[3];
+						  }
 						}
 					}
 				}
@@ -566,8 +585,9 @@ void MCMCAlgorithm::run(Genome& genome, Model& model, unsigned numCores, unsigne
 	//model.setNumPhiGroupings(genome.getGene(0).getObservedSynthesisRateValues().size());
 	model.initTraces(samples + 1, genome.getGenomeSize(),(estimateSynthesisRate||estimateMixtureAssignment)); //Samples + 2 so we can store the starting and ending values.
 	// starting the MCMC
-	
+
 	model.updateTracesWithInitialValues(genome);
+	my_print("Traces initialized\n");
 	if (stepsToAdapt == -1)
 		stepsToAdapt = maximumIterations;
 	my_print("Starting MCMC\n");
@@ -622,7 +642,7 @@ void MCMCAlgorithm::run(Genome& genome, Model& model, unsigned numCores, unsigne
 		{
 			model.proposeCodonSpecificParameter();
 			acceptRejectCodonSpecificParameter(genome, model, iteration);
-            //TODO:Probably do a nan check
+			//TODO:Probably do a nan check
 			if ((iteration % adaptiveWidth) == 0u)
 			{
 				model.adaptCodonSpecificParameterProposalWidth(adaptiveWidth, iteration / thinning, iteration <= stepsToAdapt);
@@ -633,8 +653,11 @@ void MCMCAlgorithm::run(Genome& genome, Model& model, unsigned numCores, unsigne
 		if (estimateHyperParameter)
 		{
 			model.updateGibbsSampledHyperParameters(genome);
+			//my_print("propose hyp\n");
 			model.proposeHyperParameters();
+			//my_print("accept hyp\n");
 			acceptRejectHyperParameter(genome, model, iteration);
+			//my_print("done hyp\n");
             //TODO:Probably do a nan check
 			if ((iteration % adaptiveWidth) == 0u)
 
@@ -650,13 +673,21 @@ void MCMCAlgorithm::run(Genome& genome, Model& model, unsigned numCores, unsigne
  			model.clearMatrices();
 			if ((iteration % thinning) == 0u)
 			{
-				posteriorTrace[(iteration / thinning)] = logPost;
 				if (std::isnan(logPost))
 				{
-					my_printError("ERROR: LogPosterior is NaN, exiting at iteration %\n", iteration);
-					model.setLastIteration(iteration / thinning);
-					return;
+					posteriorTrace[(iteration / thinning)] = posteriorTrace[(iteration / thinning)-1];
 				}
+				else
+				{
+					posteriorTrace[(iteration / thinning)] = logPost;
+				}
+//				if (std::isnan(logPost))
+//				{
+//
+//					//my_printError("ERROR: LogPosterior is NaN, exiting at iteration %\n", iteration);
+//					//model.setLastIteration(iteration / thinning);
+//					//return;
+//				}
 			}
 			if ((iteration % adaptiveWidth) == 0u)
 				model.adaptSynthesisRateProposalWidth(adaptiveWidth, iteration <= stepsToAdapt);
@@ -714,15 +745,17 @@ void MCMCAlgorithm::varyInitialConditions(Genome& genome, Model& model, unsigned
 	// how many steps do you want to walk "away" from the initial conditions
 	for (unsigned iteration = 0u; iteration < divergenceIterations; iteration++)
 	{
-		double prior = std::numeric_limits<double>::quiet_NaN();
+		//double prior = std::numeric_limits<double>::quiet_NaN();
+		bool prior = false;
 		if (estimateCodonSpecificParameter)
 		{
 			// If proposed parameters go outside the accepatble boundaries, propose new set of parameters.
 			// Should only matter for PA or PANSE
-			while (std::isnan(prior) || !std::isfinite(prior))
+			//while (std::isnan(prior) || !std::isfinite(prior))
+			while (!prior)
 			{
 				model.proposeCodonSpecificParameter();
-				prior = model.calculateAllPriors(true);
+				prior = model.checkValues(true);
 			}
 		}
 		if (estimateHyperParameter)

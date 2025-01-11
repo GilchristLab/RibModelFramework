@@ -589,6 +589,25 @@ double PAParameter::getParameterForCategory(unsigned category, unsigned paramTyp
 	return rv;
 }
 
+void PAParameter::fixAlpha()
+{
+	fix_alpha = true;
+}
+
+void PAParameter::fixLambdaPrime()
+{
+	fix_lp = true;
+}
+
+bool PAParameter::isAlphaFixed()
+{
+	return(fix_alpha);
+}
+
+bool PAParameter::isLambdaFixed()
+{
+	return(fix_lp);
+}
 
 
 
@@ -711,25 +730,6 @@ void PAParameter::initMutationSelectionCategoriesR(std::vector<std::string> file
 }
 
 
-void PAParameter::fixAlpha()
-{
-	fix_alpha = true;
-}
-
-void PAParameter::fixLambdaPrime()
-{
-	fix_lp = true;
-}
-
-bool PAParameter::isAlphaFixed()
-{
-	return(fix_alpha);
-}
-
-bool PAParameter::isLambdaFixed()
-{
-	return(fix_lp);
-}
 
 // -----------------------------------//
 // ---------- CSP Functions ----------//

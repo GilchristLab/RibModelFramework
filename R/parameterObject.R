@@ -31,7 +31,8 @@
 #' 
 #' @param mixture.definition A string describing how each mixture should
 #' be treated with respect to mutation and selection.
-#' Valid values consist of "allUnique", "mutationShared", and "selectionShared".
+#' Valid values consist of "allUnique", "mutationShared", and "selectionShared" for ROC/FONSE.
+#' Valid values consist of  "allUnique", "elongationShared", and "nseShared" for PANSE.
 #' The default value for mixture.definition is "allUnique".
 #' See details for more information.
 #' 
@@ -128,7 +129,8 @@ initializeParameterObject <- function(genome = NULL, sphi = NULL, num.mixtures =
                                       mixture.definition.matrix = NULL,
                                       init.with.restart.file = NULL, mutation.prior.mean = 0.0, mutation.prior.sd = 0.35, propose.by.prior=FALSE,
                                       init.csp.variance = 0.0025, init.sepsilon = 0.1, 
-                                      init.w.obs.phi=FALSE, init.by.random = FALSE ,init.initiation.cost = 4,init.partition.function=1){
+                                      init.w.obs.phi=FALSE, init.by.random = FALSE ,init.initiation.cost = 4,init.partition.function=1,
+                                      numElongationMixtures = 1){
   # check input integrity
   if(is.null(init.with.restart.file)){
     if(length(sphi) != num.mixtures){
@@ -157,8 +159,8 @@ initializeParameterObject <- function(genome = NULL, sphi = NULL, num.mixtures =
       stop("split.serine must be a boolean value\n")
     }
     if (mixture.definition != "allUnique" && mixture.definition != "mutationShared" &&
-        mixture.definition != "selectionShared") {
-      stop("mixture.definition must be \"allUnique\", \"mutationShared\", or \"selectionShared\". Default is \"allUnique\"\n")
+        mixture.definition != "selectionShared" && mixture.definition != "elongationShared" && mixture.definition != "nseShared") {
+      stop("mixture.definition must be \"allUnique\", \"mutationShared\" (ROC/FONSE),\"selectionShared\" (ROC/FONSE), \"elongationShared\" (PANSE), or \"nseShared\" (PANSE). Default is \"allUnique\"\n")
     }
     if (mutation.prior.sd < 0) {
       stop("mutation.prior.sd should be positive\n")
@@ -207,7 +209,8 @@ initializeParameterObject <- function(genome = NULL, sphi = NULL, num.mixtures =
     if(is.null(init.with.restart.file)){
       parameter <- initializePANSEParameterObject(genome, sphi, num.mixtures, 
                                                   gene.assignment, initial.expression.values, split.serine, 
-                                                  mixture.definition, mixture.definition.matrix, init.csp.variance,init.sepsilon,init.w.obs.phi,init.partition.function) 
+                                                  mixture.definition, mixture.definition.matrix, init.csp.variance,init.sepsilon,init.w.obs.phi,init.partition.function,
+                                                  numElongationMixtures) 
     }else{
       parameter <- new(PANSEParameter, init.with.restart.file)
     }
@@ -377,18 +380,21 @@ initializePAParameterObject <- function(genome, sphi, numMixtures, geneAssignmen
 initializePANSEParameterObject <- function(genome, sphi, numMixtures, geneAssignment, 
                                            expressionValues = NULL, split.serine = TRUE, 
                                            mixture.definition = "allUnique", 
-                                           mixture.definition.matrix = NULL, init.csp.variance = 0.0025 ,init.sepsilon = 0.1,init.w.obs.phi=FALSE,init.partition.function=1){
+                                           mixture.definition.matrix = NULL, init.csp.variance = 0.0025 ,init.sepsilon = 0.1,init.w.obs.phi=FALSE,init.partition.function=1,
+                                           numElongationMixtures = 1){
   
   if(is.null(mixture.definition.matrix))
   { # keyword constructor
     parameter <- new(PANSEParameter, as.vector(sphi), numMixtures, geneAssignment, 
-                     split.serine, mixture.definition)
+                     numElongationMixtures, split.serine, mixture.definition)
   }else{
     #matrix constructor
     mixture.definition <- c(mixture.definition.matrix[, 1], 
-                            mixture.definition.matrix[, 2])
+                            mixture.definition.matrix[, 2],
+                            mixture.definition.matrix[, 3])
+    
     parameter <- new(PANSEParameter, as.vector(sphi), geneAssignment, 
-                     mixture.definition, split.serine)
+                    mixture.definition, numElongationMixtures, split.serine)
   }
   
   

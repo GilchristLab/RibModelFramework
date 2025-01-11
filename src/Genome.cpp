@@ -285,16 +285,17 @@ void Genome::readSimulatedGenomeFromPAModel(std::string filename)
 /* readRFPData (RCPP EXPOSED)
  * Arguments: string filename, boolean to determine if we are appending to the existing genome
  * (if not set to true, will default to clearing genome data; defaults to false)
- * Read in a PA-formatted file: GeneID,Position (1-indexed),Codon,RFPCount(s) (may be multiple)
+ * Read in a RFP-formatted file: GeneID,Position (1-indexed),Codon,Mixture,RFPCount (only one)
  * The positions are not necessarily in the right order.
  * Ignores ambiguously-positioned codons (marked with negative position).
  * RFPCounts are not given as a positive number are set to -1 and are stored, but not used in calculation.
- * There may be more than one RFPCount, and thus the header is important.
+ * Restrict RFPCounts to 1 dataset (which can be the combination of multiple datasets, potentially useful if analyzing replicates )
 */
-void Genome::readRFPData(std::string filename, bool append, bool positional)
+void Genome::readRFPData(std::string filename, bool append)
 {
 	prev_genome_size = genes.size();
-	try {
+	try 
+	{
 		if (!append) clear();
 		totalRFPCount = 0;
 		std::ifstream Fin;
@@ -307,33 +308,43 @@ void Genome::readRFPData(std::string filename, bool append, bool positional)
 			// Analyze the header line
 			std::string tmp;
 
-            if (!std::getline(Fin, tmp))
-                my_printError("Error in Genome::readRFPData: RFPData file % has no header.\n", filename);
+      if (!std::getline(Fin, tmp))
+          my_printError("Error in Genome::readRFPData: RFPData file % has no header.\n", filename);
 
-			// Ignore first 3 commas: ID, position, codon
+			// Ignore first 3 commas: ID, position, codon, mixture
 			std::size_t pos = tmp.find(',');
 			pos = tmp.find(',', pos + 1);
 			pos = tmp.find(',', pos + 1);
+			pos = tmp.find(',', pos + 1);
+			
 
 			// While there are more commas, there are more categories of RFP counts
-			unsigned numCategories = 0;
-			std::size_t pos2;
+			unsigned numDatasets = 0;
+			std::size_t pos2, pos3;
 			while (pos != std::string::npos)
 			{
-				numCategories++;
+				numDatasets++;
 				pos2 = tmp.find(',', pos + 1);
-				addRFPCountColumnName(tmp.substr(pos + 1, pos2 - (pos + 1)));
+				if (numDatasets > 1)
+				{
+				  my_print("WARNING: Number of data columns is greater than 1. Will ignore all but the first.");
+				}
+				else 
+				{
+				  addRFPCountColumnName(tmp.substr(pos + 1, pos2 - (pos + 1)));
+				}
 				pos = pos2;
 			}
-			unsigned tableWidth = 2 + numCategories; // Table size: position + codonID + each category
+			unsigned tableWidth = 4; // Table size: position + codonID + mixture + RFPCount, 
 
 			// -------------------------------------------------------------------------//
 			// --------------- Now for each RFPCount category, record it. ------------- //
 			// ----- Treat data as a table: push back vectors of size tableWidth. ----- //
 			// -------------------------------------------------------------------------//
+			
 			std::string prevID = "";
 			Gene tmpGene;
-			int position, possValue;
+			int position, possValue, mixture;
 			prevID = "";
 			bool first = true;
 
@@ -343,13 +354,13 @@ void Genome::readRFPData(std::string filename, bool append, bool positional)
 			while (std::getline(Fin, tmp))
 			{
 
-	            #ifndef STANDALONE
-	            Rcpp::checkUserInterrupt();
-	            #endif
+        #ifndef STANDALONE
+        Rcpp::checkUserInterrupt();
+        #endif
 
-		        // Remove whitespace from the string
-		        tmp.erase(std::remove_if(tmp.begin(), tmp.end(),
-	                  std::bind(std::isspace<char>, std::placeholders::_1, std::locale::classic())), tmp.end());
+        // Remove whitespace from the string
+        tmp.erase(std::remove_if(tmp.begin(), tmp.end(),
+                std::bind(std::isspace<char>, std::placeholders::_1, std::locale::classic())), tmp.end());
 
 				pos = tmp.find(',');
 				std::string ID = tmp.substr(0, pos);
@@ -361,7 +372,6 @@ void Genome::readRFPData(std::string filename, bool append, bool positional)
 				// Error-checking note: Of course, atoi function returns 0 if not an integer
 				// -> leads to 0 - 1 == -1 -> codon ignored (as intended).
 				position = std::atoi(tmp.substr(pos + 1, pos2 - (pos + 1)).c_str()) - 1;
-
 				// Position integer: Ensure that if position is negative, ignore the codon.
 				if (position > -1) // for convenience of calculation; ambiguous positions are marked by -1.
 				{
@@ -379,14 +389,7 @@ void Genome::readRFPData(std::string filename, bool append, bool positional)
 					{
 						tmpGene.setId(prevID);
 						tmpGene.setDescription("No description for PA(NSE) Model");
-						if(positional) 
-						{
-							tmpGene.setPANSESequence(table);
-						}
-						else 
-						{
-							tmpGene.setPASequence(table);
-						}
+						tmpGene.setRFPSequence(table);
 						addGene(tmpGene, false); //add to genome
 						totalRFPCount += tmpGene.geneData.getSumTotalRFPCount(0);
 						tmpGene.clear();
@@ -401,9 +404,20 @@ void Genome::readRFPData(std::string filename, bool append, bool positional)
 					tableIndex ++;
 					tableRow[tableIndex] = SequenceSummary::codonToIndex(codon);
 					// Note: May be an invalid Codon read in, but this is resolved when the sequence is set and processed.
-
+          
+          // Get mixture assignment for codon at current position
+					pos3 = tmp.find(',', pos2 + 1);
+					mixture = std::atoi(tmp.substr(pos3 + 1, pos3 - (pos2 + 1)).c_str()) - 1;
+					if (mixture == -1)
+					{
+					  my_print("ERROR: Your column indicating elongation mixtures contains 0. Should be a non-zero positive (include position in likelihood) or negative (use only for sigma) number. Exiting program.\n");
+					  exit(1);
+					}
+					tableIndex ++;
+					tableRow[tableIndex] = mixture;
+					
 					// Skip to end RFPCount(s), if any
-					pos = tmp.find(',', pos2 + 1);
+					pos = tmp.find(',', pos3 + 1);
 					tableIndex ++;
 
 					// While there are more commas, there are more categories of RFP counts
@@ -418,7 +432,7 @@ void Genome::readRFPData(std::string filename, bool append, bool positional)
 							if (possValue > -1) tableRow[tableIndex] = possValue;
 							else tableRow[tableIndex] = -1;
 						}
-                        else
+            else
 						{
 							tableRow[tableIndex] = -1;
 						}
@@ -429,18 +443,17 @@ void Genome::readRFPData(std::string filename, bool append, bool positional)
 
 					prevID = ID;
 					table.push_back(tableRow);
-				}
 			}
-
+			}
             // Ensure that at least one entry was read in
-            if (prevID != "")
-            {
-                tmpGene.setId(prevID);
-                tmpGene.setDescription("No description for PA(NSE) Model");
-                tmpGene.setPASequence(table);
-                totalRFPCount += tmpGene.geneData.getSumTotalRFPCount(0);
-                addGene(tmpGene, false); //add to genome
-            }
+      if (prevID != "")
+      {
+          tmpGene.setId(prevID);
+          tmpGene.setDescription("No description for PA(NSE) Model");
+          tmpGene.setRFPSequence(table);
+          totalRFPCount += tmpGene.geneData.getSumTotalRFPCount(0);
+          addGene(tmpGene, false); //add to genome
+      }
 		} // end else
 		Fin.close();
 	} // end try
@@ -468,7 +481,7 @@ void Genome::writeRFPData(std::string filename, bool simulated)
 
 		if (!simulated)
 		{
-			Fout << "GeneID,Position,Codon";
+			Fout << "GeneID,Position,Codon,Mixture";
 
 			// For each category name, print for header
 			std::vector<std::string> RFPCountColumnNames = getRFPCountColumnNames();
@@ -482,15 +495,17 @@ void Genome::writeRFPData(std::string filename, bool simulated)
 			{
 				Gene *currentGene = &genes[geneIndex];
 				std::vector<unsigned> positionCodonID = currentGene->geneData.getPositionCodonID();
+				std::vector<int> positionMixture = currentGene->geneData.getPositionMixture();
 				unsigned numPositions = (unsigned)positionCodonID.size();
 
 				for (unsigned position = 0u; position < numPositions; position++)
 				{
 					unsigned codonID = positionCodonID[position];
+				  unsigned codonMixture = positionMixture[position];
 					std::string codon = SequenceSummary::codonArray[codonID];
 
 					// Print position + 1 because it's externally one-indexed
-					Fout << currentGene->getId() << "," << position + 1 << "," << codon;
+					Fout << currentGene->getId() << "," << position + 1 << "," << codon << "," << codonMixture + 1;
 
 					for (unsigned category = 0; category < numCategories; category++)
 						Fout << "," << currentGene->geneData.getSingleRFPCount(position, category);
@@ -501,20 +516,24 @@ void Genome::writeRFPData(std::string filename, bool simulated)
 		}
 		else
 		{
-			Fout << "GeneID,Position,Codon,RFPCount\n";
+			Fout << "GeneID,Position,Codon,Mixture,RFPCount\n";
 			for (unsigned geneIndex = 0u; geneIndex < numGenes; geneIndex++)
 			{
                 //unsigned position = 1u;
 				Gene *currentGene = &simulatedGenes[geneIndex];
-                SequenceSummary *sequenceSummary = currentGene->getSequenceSummary();
-                std::vector <unsigned> positions = sequenceSummary->getPositionCodonID();
-                std::vector <unsigned long> rfpCounts = sequenceSummary->getRFPCount(0);
+        SequenceSummary *sequenceSummary = currentGene->getSequenceSummary();
+        std::vector <unsigned> positions = sequenceSummary->getPositionCodonID();
+        std::vector<int> positionMixture = currentGene->geneData.getPositionMixture();
+        
+        std::vector <unsigned long> rfpCounts = sequenceSummary->getRFPCount(0);
 				for (unsigned positionIndex = 0u; positionIndex < positions.size(); positionIndex++)
 				{
 					unsigned codonID = positions[positionIndex];
-    				std::string codon = SequenceSummary::codonArray[codonID];
+				  
+				  unsigned codonMixture = positionMixture[positionIndex];
+    			std::string codon = SequenceSummary::codonArray[codonID];
 
-    				Fout << currentGene->getId() << "," << positionIndex + 1 << "," << codon << "," << rfpCounts[positionIndex] << "\n";
+    			Fout << currentGene->getId() << "," << positionIndex + 1 << "," << codon << "," << codonMixture + 1 << "," << rfpCounts[positionIndex] << "\n";
 
 				}
 			}
