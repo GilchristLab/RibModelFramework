@@ -646,7 +646,7 @@ void PAModel::updateCodonSpecificParameter(std::string codon, std::string param)
 	parameter->updateCodonSpecificParameter(codon);
 }
 
-]
+
 
 //Noise offset functions
 
