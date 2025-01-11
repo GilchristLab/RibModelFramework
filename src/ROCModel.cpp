@@ -716,10 +716,6 @@ void ROCModel::updateCodonSpecificParameter(std::string grouping, std::string pa
 	parameter->updateCodonSpecificParameter(grouping);
 }
 
-void ROCModel::completeUpdateCodonSpecificParameter()
-{
-    parameter->completeUpdateCodonSpecificParameter();
-}
 
 
 void ROCModel::updateAllHyperParameter()

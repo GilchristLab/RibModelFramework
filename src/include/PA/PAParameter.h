@@ -57,7 +57,6 @@ class PAParameter: public Parameter {
 		double getCurrentCodonSpecificProposalWidth(unsigned index);
 		void proposeCodonSpecificParameter();
 		void updateCodonSpecificParameter(std::string grouping);
-		void completeUpdateCodonSpecificParameter();
 
 
 		//Adaptive Width Functions:

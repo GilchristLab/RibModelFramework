@@ -588,37 +588,7 @@ void FONSEParameter::proposeCodonSpecificParameter()
 }
 
 
-void FONSEParameter::completeUpdateCodonSpecificParameter()
-{
-    for (std::string grouping : CSPToUpdate)
-	{
-		unsigned aaStart, aaEnd;
-		SequenceSummary::AAToCodonRange(grouping, aaStart, aaEnd, true);
-		unsigned aaIndex = SequenceSummary::aaToIndex.find(grouping)->second;
-		numAcceptForCodonSpecificParameters[aaIndex]++;
-		
-		for (unsigned k = 0u; k < numMutationCategories; k++)
-		{
-			for (unsigned i = aaStart; i < aaEnd; i++)
-			{
-				currentCodonSpecificParameter[dM][k][i] = proposedCodonSpecificParameter[dM][k][i];
-			}
-		}
-		
-		
-		for (unsigned k = 0u; k < numSelectionCategories; k++)
-		{
-			for (unsigned i = aaStart; i < aaEnd; i++)
-			{
-				currentCodonSpecificParameter[dOmega][k][i] = proposedCodonSpecificParameter[dOmega][k][i];
 
-			}
-		}
-		
-	}
-	CSPToUpdate.clear();
-
-}
 
 void FONSEParameter::updateCodonSpecificParameter(std::string grouping)
 {

@@ -103,7 +103,7 @@ class ROCModel : public Model
 
 		virtual void updateCodonSpecificParameter(std::string grouping);
 		virtual void updateCodonSpecificParameter(std::string grouping, std::string param = "Evolutionary");
-		virtual void completeUpdateCodonSpecificParameter();
+
 		//virtual void updateGibbsSampledHyperParameters(Genome &genome);
 		virtual void updateAllHyperParameter();
 		virtual void updateHyperParameter(unsigned hp);

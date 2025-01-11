@@ -128,7 +128,7 @@ class Model
 		
 		virtual void updateCodonSpecificParameter(std::string grouping) = 0;
 		virtual void updateCodonSpecificParameter(std::string grouping, std::string param) = 0;
-		virtual void completeUpdateCodonSpecificParameter() = 0;
+
 		//virtual void updateGibbsSampledHyperParameters(Genome &genome) = 0;
 		virtual void updateAllHyperParameter() = 0;
 		virtual void updateHyperParameter(unsigned hp) = 0;

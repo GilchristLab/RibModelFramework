@@ -984,11 +984,6 @@ void PANSEModel::updateCodonSpecificParameter(std::string codon,std::string para
 }
 
 
-void PANSEModel::completeUpdateCodonSpecificParameter()
-{
-    parameter->completeUpdateCodonSpecificParameter();
-}
-
 //Noise offset functions
 
 // double PANSEModel::getNoiseOffset(unsigned index, bool proposed)

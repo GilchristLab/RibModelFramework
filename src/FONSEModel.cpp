@@ -667,10 +667,7 @@ void FONSEModel::updateCodonSpecificParameter(std::string grouping, std::string 
 	parameter->updateCodonSpecificParameter(grouping);
 }
 
-void FONSEModel::completeUpdateCodonSpecificParameter()
-{
-    parameter->completeUpdateCodonSpecificParameter();
-}
+
 
 //Noise offset functions
 

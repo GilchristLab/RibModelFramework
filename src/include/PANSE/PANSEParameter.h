@@ -91,7 +91,7 @@ class PANSEParameter: public Parameter {
 		void proposeCodonSpecificParameter();
 		void updateCodonSpecificParameter(std::string grouping);
 		void updateCodonSpecificParameter(std::string grouping,std::string param);
-        void completeUpdateCodonSpecificParameter();
+    
 
         //partitionFunction Functions: Mostly tested, see comments.
         double getPartitionFunction(unsigned mixtureCategory, bool proposed); //TODO: test

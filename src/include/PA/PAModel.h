@@ -101,7 +101,6 @@ class PAModel: public Model
 
 		virtual void updateCodonSpecificParameter(std::string grouping);
 		virtual void updateCodonSpecificParameter(std::string grouping, std::string param = "Elongation");
-		virtual void completeUpdateCodonSpecificParameter();
 		//virtual void updateGibbsSampledHyperParameters(Genome &genome);
 		virtual void updateAllHyperParameter();
 		virtual void updateHyperParameter(unsigned hp);
