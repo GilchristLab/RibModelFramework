@@ -1,0 +1,75 @@
+diff --git a/src/include/base/Parameter.h b/src/include/base/Parameter.h
+index 49af56b..94c0488 100755
+--- a/src/include/base/Parameter.h
++++ b/src/include/base/Parameter.h
+@@ -20,6 +20,7 @@ class Parameter {
+ private:
+     std::vector<double> stdDevSynthesisPrior;
++    std::vector<double> stdDevSelectionPrior;
+ public:
+     Parameter();
+     double getStdDevSynthesisRate(unsigned category) const;
++    double getStdDevSelectionPrior(unsigned category) const;
+     void setStdDevSynthesisRate(unsigned category, double value);
++    void setStdDevSelectionPrior(unsigned category, double value);
+     void writeParameterToFile(std::ostream& out);
+     void readParameterFromFile(std::istream& in);
+ };
+
+diff --git a/src/Parameter.cpp b/src/Parameter.cpp
+index 49af56b..94c0488 100755
+--- a/src/Parameter.cpp
++++ b/src/Parameter.cpp
+@@ -10,6 +10,7 @@ Parameter::Parameter() {
+     stdDevSynthesisPrior.resize(1, 1.0);
++    stdDevSelectionPrior.resize(1, 1.0);
+ }
+
++double Parameter::getStdDevSelectionPrior(unsigned category) const {
++    return stdDevSelectionPrior.at(category);
++}
++void Parameter::setStdDevSelectionPrior(unsigned category, double value) {
++    stdDevSelectionPrior.at(category) = value;
++}
+
+ void Parameter::writeParameterToFile(std::ostream& out) {
+     for (double value : stdDevSynthesisPrior) out << value << " ";
++    for (double value : stdDevSelectionPrior) out << value << " ";
+ }
+
+ void Parameter::readParameterFromFile(std::istream& in) {
+     for (double &value : stdDevSynthesisPrior) in >> value;
++    for (double &value : stdDevSelectionPrior) in >> value;
+ }
+
+diff --git a/src/MCMCAlgorithm.cpp b/src/MCMCAlgorithm.cpp
+index 49af56b..94c0488 100755
+--- a/src/MCMCAlgorithm.cpp
++++ b/src/MCMCAlgorithm.cpp
+@@ -30,6 +30,7 @@ void MCMCAlgorithm::updateParameters() {
+     double newStdDevSynthesisRate = proposeNewStdDev(stdDevSynthesisPrior[currentCategory]);
+     stdDevSynthesisPrior[currentCategory] = newStdDevSynthesisRate;
++
++    double newStdDevSelectionPrior = proposeNewStdDev(stdDevSelectionPrior[currentCategory]);
++    stdDevSelectionPrior[currentCategory] = newStdDevSelectionPrior;
+ }
+
+diff --git a/src/Model.cpp b/src/Model.cpp
+index 49af56b..94c0488 100755
+--- a/src/Model.cpp
++++ b/src/Model.cpp
+@@ -25,6 +25,7 @@ void Model::update() {
+     double currentStdDev = parameter->getStdDevSynthesisRate(selectionCategory);
++    double currentStdDevPrior = parameter->getStdDevSelectionPrior(selectionCategory);
+ }
+
+diff --git a/src/RcppInterface.cpp b/src/RcppInterface.cpp
+index 49af56b..94c0488 100755
+--- a/src/RcppInterface.cpp
++++ b/src/RcppInterface.cpp
+@@ -15,6 +15,7 @@ RCPP_MODULE(parameter_module) {
+         .method("getStdDevSynthesisRate", &Parameter::getStdDevSynthesisRate)
+         .method("setStdDevSynthesisRate", &Parameter::setStdDevSynthesisRate)
++        .method("getStdDevSelectionPrior", &Parameter::getStdDevSelectionPrior)
++        .method("setStdDevSelectionPrior", &Parameter::setStdDevSelectionPrior);
+ }

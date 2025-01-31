@@ -1,0 +1,31 @@
+diff --git a/src/include/base/Parameter.h b/src/include/base/Parameter.h
+index abc1234..def5678 100644
+--- a/src/include/base/Parameter.h
++++ b/src/include/base/Parameter.h
+@@ -20,6 +20,7 @@ class Parameter {
+ private:
+     std::vector<double> stdDevSynthesisPrior;
++    std::vector<double> stdDevSelectionPrior;
+ public:
+     Parameter();
+     double getStdDevSynthesisRate(unsigned category) const;
++    double getStdDevSelectionPrior(unsigned category) const;
+     void setStdDevSynthesisRate(double value, unsigned category);
++    void setStdDevSelectionPrior(double value, unsigned category);
+ };
+
+diff --git a/src/Parameter.cpp b/src/Parameter.cpp
+index abc1234..def5678 100644
+--- a/src/Parameter.cpp
++++ b/src/Parameter.cpp
+@@ -10,6 +10,7 @@ Parameter::Parameter() {
+     stdDevSynthesisPrior.resize(1, 1.0);
++    stdDevSelectionPrior.resize(1, 1.0);
+ }
+
++double Parameter::getStdDevSelectionPrior(unsigned category) const {
++    return stdDevSelectionPrior.at(category);
++}
++void Parameter::setStdDevSelectionPrior(double value, unsigned category) {
++    stdDevSelectionPrior.at(category) = value;
++}
