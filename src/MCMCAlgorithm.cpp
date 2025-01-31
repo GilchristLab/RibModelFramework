@@ -582,7 +582,7 @@ void MCMCAlgorithm::run(Genome& genome, Model& model, unsigned numCores, unsigne
 	unsigned maximumIterations = samples * thinning;
 	// initialize everything
 
-	//model.setNumPhiGroupings(genome.getGene(0).getObservedSynthesisRateValues().size());
+	//model.setNumeanSynthesisPriorGroupings(genome.getGene(0).getObservedSynthesisRateValues().size());
 	model.initTraces(samples + 1, genome.getGenomeSize(),(estimateSynthesisRate||estimateMixtureAssignment)); //Samples + 2 so we can store the starting and ending values.
 	// starting the MCMC
 
@@ -800,11 +800,11 @@ void MCMCAlgorithm::varyInitialConditions(Genome& genome, Model& model, unsigned
 					unsigned mixture = model.getMixtureAssignment(k);
 					mixture = model.getSynthesisRateCategory(mixture);
 					double stdDevSynthesisPrior = model.getStdDevSynthesisPrior(mixture, false);
-					double mPhi = (-(stdDevSynthesisPrior * stdDevSynthesisPrior) / 2);
+					double meanSynthesisPrior = (-(stdDevSynthesisPrior * stdDevSynthesisPrior) / 2);
 
 					// accept/ reject based on prior ratio
-					double logPhiProbability = Parameter::densityLogNorm(phiValue, mPhi, stdDevSynthesisPrior, true);
-					double logPhiProbability_proposed = Parameter::densityLogNorm(phiValue_proposed, mPhi, stdDevSynthesisPrior, true);
+					double logPhiProbability = Parameter::densityLogNorm(phiValue, meanSynthesisPrior, stdDevSynthesisPrior, true);
+					double logPhiProbability_proposed = Parameter::densityLogNorm(phiValue_proposed, meanSynthesisPrior, stdDevSynthesisPrior, true);
 					if ( -Parameter::randExp(1) < (logPhiProbability_proposed - logPhiProbability) )
 						model.updateSynthesisRate(i, k);
 				}

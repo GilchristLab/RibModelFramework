@@ -164,22 +164,22 @@ void Trace::initCodonSpecificParameterTrace(unsigned samples, unsigned numCatego
 
 
 
-void Trace::initSynthesisOffsetTrace(unsigned samples, unsigned numPhiGroupings)
+void Trace::initSynthesisOffsetTrace(unsigned samples, unsigned numeanSynthesisPriorGroupings)
 {
-	synthesisOffsetTrace.resize(numPhiGroupings);
-	for (unsigned i = 0; i < numPhiGroupings; i++)
+	synthesisOffsetTrace.resize(numeanSynthesisPriorGroupings);
+	for (unsigned i = 0; i < numeanSynthesisPriorGroupings; i++)
 	{
 		synthesisOffsetTrace[i].resize(samples);
 	}
 
-	synthesisOffsetAcceptanceRateTrace.resize(numPhiGroupings);
+	synthesisOffsetAcceptanceRateTrace.resize(numeanSynthesisPriorGroupings);
 }
 
 
-void Trace::initObservedSynthesisNoiseTrace(unsigned samples, unsigned numPhiGroupings)
+void Trace::initObservedSynthesisNoiseTrace(unsigned samples, unsigned numeanSynthesisPriorGroupings)
 {
-	observedSynthesisNoiseTrace.resize(numPhiGroupings);
-	for (unsigned i = 0; i < numPhiGroupings; i++)
+	observedSynthesisNoiseTrace.resize(numeanSynthesisPriorGroupings);
+	for (unsigned i = 0; i < numeanSynthesisPriorGroupings; i++)
 	{
 		observedSynthesisNoiseTrace[i].resize(samples);
 	}

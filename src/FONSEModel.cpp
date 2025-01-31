@@ -122,10 +122,10 @@ void FONSEModel::calculateLogLikelihoodRatioPerGene(Gene& gene, unsigned geneInd
 	unsigned mixture = getMixtureAssignment(geneIndex);
 	mixture = getSynthesisRateCategory(mixture);
 	double stdDevSynthesisPrior = parameter->getStdDevSynthesisPrior(mixture, false);
-	double mPhi = (-(stdDevSynthesisPrior * stdDevSynthesisPrior) * 0.5); // X * 0.5 = X / 2
+	double meanSynthesisPrior = (-(stdDevSynthesisPrior * stdDevSynthesisPrior) * 0.5); // X * 0.5 = X / 2
 	//double stdDevSynthesisPrior = parameter->getStdDevSynthesisPrior(selectionCategory, false);
-	double logPhiProbability = Parameter::densityLogNorm(phiValue, mPhi, stdDevSynthesisPrior, true);
-	double logPhiProbability_proposed = Parameter::densityLogNorm(phiValue_proposed, mPhi, stdDevSynthesisPrior, true);
+	double logPhiProbability = Parameter::densityLogNorm(phiValue, meanSynthesisPrior, stdDevSynthesisPrior, true);
+	double logPhiProbability_proposed = Parameter::densityLogNorm(phiValue_proposed, meanSynthesisPrior, stdDevSynthesisPrior, true);
 	if (withPhi)
 	{
 		for (unsigned i = 0; i < parameter->getNumObservedPhiSets(); i++)
@@ -224,7 +224,7 @@ void FONSEModel::calculateLogLikelihoodRatioForHyperParameters(Genome &genome, u
 	if (withPhi)
 	{
 		// one for each noiseOffset, one for stdDevSynthesisPrior, one for initiation_cost a1
-		logProbabilityRatio.resize(getNumPhiGroupings() + 2);
+		logProbabilityRatio.resize(getNumeanSynthesisPriorGroupings() + 2);
 	}
 	else
 	{
@@ -614,7 +614,7 @@ void FONSEModel::proposeSynthesisRateLevels()
 }
 
 
-unsigned FONSEModel::getNumPhiGroupings()
+unsigned FONSEModel::getNumeanSynthesisPriorGroupings()
 {
 	return parameter->getNumObservedPhiSets();
 }
@@ -638,7 +638,7 @@ unsigned FONSEModel::getNumSynthesisRateCategories()
 }
 
 
-void FONSEModel::setNumPhiGroupings(unsigned value)
+void FONSEModel::setNumeanSynthesisPriorGroupings(unsigned value)
 {
 	parameter->setNumObservedPhiSets(value);
 }

@@ -3,7 +3,7 @@
 # Function to display usage information
 usage() {
     echo "Usage: $0 [-d] [-v] <target_string> <replacement_string>"
-    echo "  -d  Dry run: show what would be changed without making any changes"
+    echo "  -n  Dry run: show what would be changed without making any changes"
     echo "  -v  Verbose: output detailed information about the changes"
     exit 1
 }
@@ -11,9 +11,9 @@ usage() {
 # Parse command line options
 dry_run=false
 verbose=false
-while getopts "dv" opt; do
+while getopts "nv" opt; do
     case $opt in
-        d) dry_run=true ;;
+        n) dry_run=true ;;
         v) verbose=true ;;
         *) usage ;;
     esac

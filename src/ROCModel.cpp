@@ -136,9 +136,9 @@ void ROCModel::calculateLogLikelihoodRatioPerGene(Gene& gene, unsigned geneIndex
 	//unsigned mixture = getMixtureAssignment(geneIndex);
 	unsigned mixture = getSynthesisRateCategory(expressionCategory);
 	double stdDevSynthesisPrior = parameter->getStdDevSynthesisPrior(mixture, false);
-	double mPhi = (-(stdDevSynthesisPrior * stdDevSynthesisPrior) * 0.5); // X * 0.5 = X / 2
-	double logPhiProbability = Parameter::densityLogNorm(phiValue, mPhi, stdDevSynthesisPrior, true);
-	double logPhiProbability_proposed = Parameter::densityLogNorm(phiValue_proposed, mPhi, stdDevSynthesisPrior, true);
+	double meanSynthesisPrior = (-(stdDevSynthesisPrior * stdDevSynthesisPrior) * 0.5); // X * 0.5 = X / 2
+	double logPhiProbability = Parameter::densityLogNorm(phiValue, meanSynthesisPrior, stdDevSynthesisPrior, true);
+	double logPhiProbability_proposed = Parameter::densityLogNorm(phiValue_proposed, meanSynthesisPrior, stdDevSynthesisPrior, true);
 
 	// TODO: make this work for more than one phi value, or for genes that don't have phi values
 	if (withPhi)
@@ -255,7 +255,7 @@ void ROCModel::calculateLogLikelihoodRatioForHyperParameters(Genome &genome, uns
 	if (withPhi)
 	{
 		// one for each noiseOffset, and one for stdDevSynthesisPrior
-		logProbabilityRatio.resize(getNumPhiGroupings() + 1);
+		logProbabilityRatio.resize(getNumeanSynthesisPriorGroupings() + 1);
 	}
 	else
 		logProbabilityRatio.resize(1);
@@ -643,7 +643,7 @@ void ROCModel::proposeSynthesisRateLevels()
 }
 
 
-unsigned ROCModel::getNumPhiGroupings()
+unsigned ROCModel::getNumeanSynthesisPriorGroupings()
 {
 	return parameter->getNumObservedPhiSets();
 }
@@ -667,7 +667,7 @@ unsigned ROCModel::getNumSynthesisRateCategories()
 }
 
 
-void ROCModel::setNumPhiGroupings(unsigned value)
+void ROCModel::setNumeanSynthesisPriorGroupings(unsigned value)
 {
 	parameter->setNumObservedPhiSets(value);
 }
@@ -797,17 +797,17 @@ void ROCModel::printHyperParameters()
 	{
 		my_print("\t current noiseOffset estimates:");
 
-		for (unsigned i = 0; i < getNumPhiGroupings(); i++)
+		for (unsigned i = 0; i < getNumeanSynthesisPriorGroupings(); i++)
 			my_print(" %", getNoiseOffset(i, false));
 
 		my_print("\n\t current noiseOffset proposal widths:");
 
-		for (unsigned i = 0; i < getNumPhiGroupings(); i++)
+		for (unsigned i = 0; i < getNumeanSynthesisPriorGroupings(); i++)
 			my_print(" %", getCurrentNoiseOffsetProposalWidth(i));
 
 		my_print("\n\t current observedSynthesisNoise estimates:");
 
-		for (unsigned i = 0; i < getNumPhiGroupings(); i++)
+		for (unsigned i = 0; i < getNumeanSynthesisPriorGroupings(); i++)
 			my_print(" %", getObservedSynthesisNoise(i));
 
 		my_print("\n");

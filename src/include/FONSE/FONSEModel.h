@@ -98,12 +98,12 @@ class FONSEModel : public Model
 		virtual double getCurrentInitiationCostProposalWidth();
 		virtual void updateInitiationCost();
 
-		virtual unsigned getNumPhiGroupings();
+		virtual unsigned getNumeanSynthesisPriorGroupings();
 		virtual unsigned getMixtureAssignment(unsigned index);
 		virtual unsigned getNumMixtureElements();
 		virtual unsigned getNumSynthesisRateCategories();
 
-		virtual void setNumPhiGroupings(unsigned value);
+		virtual void setNumeanSynthesisPriorGroupings(unsigned value);
 		virtual void setMixtureAssignment(unsigned i, unsigned catOfGene);
 		virtual void setCategoryProbability(unsigned mixture, double value);
 

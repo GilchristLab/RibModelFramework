@@ -94,12 +94,12 @@ class PAModel: public Model
 		virtual void proposeHyperParameters();
 		virtual void proposeSynthesisRateLevels();
 
-		virtual unsigned getNumPhiGroupings();
+		virtual unsigned getNumeanSynthesisPriorGroupings();
 		virtual unsigned getMixtureAssignment(unsigned index);
 		virtual unsigned getNumMixtureElements();
 		virtual unsigned getNumSynthesisRateCategories();
 
-		virtual void setNumPhiGroupings(unsigned value);
+		virtual void setNumeanSynthesisPriorGroupings(unsigned value);
 		virtual void setMixtureAssignment(unsigned i, unsigned catOfGene);
 		virtual void setCategoryProbability(unsigned mixture, double value);
 

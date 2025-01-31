@@ -556,7 +556,7 @@ void Genome::readObservedPhiValues(std::string filename, bool byId)
 {
 	std::ifstream input;
 	std::string tmp;
-	unsigned numPhi = 0;
+	unsigned numeanSynthesisPrior = 0;
 	bool exitFunction = false;
 
 	input.open(filename);
@@ -633,14 +633,14 @@ void Genome::readObservedPhiValues(std::string filename, bool byId)
 						if (first)
 						{
 							first = false;
-							numPhi = (unsigned) it->second->observedSynthesisRateValues.size();
-							numGenesWithPhi.resize(numPhi, 0);
+							numeanSynthesisPrior = (unsigned) it->second->observedSynthesisRateValues.size();
+							numGenesWithPhi.resize(numeanSynthesisPrior, 0);
 						}
-						else if (it->second->observedSynthesisRateValues.size() != numPhi)
+						else if (it->second->observedSynthesisRateValues.size() != numeanSynthesisPrior)
 						{
                             my_printError("ERROR: Gene % has a different number of phi values given other genes: \n", geneID);
                             my_printError("Gene % has % ", geneID, it -> second -> observedSynthesisRateValues.size());
-                            my_printError("while others have %. Exiting function.\n", numPhi);
+                            my_printError("while others have %. Exiting function.\n", numeanSynthesisPrior);
 							exitFunction = true;
 							for (unsigned a = 0; a < getGenomeSize(); a++)
 							{
@@ -658,17 +658,17 @@ void Genome::readObservedPhiValues(std::string filename, bool byId)
                     for (unsigned i = 0; i < getGenomeSize(); i++)
 					{
 						Gene *gene = &(getGene(i));
-                        if (gene->observedSynthesisRateValues.size() != numPhi)
+                        if (gene->observedSynthesisRateValues.size() != numeanSynthesisPrior)
 						{
 							my_printError("WARNING: Gene # % (%) does not have any phi values. ", i, gene->getId());
                             my_printError("Please check your file to make sure every gene has a phi value. Filling empty genes ");
                             my_printError("with Missing Value Flag for calculations.\n");
-                           	gene->observedSynthesisRateValues.resize(numPhi, -1);
+                           	gene->observedSynthesisRateValues.resize(numeanSynthesisPrior, -1);
 
                         }
 
 						// Finally increment numGenesWithPhi based on stored observedSynthesisRateValues
-						for (unsigned j = 0; j < numPhi; j++)
+						for (unsigned j = 0; j < numeanSynthesisPrior; j++)
 						{
 							if (gene->observedSynthesisRateValues[j] != -1)
 								numGenesWithPhi[j]++;
@@ -727,14 +727,14 @@ void Genome::readObservedPhiValues(std::string filename, bool byId)
 					if (first)
 					{
 						first = false;
-						numPhi = (unsigned) genes[geneIndex].observedSynthesisRateValues.size();
-						numGenesWithPhi.resize(numPhi, 0);
+						numeanSynthesisPrior = (unsigned) genes[geneIndex].observedSynthesisRateValues.size();
+						numGenesWithPhi.resize(numeanSynthesisPrior, 0);
 					}
-					else if (numPhi != genes[geneIndex].observedSynthesisRateValues.size())
+					else if (numeanSynthesisPrior != genes[geneIndex].observedSynthesisRateValues.size())
 					{
                         my_printError("ERROR: Gene % has a different number of phi values given other genes: \n", geneIndex);
                         my_printError("Gene % has % ", geneIndex, genes[geneIndex].observedSynthesisRateValues.size());
-                        my_printError("while others have %. Exiting function.\n", numPhi);
+                        my_printError("while others have %. Exiting function.\n", numeanSynthesisPrior);
 						exitFunction = true;
 						for (unsigned a = 0; a < getGenomeSize(); a++)
 						{
@@ -752,17 +752,17 @@ void Genome::readObservedPhiValues(std::string filename, bool byId)
 					for (unsigned i = 0; i < getGenomeSize(); i++)
 					{
 						Gene *gene = &(getGene(i));
-						if (gene->observedSynthesisRateValues.size() != numPhi)
+						if (gene->observedSynthesisRateValues.size() != numeanSynthesisPrior)
 						{
                             my_printError("WARNING: Gene # % (%) does not have any phi values. ", i, gene->getId());
                             my_printError("Please check your file to make sure every gene has a phi value. Filling empty genes ");
                             my_printError("with Missing Value Flag for calculations.\n");
-                           	gene->observedSynthesisRateValues.resize(numPhi, -1);
+                           	gene->observedSynthesisRateValues.resize(numeanSynthesisPrior, -1);
 
 						}
 
 						// Finally increment numGenesWithPhi based on stored observedSynthesisRateValues
-						for (unsigned j = 0; j < numPhi; j++)
+						for (unsigned j = 0; j < numeanSynthesisPrior; j++)
 						{
 							if (gene->observedSynthesisRateValues[j] != -1)
 								numGenesWithPhi[j]++;

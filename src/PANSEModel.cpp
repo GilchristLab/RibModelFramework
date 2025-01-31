@@ -546,7 +546,7 @@ void PANSEModel::calculateLogLikelihoodRatioForHyperParameters(Genome &genome, u
     if (withPhi)
     {
         // one for each noiseOffset, and one for stdDevSynthesisPrior
-        logProbabilityRatio.resize(getNumPhiGroupings() + 2);
+        logProbabilityRatio.resize(getNumeanSynthesisPriorGroupings() + 2);
     }
     else
         logProbabilityRatio.resize(2);
@@ -1061,7 +1061,7 @@ void PANSEModel::proposeSynthesisRateLevels()
 }
 
 
-unsigned PANSEModel::getNumPhiGroupings()
+unsigned PANSEModel::getNumeanSynthesisPriorGroupings()
 {
     return parameter->getNumObservedPhiSets();
 }
@@ -1092,7 +1092,7 @@ unsigned PANSEModel::getNumSynthesisRateCategories()
 }
 
 
-void PANSEModel::setNumPhiGroupings(unsigned value)
+void PANSEModel::setNumeanSynthesisPriorGroupings(unsigned value)
 {
     parameter->setNumObservedPhiSets(value);
 }

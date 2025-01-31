@@ -116,12 +116,12 @@ class Model
 		virtual void proposeHyperParameters() = 0;
 		virtual void proposeSynthesisRateLevels() = 0;
 
-		virtual unsigned getNumPhiGroupings() = 0;
+		virtual unsigned getNumeanSynthesisPriorGroupings() = 0;
 		virtual unsigned getMixtureAssignment(unsigned index) = 0;
 		virtual unsigned getNumMixtureElements() = 0;
 		virtual unsigned getNumSynthesisRateCategories() = 0;
 
-		virtual void setNumPhiGroupings(unsigned value) = 0;
+		virtual void setNumeanSynthesisPriorGroupings(unsigned value) = 0;
 		virtual void setMixtureAssignment(unsigned i, unsigned catOfGene) = 0;
 		virtual void setCategoryProbability(unsigned mixture, double value) = 0;
 

@@ -61,8 +61,8 @@ class Trace {
 
 
 		//ROC Specific:
-		void initSynthesisOffsetTrace(unsigned samples, unsigned numPhiGroupings);
-		void initObservedSynthesisNoiseTrace(unsigned samples, unsigned numPhiGroupings);
+		void initSynthesisOffsetTrace(unsigned samples, unsigned numeanSynthesisPriorGroupings);
+		void initObservedSynthesisNoiseTrace(unsigned samples, unsigned numeanSynthesisPriorGroupings);
 
 
 		//FONSE Specific:

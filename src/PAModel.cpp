@@ -144,9 +144,9 @@ void PAModel::calculateLogLikelihoodRatioPerGene(Gene& gene, unsigned geneIndex,
 	unsigned mixture = getMixtureAssignment(geneIndex);
 	mixture = getSynthesisRateCategory(mixture);
 	double stdDevSynthesisPrior = parameter->getStdDevSynthesisPrior(mixture, false);
-	double mPhi = (-(stdDevSynthesisPrior * stdDevSynthesisPrior) * 0.5); // X * 0.5 = X / 2
-	double logPhiProbability = Parameter::densityLogNorm(phiValue, mPhi, stdDevSynthesisPrior, true);
-	double logPhiProbability_proposed = Parameter::densityLogNorm(phiValue_proposed, mPhi, stdDevSynthesisPrior, true);
+	double meanSynthesisPrior = (-(stdDevSynthesisPrior * stdDevSynthesisPrior) * 0.5); // X * 0.5 = X / 2
+	double logPhiProbability = Parameter::densityLogNorm(phiValue, meanSynthesisPrior, stdDevSynthesisPrior, true);
+	double logPhiProbability_proposed = Parameter::densityLogNorm(phiValue_proposed, meanSynthesisPrior, stdDevSynthesisPrior, true);
 
 
 	if (withPhi)
@@ -270,7 +270,7 @@ void PAModel::calculateLogLikelihoodRatioForHyperParameters(Genome &genome, unsi
 	if (withPhi)
     {
         // one for each noiseOffset, and one for stdDevSynthesisPrior
-        logProbabilityRatio.resize(getNumPhiGroupings() + 1);
+        logProbabilityRatio.resize(getNumeanSynthesisPriorGroupings() + 1);
     }
     else
         logProbabilityRatio.resize(1);
@@ -594,7 +594,7 @@ void PAModel::proposeSynthesisRateLevels()
 }
 
 
-unsigned PAModel::getNumPhiGroupings()
+unsigned PAModel::getNumeanSynthesisPriorGroupings()
 {
 	return parameter->getNumObservedPhiSets();
 }
@@ -618,7 +618,7 @@ unsigned PAModel::getNumSynthesisRateCategories()
 }
 
 
-void PAModel::setNumPhiGroupings(unsigned value)
+void PAModel::setNumeanSynthesisPriorGroupings(unsigned value)
 {
 	parameter->setNumObservedPhiSets(value);
 }
