@@ -165,16 +165,16 @@ NULL
 #' @return returns vector of probabilities representing mixture probabilities for gene
 NULL
 
-#' @name getStdDevSynthesisRatePosteriorMean
-#' @title getStdDevSynthesisRatePosteriorMean
+#' @name getStdDevSynthesisPriorPosteriorMean
+#' @title getStdDevSynthesisPriorPosteriorMean
 #' @description Method of Parameter class (access via parameter$<function name>, where parameter is an object initialized by initializeParameterObject). Calculate posterior mean of standard deviation parameter of lognormal describing distribution of synthesis rates
 #' @param samples number of samples over which to calculate posterior mean
 #' @param mixture mixture index to use. Should be number between 0 and n-1, where n is number of mixtures
 #' @return returns posterior mean for standard deviation of lognormal distribution of synthesis rates
 NULL
 
-#' @name getStdDevSynthesisRateVariance
-#' @title getStdDevSynthesisRateVariance
+#' @name getStdDevSynthesisPriorVariance
+#' @title getStdDevSynthesisPriorVariance
 #' @description Method of Parameter class (access via parameter$<function name>, where parameter is an object initialized by initializeParameterObject). Calculate variance of standard deviation parameter of lognormal describing distribution of synthesis rates
 #' @param samples number of samples over which to calculate variance
 #' @param mixture mixture index to use. Should be number between 0 and n-1, where n is number of mixtures

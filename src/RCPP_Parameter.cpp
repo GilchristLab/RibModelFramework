@@ -84,15 +84,15 @@ RCPP_EXPOSED_CLASS(CovarianceMatrix)
 //' @param geneIndex corresponding index of gene in genome. Should be a number between 1 and length(genome). 
 //' @return returns vector of probabilities representing mixture probabilities for gene
 
-//' @name getStdDevSynthesisRatePosteriorMean
-//' @title getStdDevSynthesisRatePosteriorMean
+//' @name getStdDevSynthesisPriorPosteriorMean
+//' @title getStdDevSynthesisPriorPosteriorMean
 //' @description Method of Parameter class (access via parameter$<function name>, where parameter is an object initialized by initializeParameterObject). Calculate posterior mean of standard deviation parameter of lognormal describing distribution of synthesis rates
 //' @param samples number of samples over which to calculate posterior mean
 //' @param mixture mixture index to use. Should be number between 0 and n-1, where n is number of mixtures
 //' @return returns posterior mean for standard deviation of lognormal distribution of synthesis rates
 
-//' @name getStdDevSynthesisRateVariance
-//' @title getStdDevSynthesisRateVariance
+//' @name getStdDevSynthesisPriorVariance
+//' @title getStdDevSynthesisPriorVariance
 //' @description Method of Parameter class (access via parameter$<function name>, where parameter is an object initialized by initializeParameterObject). Calculate variance of standard deviation parameter of lognormal describing distribution of synthesis rates
 //' @param samples number of samples over which to calculate variance
 //' @param mixture mixture index to use. Should be number between 0 and n-1, where n is number of mixtures
@@ -229,9 +229,9 @@ RCPP_MODULE(Parameter_mod)
 		        "returns the mixture assignment for a given gene") //Not a R wrapper
 		.method("getEstimatedMixtureAssignmentProbabilitiesForGene", &Parameter::getEstimatedMixtureAssignmentProbabilitiesForGene,
 		        "returns the probabilities assignment for a given gene") //Not a R wrapper
-		.method("getStdDevSynthesisRatePosteriorMean", &Parameter::getStdDevSynthesisRatePosteriorMean) //Not a R wrapper
+		.method("getStdDevSynthesisPriorPosteriorMean", &Parameter::getStdDevSynthesisPriorPosteriorMean) //Not a R wrapper
 		.method("getCodonSpecificPosteriorMean", &Parameter::getCodonSpecificPosteriorMeanForCodon)
-		.method("getStdDevSynthesisRateVariance", &Parameter::getStdDevSynthesisRateVariance)
+		.method("getStdDevSynthesisPriorVariance", &Parameter::getStdDevSynthesisPriorVariance)
 		.method("getCodonSpecificVariance", &Parameter::getCodonSpecificVarianceForCodon)
         .method("getCodonSpecificQuantile", &Parameter::getCodonSpecificQuantileForCodon)
         .method("getExpressionQuantile", &Parameter::getExpressionQuantileForGene)
@@ -257,7 +257,7 @@ RCPP_MODULE(Parameter_mod)
 		.method("calculateSelectionCoefficients", &Parameter::calculateSelectionCoefficientsR)
 
 		.method("fixSphi",&Parameter::fixStdDevSynthesis)
-		.method("setStdDevSynthesisRate",&Parameter::setStdDevSynthesisRate)
+		.method("setStdDevSynthesisPrior",&Parameter::setStdDevSynthesisPrior)
 
 
 		//Used for getters and setters

@@ -2210,8 +2210,8 @@ int testParameter(std::string testFileDir)
      * and related get/set functions as a consequence of the function setup:
      * get/setMixtureAssignment,
      * getMutationSelectionState, getNumParam, getNumMixtureElements
-     * get/setStdDevSynthesisRate, getCurrentStdDevSynthesisRateProposalWidth
-     * getNumAcceptForStdDevSynthesisRate, getStdCspForIndex, getNumAcceptForCspForIndex
+     * get/setStdDevSynthesisPrior, getCurrentStdDevSynthesisPriorProposalWidth
+     * getNumAcceptForStdDevSynthesisPrior, getStdCspForIndex, getNumAcceptForCspForIndex
      * getNumMutationCategories, getNumSelectionCategories, getNumSynthesisRateCategories
      * getMutationCategory, getSelectionCategory
      * getMixtureElementsOfMutationCategory, getMixtureElementsOfSelectionCategory
@@ -2225,7 +2225,7 @@ int testParameter(std::string testFileDir)
     //---------------------------------------//
 
     /* Initialize parameter:
-     * Arguments: vector <double> stdDevSynthesisRate, unsigned numMixtures, vector <unsigned> geneAssignment,
+     * Arguments: vector <double> stdDevSynthesisPrior, unsigned numMixtures, vector <unsigned> geneAssignment,
      *           vector <vector <unsigned>> mixtureDefinitionMatrix, bool splitSer, string mutationSelectionState
      *
      * Thus, let:
@@ -2364,29 +2364,29 @@ int testParameter(std::string testFileDir)
         my_print("Parameter getNumMixtureElements --- Pass\n");
 
     //--------------------------------------------//
-    //------ getStdDevSynthesisRate Function------//
+    //------ getStdDevSynthesisPrior Function------//
     //--------------------------------------------//
 
-    // Check proposed StdDevSynthesisRate
+    // Check proposed StdDevSynthesisPrior
     for (unsigned i = 0u; i < numMixtures; i++)
     {
-        if (parameter.getStdDevSynthesisRate(i, true) != stdDev[i])
+        if (parameter.getStdDevSynthesisPrior(i, true) != stdDev[i])
         {
-            my_printError("Error in initParameterSet or getStdDevSynthesisRate(proposed) for index %.", i);
-            my_printError(" Value should be %, but is instead %.\n", stdDev[i], parameter.getStdDevSynthesisRate(i, true));
+            my_printError("Error in initParameterSet or getStdDevSynthesisPrior(proposed) for index %.", i);
+            my_printError(" Value should be %, but is instead %.\n", stdDev[i], parameter.getStdDevSynthesisPrior(i, true));
             error = 1;
             globalError = 1;
             initParameterSetError = 1;
         }
     }
 
-    // Check non-proposed StdDevSynthesisRate
+    // Check non-proposed StdDevSynthesisPrior
     for (unsigned i = 0u; i < numMixtures; i++)
     {
-        if (parameter.getStdDevSynthesisRate(i, false) != stdDev[i])
+        if (parameter.getStdDevSynthesisPrior(i, false) != stdDev[i])
         {
-            my_printError("Error in initParameterSet or getStdDevSynthesisRate(non-proposed) for index %.", i);
-            my_printError(" Value should be %, but is instead %.\n", stdDev[i], parameter.getStdDevSynthesisRate(i, false));
+            my_printError("Error in initParameterSet or getStdDevSynthesisPrior(non-proposed) for index %.", i);
+            my_printError(" Value should be %, but is instead %.\n", stdDev[i], parameter.getStdDevSynthesisPrior(i, false));
             error = 1;
             globalError = 1;
             initParameterSetError = 1;
@@ -2394,61 +2394,61 @@ int testParameter(std::string testFileDir)
     }
 
     if (!error)
-        my_print("Parameter getStdDevSynthesisRate --- Pass\n");
+        my_print("Parameter getStdDevSynthesisPrior --- Pass\n");
     else
         error = 0; //Reset for next function.
 
     // Not part of initParameterSet, but added here for convenience.
     //--------------------------------------------//
-    //------ setStdDevSynthesisRate Function------//
+    //------ setStdDevSynthesisPrior Function------//
     //--------------------------------------------//
     for (unsigned i = 0u; i < numMixtures; i++)
     {
-        parameter.setStdDevSynthesisRate(i, i);
-        if (parameter.getStdDevSynthesisRate(i) != i)
+        parameter.setStdDevSynthesisPrior(i, i);
+        if (parameter.getStdDevSynthesisPrior(i) != i)
         {
-            my_printError("Error in setStdDevSynthesisRate for index %. Value should be %, but is instead %.\n",
-                          i, i, parameter.getStdDevSynthesisRate(i));
+            my_printError("Error in setStdDevSynthesisPrior for index %. Value should be %, but is instead %.\n",
+                          i, i, parameter.getStdDevSynthesisPrior(i));
             error = 1;
             globalError = 1;
         }
     }
 
     if (!error)
-        my_print("Parameter setStdDevSynthesisRate --- Pass\n");
+        my_print("Parameter setStdDevSynthesisPrior --- Pass\n");
     else
         error = 0; //Reset for next function.
 
     //-----------------------------------------------------------------//
-    //------ getCurrentStdDevSynthesisRateProposalWidth Function ------//
+    //------ getCurrentStdDevSynthesisPriorProposalWidth Function ------//
     //-----------------------------------------------------------------//
 
     // This value is initialized to 0.1 in initParameterSet.
-    if (parameter.getCurrentStdDevSynthesisRateProposalWidth() != 0.1)
+    if (parameter.getCurrentStdDevSynthesisPriorProposalWidth() != 0.1)
     {
-        my_printError("Error in initParameterSet or getCurrentStdDevSynthesisRateProposalWidth.");
-        my_printError(" Value should be 0.1, but is instead %.\n", parameter.getCurrentStdDevSynthesisRateProposalWidth());
+        my_printError("Error in initParameterSet or getCurrentStdDevSynthesisPriorProposalWidth.");
+        my_printError(" Value should be 0.1, but is instead %.\n", parameter.getCurrentStdDevSynthesisPriorProposalWidth());
         globalError = 1;
         initParameterSetError = 1;
     }
     else
-        my_print("Parameter getCurrentStdDevSynthesisRateProposalWidth --- Pass\n");
+        my_print("Parameter getCurrentStdDevSynthesisPriorProposalWidth --- Pass\n");
 
     // For unit testing only.
     //---------------------------------------------------------//
-    //------ getNumAcceptForStdDevSynthesisRate Function ------//
+    //------ getNumAcceptForStdDevSynthesisPrior Function ------//
     //---------------------------------------------------------//
 
     // This value is initialized to 0 in initParameterSet.
-    if (parameter.getNumAcceptForStdDevSynthesisRate() != 0)
+    if (parameter.getNumAcceptForStdDevSynthesisPrior() != 0)
     {
-        my_printError("Error in initParameterSet or getNumAcceptForStdDevSynthesisRate.");
-        my_printError(" Value should be 0, but is instead %.\n", parameter.getNumAcceptForStdDevSynthesisRate());
+        my_printError("Error in initParameterSet or getNumAcceptForStdDevSynthesisPrior.");
+        my_printError(" Value should be 0, but is instead %.\n", parameter.getNumAcceptForStdDevSynthesisPrior());
         globalError = 1;
         initParameterSetError = 1;
     }
     else
-        my_print("Parameter getNumAcceptForStdDevSynthesisRate --- Pass\n");
+        my_print("Parameter getNumAcceptForStdDevSynthesisPrior --- Pass\n");
 
     // For unit testing only.
     //----------------------------------------//
@@ -3332,7 +3332,7 @@ int testPAParameter()
     //------------------------------------------//
 
      * Initialize parameter:
-     * Arguments: vector <double> stdDevSynthesisRate, unsigned numMixtures, vector <unsigned> geneAssignment,
+     * Arguments: vector <double> stdDevSynthesisPrior, unsigned numMixtures, vector <unsigned> geneAssignment,
      *           vector <vector <unsigned>> mixtureDefinitionMatrix, bool splitSer, string mutationSelectionState
      *
      * Thus, let:

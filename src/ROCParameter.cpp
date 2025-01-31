@@ -33,11 +33,11 @@ ROCParameter::ROCParameter(std::string filename) : Parameter(22)
 }
 
 
-ROCParameter::ROCParameter(std::vector<double> stdDevSynthesisRate, unsigned _numMixtures, std::vector<unsigned> geneAssignment,
+ROCParameter::ROCParameter(std::vector<double> stdDevSynthesisPrior, unsigned _numMixtures, std::vector<unsigned> geneAssignment,
 		std::vector<std::vector<unsigned>> thetaKMatrix, bool splitSer, std::string _mutationSelectionState) :
 		Parameter(22)
 {
-	initParameterSet(stdDevSynthesisRate, _numMixtures, geneAssignment, thetaKMatrix, splitSer, _mutationSelectionState);
+	initParameterSet(stdDevSynthesisPrior, _numMixtures, geneAssignment, thetaKMatrix, splitSer, _mutationSelectionState);
 	initROCParameterSet();
 }
 
@@ -1117,7 +1117,7 @@ void ROCParameter::getParameterForCategory(unsigned category, unsigned paramType
 //--------------------------------------------------//
 
 
-ROCParameter::ROCParameter(std::vector<double> stdDevSynthesisRate, std::vector<unsigned> geneAssignment,
+ROCParameter::ROCParameter(std::vector<double> stdDevSynthesisPrior, std::vector<unsigned> geneAssignment,
 						std::vector<unsigned> _matrix, bool splitSer) : Parameter(22)
 {
 	unsigned _numMixtures = _matrix.size() / 2;
@@ -1131,16 +1131,16 @@ ROCParameter::ROCParameter(std::vector<double> stdDevSynthesisRate, std::vector<
 			thetaKMatrix[i][j] = _matrix[index];
 		}
 	}
-	initParameterSet(stdDevSynthesisRate, _numMixtures, geneAssignment, thetaKMatrix, splitSer, "");
+	initParameterSet(stdDevSynthesisPrior, _numMixtures, geneAssignment, thetaKMatrix, splitSer, "");
 	initROCParameterSet();
 
 }
 
-ROCParameter::ROCParameter(std::vector<double> stdDevSynthesisRate, unsigned _numMixtures, std::vector<unsigned> geneAssignment,
+ROCParameter::ROCParameter(std::vector<double> stdDevSynthesisPrior, unsigned _numMixtures, std::vector<unsigned> geneAssignment,
 							bool splitSer, std::string _mutationSelectionState) : Parameter(22)
 {
 	std::vector<std::vector<unsigned>> thetaKMatrix;
-	initParameterSet(stdDevSynthesisRate, _numMixtures, geneAssignment, thetaKMatrix, splitSer, _mutationSelectionState);
+	initParameterSet(stdDevSynthesisPrior, _numMixtures, geneAssignment, thetaKMatrix, splitSer, _mutationSelectionState);
 	initROCParameterSet();
 }
 

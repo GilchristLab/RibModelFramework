@@ -50,7 +50,7 @@ void Trace::initializeSharedTraces(unsigned samples, unsigned num_genes, unsigne
 
 	//numSelectionCategories always == numSynthesisRateCategories, so only one is passed in for convenience
 
-	initStdDevSynthesisRateTrace(numSelectionCategories, samples);
+	initStdDevSynthesisPriorTrace(numSelectionCategories, samples);
 	initSynthesisRateAcceptanceRateTrace(num_genes, numSelectionCategories);
 	codonSpecificAcceptanceRateTrace.resize(maxGrouping);
 	initSynthesisRateTrace(samples, num_genes, numSelectionCategories,init_phi,estimateSynthesisRate);
@@ -63,13 +63,13 @@ void Trace::initializeSharedTraces(unsigned samples, unsigned num_genes, unsigne
 }
 
 
-void Trace::initStdDevSynthesisRateTrace(unsigned numSelectionCategories, unsigned samples)
+void Trace::initStdDevSynthesisPriorTrace(unsigned numSelectionCategories, unsigned samples)
 {
-	stdDevSynthesisRateTrace.resize(numSelectionCategories);
+	stdDevSynthesisPriorTrace.resize(numSelectionCategories);
 	for (unsigned i = 0u; i < numSelectionCategories; i++)
 	{
 		std::vector<double> temp(samples, 0.0);
-		stdDevSynthesisRateTrace[i] = temp;
+		stdDevSynthesisPriorTrace[i] = temp;
 	}
 }
 
@@ -294,9 +294,9 @@ void Trace::initializePANSETrace(unsigned samples, unsigned num_genes, unsigned 
 //--------------------------------------//
 
 
-std::vector<double> Trace::getStdDevSynthesisRateTrace(unsigned selectionCategory)
+std::vector<double> Trace::getStdDevSynthesisPriorTrace(unsigned selectionCategory)
 {
-	return stdDevSynthesisRateTrace[selectionCategory];
+	return stdDevSynthesisPriorTrace[selectionCategory];
 }
 
 
@@ -319,9 +319,9 @@ std::vector<double> Trace::getExpectedSynthesisRateTrace()
 }
 
 
-std::vector<double> Trace::getStdDevSynthesisRateAcceptanceRateTrace()
+std::vector<double> Trace::getStdDevSynthesisPriorAcceptanceRateTrace()
 {
-	return stdDevSynthesisRateAcceptanceRateTrace;
+	return stdDevSynthesisPriorAcceptanceRateTrace;
 }
 
 
@@ -563,15 +563,15 @@ std::vector<double> Trace::getInitiationCostAcceptanceRateTrace()
 //--------------------------------------//
 
 
-void Trace::updateStdDevSynthesisRateTrace(unsigned sample, double stdDevSynthesisRate, unsigned synthesisRateCategory)
+void Trace::updateStdDevSynthesisPriorTrace(unsigned sample, double stdDevSynthesisPrior, unsigned synthesisRateCategory)
 {
-	stdDevSynthesisRateTrace[synthesisRateCategory][sample] = stdDevSynthesisRate;
+	stdDevSynthesisPriorTrace[synthesisRateCategory][sample] = stdDevSynthesisPrior;
 }
 
 
-void Trace::updateStdDevSynthesisRateAcceptanceRateTrace(double acceptanceLevel)
+void Trace::updateStdDevSynthesisPriorAcceptanceRateTrace(double acceptanceLevel)
 {
-	stdDevSynthesisRateAcceptanceRateTrace.push_back(acceptanceLevel);
+	stdDevSynthesisPriorAcceptanceRateTrace.push_back(acceptanceLevel);
 }
 
 
@@ -776,9 +776,9 @@ std::vector<double> Trace::getMixtureProbabilitiesTraceForMixtureR(unsigned mixt
 }
 
 
-std::vector<std::vector<double>> Trace::getStdDevSynthesisRateTraces()
+std::vector<std::vector<double>> Trace::getStdDevSynthesisPriorTraces()
 {
-	return stdDevSynthesisRateTrace;
+	return stdDevSynthesisPriorTrace;
 }
 
 //TODO: How well does this generalize?
@@ -800,15 +800,15 @@ std::vector<double> Trace::getPartitionFunctionTraceR(unsigned mixtureIndex){
 //--------------------------------------//
 //---------- Setter Functions ----------//
 //--------------------------------------//
-void Trace::setStdDevSynthesisRateTraces(std::vector<std::vector<double>> _stdDevSynthesisRateTrace)
+void Trace::setStdDevSynthesisPriorTraces(std::vector<std::vector<double>> _stdDevSynthesisPriorTrace)
 {
-	stdDevSynthesisRateTrace = _stdDevSynthesisRateTrace;
+	stdDevSynthesisPriorTrace = _stdDevSynthesisPriorTrace;
 }
 
 
-void Trace::setStdDevSynthesisRateAcceptanceRateTrace(std::vector<double> _stdDevSynthesisRateAcceptanceRateTrace)
+void Trace::setStdDevSynthesisPriorAcceptanceRateTrace(std::vector<double> _stdDevSynthesisPriorAcceptanceRateTrace)
 {
-	stdDevSynthesisRateAcceptanceRateTrace = _stdDevSynthesisRateAcceptanceRateTrace;
+	stdDevSynthesisPriorAcceptanceRateTrace = _stdDevSynthesisPriorAcceptanceRateTrace;
 }
 
 

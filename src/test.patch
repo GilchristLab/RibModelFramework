@@ -1,0 +1,21 @@
+diff --git a/src/main.cpp b/src/main.cpp
+index 6ed41e2..f1d5b64 100644
+--- a/src/main.cpp
++++ b/src/main.cpp
+@@ -26,6 +26,7 @@ int main()
+ 	//mcmc.setRestartFileSettings("RestartFile.txt", 20, true);
+ 	std::cout << "Done!-------------------------------\n\n\n";
+ 
++Here's something new
+ 
+ 	std::cout << "initialize Genome object--------------------------" << std::endl;
+ 	bool withPhi = true;
+@@ -43,7 +44,7 @@ int main()
+ 	std::cout << "Done!-------------------------------\n\n\n";
+ 	std::cout << "Initializing shared parameter variables---------------\n";
+ 
+-	std::cout << "Done!-------------------------------\n\n\n";
++	std::cout << "Done!---------------------\n\n\n";
+ 	std::cout << "Initializing shared parameter variables---------------\n";
+ 	std::vector<unsigned> geneAssignment(genome.getGenomeSize());
+ 

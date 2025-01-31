@@ -1557,8 +1557,8 @@ writeParameterObject <- function(parameter, file)
 # extracts traces and parameter information from the base class Parameter
 extractBaseInfo <- function(parameter){
   trace <- parameter$getTraceObject()
-  stdDevSynthesisRateTraces <- trace$getStdDevSynthesisRateTraces()
-  stdDevSynthesisRateAcceptRatTrace <- trace$getStdDevSynthesisRateAcceptanceRateTrace()
+  stdDevSynthesisPriorTraces <- trace$getStdDevSynthesisPriorTraces()
+  stdDevSynthesisPriorAcceptRatTrace <- trace$getStdDevSynthesisPriorAcceptanceRateTrace()
   synthRateTrace <- trace$getSynthesisRateTrace()
   synthAcceptRatTrace <- trace$getSynthesisRateAcceptanceRateTrace()
   mixAssignTrace <- trace$getMixtureAssignmentTrace()
@@ -1581,8 +1581,8 @@ extractBaseInfo <- function(parameter){
     withPhi <- TRUE
   }
   
-  varList <- list(stdDevSynthesisRateTraces = stdDevSynthesisRateTraces, 
-                  stdDevSynthesisRateAcceptRatTrace = stdDevSynthesisRateAcceptRatTrace,
+  varList <- list(stdDevSynthesisPriorTraces = stdDevSynthesisPriorTraces, 
+                  stdDevSynthesisPriorAcceptRatTrace = stdDevSynthesisPriorAcceptRatTrace,
                   synthRateTrace = synthRateTrace,
                   synthAcceptRatTrace = synthAcceptRatTrace,
                   mixAssignTrace = mixAssignTrace,
@@ -1777,11 +1777,11 @@ setBaseInfo <- function(parameter, files)
       max <- tempEnv$paramBase$lastIteration + 1
       grouplist <- tempEnv$paramBase$grouplist
       
-      stdDevSynthesisRateTraces <- vector("list", length = numSelectionCategories)
+      stdDevSynthesisPriorTraces <- vector("list", length = numSelectionCategories)
       for (j in 1:numSelectionCategories) {
-        stdDevSynthesisRateTraces[[j]] <- tempEnv$paramBase$stdDevSynthesisRateTraces[[j]][1:max]
+        stdDevSynthesisPriorTraces[[j]] <- tempEnv$paramBase$stdDevSynthesisPriorTraces[[j]][1:max]
       }
-      stdDevSynthesisRateAcceptanceRateTrace <- tempEnv$paramBase$stdDevSynthesisRateAcceptRatTrace
+      stdDevSynthesisPriorAcceptanceRateTrace <- tempEnv$paramBase$stdDevSynthesisPriorAcceptRatTrace
       synthesisRateTrace <- vector("list", length = numSelectionCategories)
       for (j in 1:numSelectionCategories) {
         for (k in 1:length(tempEnv$paramBase$synthRateTrace[[j]])){
@@ -1866,8 +1866,8 @@ setBaseInfo <- function(parameter, files)
       }
 
       
-      curStdDevSynthesisRateTraces <- tempEnv$paramBase$stdDevSynthesisRateTraces
-      curStdDevSynthesisRateAcceptanceRateTrace <- tempEnv$paramBase$stdDevSynthesisRateAcceptRatTrace
+      curStdDevSynthesisPriorTraces <- tempEnv$paramBase$stdDevSynthesisPriorTraces
+      curStdDevSynthesisPriorAcceptanceRateTrace <- tempEnv$paramBase$stdDevSynthesisPriorAcceptRatTrace
       curSynthesisRateTrace <- tempEnv$paramBase$synthRateTrace
       curSynthesisRateAcceptanceRateTrace <- tempEnv$paramBase$synthAcceptRatTrace
       curMixtureAssignmentTrace <- tempEnv$paramBase$mixAssignTrace
@@ -1879,11 +1879,11 @@ setBaseInfo <- function(parameter, files)
       
       #assuming all checks have passed, time to concatenate traces
       max <- tempEnv$paramBase$lastIteration + 1
-      combineTwoDimensionalTrace(stdDevSynthesisRateTraces, curStdDevSynthesisRateTraces, max)
+      combineTwoDimensionalTrace(stdDevSynthesisPriorTraces, curStdDevSynthesisPriorTraces, max)
       
-      size <- length(curStdDevSynthesisRateAcceptanceRateTrace)
-      stdDevSynthesisRateAcceptanceRateTrace <- c(stdDevSynthesisRateAcceptanceRateTrace, 
-                                                  curStdDevSynthesisRateAcceptanceRateTrace[2:size])
+      size <- length(curStdDevSynthesisPriorAcceptanceRateTrace)
+      stdDevSynthesisPriorAcceptanceRateTrace <- c(stdDevSynthesisPriorAcceptanceRateTrace, 
+                                                  curStdDevSynthesisPriorAcceptanceRateTrace[2:size])
       
       
       combineThreeDimensionalTrace(synthesisRateTrace, curSynthesisRateTrace, max)
@@ -1907,8 +1907,8 @@ setBaseInfo <- function(parameter, files)
   parameter$setGroupList(grouplist)
   
   trace <- parameter$getTraceObject()
-  trace$setStdDevSynthesisRateTraces(stdDevSynthesisRateTraces)
-  trace$setStdDevSynthesisRateAcceptanceRateTrace(stdDevSynthesisRateAcceptanceRateTrace)
+  trace$setStdDevSynthesisPriorTraces(stdDevSynthesisPriorTraces)
+  trace$setStdDevSynthesisPriorAcceptanceRateTrace(stdDevSynthesisPriorAcceptanceRateTrace)
   trace$setSynthesisRateTrace(synthesisRateTrace)
   trace$setSynthesisRateAcceptanceRateTrace(synthesisRateAcceptanceRateTrace)
   trace$setSynthesisOffsetTrace(synthesisOffsetTrace)

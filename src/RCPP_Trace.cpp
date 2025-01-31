@@ -9,7 +9,7 @@ RCPP_MODULE(Trace_mod)
   class_<Trace>( "Trace" )
   
     //Getter Functions:
-    .method("getStdDevSynthesisRateAcceptanceRateTrace", &Trace::getStdDevSynthesisRateAcceptanceRateTrace)
+    .method("getStdDevSynthesisPriorAcceptanceRateTrace", &Trace::getStdDevSynthesisPriorAcceptanceRateTrace)
     .method("getSynthesisRateTrace", &Trace::getSynthesisRateTrace)
     .method("getSynthesisRateAcceptanceRateTrace", &Trace::getSynthesisRateAcceptanceRateTrace)
     .method("getCodonSpecificAcceptanceRateTraceForAA", &Trace::getCodonSpecificAcceptanceRateTraceForAA)
@@ -28,13 +28,13 @@ RCPP_MODULE(Trace_mod)
     .method("getSynthesisRateTraceByMixtureElementForGene", &Trace::getSynthesisRateTraceByMixtureElementForGeneR)
     .method("getMixtureAssignmentTraceForGene", &Trace::getMixtureAssignmentTraceForGeneR)
     .method("getMixtureProbabilitiesTraceForMixture", &Trace::getMixtureProbabilitiesTraceForMixtureR)
-    .method("getStdDevSynthesisRateTraces", &Trace::getStdDevSynthesisRateTraces)
+    .method("getStdDevSynthesisPriorTraces", &Trace::getStdDevSynthesisPriorTraces)
     .method("getNumberOfMixtures", &Trace::getNumberOfMixtures)
     
 
     //Setter Functions:
-    .method("setStdDevSynthesisRateTraces", &Trace::setStdDevSynthesisRateTraces)
-    .method("setStdDevSynthesisRateAcceptanceRateTrace", &Trace::setStdDevSynthesisRateAcceptanceRateTrace)
+    .method("setStdDevSynthesisPriorTraces", &Trace::setStdDevSynthesisPriorTraces)
+    .method("setStdDevSynthesisPriorAcceptanceRateTrace", &Trace::setStdDevSynthesisPriorAcceptanceRateTrace)
     .method("setSynthesisRateTrace", &Trace::setSynthesisRateTrace)
     .method("setSynthesisRateAcceptanceRateTrace", &Trace::setSynthesisRateAcceptanceRateTrace)
     .method("setMixtureAssignmentTrace", &Trace::setMixtureAssignmentTrace)

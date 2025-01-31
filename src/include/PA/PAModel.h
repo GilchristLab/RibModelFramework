@@ -56,10 +56,10 @@ class PAModel: public Model
 		virtual std::string getGrouping(unsigned index);
 
 
-		//stdDevSynthesisRate Functions:
-		virtual double getStdDevSynthesisRate(unsigned selectionCategory, bool proposed = false);
-		virtual double getCurrentStdDevSynthesisRateProposalWidth();
-		virtual void updateStdDevSynthesisRate();
+		//stdDevSynthesisPrior Functions:
+		virtual double getStdDevSynthesisPrior(unsigned selectionCategory, bool proposed = false);
+		virtual double getCurrentStdDevSynthesisPriorProposalWidth();
+		virtual void updateStdDevSynthesisPrior();
 
 
 		//Synthesis Rate Functions:
@@ -73,7 +73,7 @@ class PAModel: public Model
 
 
 		//Trace Functions:
-		virtual void updateStdDevSynthesisRateTrace(unsigned sample);
+		virtual void updateStdDevSynthesisPriorTrace(unsigned sample);
 		virtual void updateSynthesisRateTrace(unsigned sample, unsigned i);
 		virtual void updateMixtureAssignmentTrace(unsigned sample, unsigned i);
 		virtual void updateMixtureProbabilitiesTrace(unsigned sample);
@@ -83,7 +83,7 @@ class PAModel: public Model
 
 
 		//Adaptive Width Functions:
-		virtual void adaptStdDevSynthesisRateProposalWidth(unsigned adaptiveWidth, bool adapt = true);
+		virtual void adaptStdDevSynthesisPriorProposalWidth(unsigned adaptiveWidth, bool adapt = true);
 		virtual void adaptSynthesisRateProposalWidth(unsigned adaptiveWidth, bool adapt = true);
 		virtual void adaptCodonSpecificParameterProposalWidth(unsigned adaptiveWidth, unsigned lastIteration, bool adapt = true);
 		virtual void adaptHyperParameterProposalWidths(unsigned adaptiveWidth, bool adapt = true);

@@ -48,12 +48,12 @@ PANSEParameter::PANSEParameter(std::string filename) : Parameter(61)
  * Initializes the object from given values. If thetaK matrix is null or empty, the mutationSelectionState keyword
  * is used to generate the matrix.
 */
-PANSEParameter::PANSEParameter(std::vector<double> stdDevSynthesisRate, unsigned _numMixtures,
+PANSEParameter::PANSEParameter(std::vector<double> stdDevSynthesisPrior, unsigned _numMixtures,
 		std::vector<unsigned> geneAssignment, std::vector<std::vector<unsigned>> thetaKMatrix, unsigned _numElongationMixtures, bool splitSer,
 		std::string _mutationSelectionState) : Parameter(61)
 {
 
-	initParameterSet(stdDevSynthesisRate, _numMixtures, geneAssignment, thetaKMatrix, splitSer, "allUnique");
+	initParameterSet(stdDevSynthesisPrior, _numMixtures, geneAssignment, thetaKMatrix, splitSer, "allUnique");
 	// Note: Due to the structure of PANSE vs. other models, need to set up mixtures when initializing PANSE
 	initPANSEParameterSet(thetaKMatrix, _mutationSelectionState, _numElongationMixtures);
 }
@@ -1409,7 +1409,7 @@ bool PANSEParameter::isNSEShared()
 //--------------------------------------------------//
 
 
-PANSEParameter::PANSEParameter(std::vector<double> stdDevSynthesisRate, std::vector<unsigned> geneAssignment, std::vector<unsigned> _matrix, unsigned _numElongationMixtures, bool splitSer) : Parameter(64)
+PANSEParameter::PANSEParameter(std::vector<double> stdDevSynthesisPrior, std::vector<unsigned> geneAssignment, std::vector<unsigned> _matrix, unsigned _numElongationMixtures, bool splitSer) : Parameter(64)
 {
   unsigned _numMixtures = _matrix.size() / 2;
   std::vector<std::vector<unsigned>> thetaKMatrix;
@@ -1431,17 +1431,17 @@ PANSEParameter::PANSEParameter(std::vector<double> stdDevSynthesisRate, std::vec
 		}
 	}
   std::string _mutationSelectionState = "";
-  initParameterSet(stdDevSynthesisRate, _numMixtures, geneAssignment, thetaKMatrix, splitSer, _mutationSelectionState);
+  initParameterSet(stdDevSynthesisPrior, _numMixtures, geneAssignment, thetaKMatrix, splitSer, _mutationSelectionState);
   initPANSEParameterSet(thetaKMatrix, _mutationSelectionState, _numElongationMixtures);
 
 }
 
 
-PANSEParameter::PANSEParameter(std::vector<double> stdDevSynthesisRate, unsigned _numMixtures, std::vector<unsigned> geneAssignment, unsigned _numElongationMixtures, bool splitSer, std::string _mutationSelectionState) :
+PANSEParameter::PANSEParameter(std::vector<double> stdDevSynthesisPrior, unsigned _numMixtures, std::vector<unsigned> geneAssignment, unsigned _numElongationMixtures, bool splitSer, std::string _mutationSelectionState) :
 Parameter(64)
 {
   std::vector<std::vector<unsigned>> thetaKMatrix;
-  initParameterSet(stdDevSynthesisRate, _numMixtures, geneAssignment, thetaKMatrix, splitSer, _mutationSelectionState);
+  initParameterSet(stdDevSynthesisPrior, _numMixtures, geneAssignment, thetaKMatrix, splitSer, _mutationSelectionState);
   initPANSEParameterSet(thetaKMatrix, _mutationSelectionState, _numElongationMixtures);
 }
 

@@ -50,7 +50,7 @@ class ROCParameter : public Parameter
 		//Constructors & Destructors:
 		explicit ROCParameter();
 		explicit ROCParameter(std::string filename);
-		ROCParameter(std::vector<double> stdDevSynthesisRate, unsigned _numMixtures,
+		ROCParameter(std::vector<double> stdDevSynthesisPrior, unsigned _numMixtures,
 					std::vector<unsigned> geneAssignment, std::vector<std::vector<unsigned>> thetaKMatrix,
 					bool splitSer = true, std::string _mutationSelectionState = "allUnique");
 		ROCParameter& operator=(const ROCParameter& rhs);
@@ -149,9 +149,9 @@ class ROCParameter : public Parameter
 #ifndef STANDALONE
 
 		//Constructors & Destructors:
-		ROCParameter(std::vector<double> stdDevSynthesisRate, std::vector<unsigned> geneAssignment, std::vector<unsigned> _matrix,
+		ROCParameter(std::vector<double> stdDevSynthesisPrior, std::vector<unsigned> geneAssignment, std::vector<unsigned> _matrix,
 					bool splitSer = true);
-		ROCParameter(std::vector<double> stdDevSynthesisRate, unsigned _numMixtures, std::vector<unsigned> geneAssignment,
+		ROCParameter(std::vector<double> stdDevSynthesisPrior, unsigned _numMixtures, std::vector<unsigned> geneAssignment,
 					bool splitSer = true, std::string _mutationSelectionState = "allUnique");
 
 

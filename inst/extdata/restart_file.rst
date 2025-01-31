@@ -1,13 +1,13 @@
 >groupList:
 A C D E F G H I K L
 N P Q R S T V Y Z 
->stdDevSynthesisRate:
+>stdDevSynthesisPrior:
 2.76218 3.23822 
 >numParam:
 40
 >numMixtures:
 2
->std_stdDevSynthesisRate:
+>std_stdDevSynthesisPrior:
 0.015759
 >std_phi:
 ***

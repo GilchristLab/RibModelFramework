@@ -258,9 +258,9 @@ void PANSEModel::calculateLogLikelihoodRatioPerGene(Gene& gene, unsigned geneInd
     }
 
 
-    double stdDevSynthesisRate = parameter->getStdDevSynthesisRate(synthesisRateCategory, false);
-    double logPhiProbability = Parameter::densityLogNorm(phiValue, (-(stdDevSynthesisRate * stdDevSynthesisRate) * 0.5), stdDevSynthesisRate, true);
-    double logPhiProbability_proposed = Parameter::densityLogNorm(phiValue_proposed, (-(stdDevSynthesisRate * stdDevSynthesisRate) * 0.5), stdDevSynthesisRate, true);
+    double stdDevSynthesisPrior = parameter->getStdDevSynthesisPrior(synthesisRateCategory, false);
+    double logPhiProbability = Parameter::densityLogNorm(phiValue, (-(stdDevSynthesisPrior * stdDevSynthesisPrior) * 0.5), stdDevSynthesisPrior, true);
+    double logPhiProbability_proposed = Parameter::densityLogNorm(phiValue_proposed, (-(stdDevSynthesisPrior * stdDevSynthesisPrior) * 0.5), stdDevSynthesisPrior, true);
 	
     if (withPhi)
     {
@@ -526,26 +526,26 @@ void PANSEModel::calculateLogLikelihoodRatioForHyperParameters(Genome &genome, u
     double lpr = 0.0; // this variable is only needed because OpenMP doesn't allow variables in reduction clause to be reference
 
     unsigned selectionCategory = getNumSynthesisRateCategories();
-    std::vector<double> currentStdDevSynthesisRate(selectionCategory, 0.0);
+    std::vector<double> currentStdDevSynthesisPrior(selectionCategory, 0.0);
     std::vector<double> currentMphi(selectionCategory, 0.0);
-    std::vector<double> proposedStdDevSynthesisRate(selectionCategory, 0.0);
+    std::vector<double> proposedStdDevSynthesisPrior(selectionCategory, 0.0);
     std::vector<double> proposedMphi(selectionCategory, 0.0);
 
 
     for (unsigned i = 0u; i < selectionCategory; i++)
     {
-        currentStdDevSynthesisRate[i] = getStdDevSynthesisRate(i, false);
-        currentMphi[i] = -((currentStdDevSynthesisRate[i] * currentStdDevSynthesisRate[i]) / 2);
-        proposedStdDevSynthesisRate[i] = getStdDevSynthesisRate(i, true);
-        proposedMphi[i] = -((proposedStdDevSynthesisRate[i] * proposedStdDevSynthesisRate[i]) / 2);
+        currentStdDevSynthesisPrior[i] = getStdDevSynthesisPrior(i, false);
+        currentMphi[i] = -((currentStdDevSynthesisPrior[i] * currentStdDevSynthesisPrior[i]) / 2);
+        proposedStdDevSynthesisPrior[i] = getStdDevSynthesisPrior(i, true);
+        proposedMphi[i] = -((proposedStdDevSynthesisPrior[i] * proposedStdDevSynthesisPrior[i]) / 2);
         // take the Jacobian into account for the non-linear transformation from logN to N distribution
-        lpr -= (std::log(currentStdDevSynthesisRate[i]) - std::log(proposedStdDevSynthesisRate[i]));
+        lpr -= (std::log(currentStdDevSynthesisPrior[i]) - std::log(proposedStdDevSynthesisPrior[i]));
      }
 
 
     if (withPhi)
     {
-        // one for each noiseOffset, and one for stdDevSynthesisRate
+        // one for each noiseOffset, and one for stdDevSynthesisPrior
         logProbabilityRatio.resize(getNumPhiGroupings() + 2);
     }
     else
@@ -562,8 +562,8 @@ void PANSEModel::calculateLogLikelihoodRatioForHyperParameters(Genome &genome, u
         unsigned mixture = getMixtureAssignment(i);
         mixture = getSynthesisRateCategory(mixture);
         double phi = getSynthesisRate(i, mixture, false);
-        lpr += Parameter::densityLogNorm(phi, proposedMphi[mixture], proposedStdDevSynthesisRate[mixture], true) -
-            Parameter::densityLogNorm(phi, currentMphi[mixture], currentStdDevSynthesisRate[mixture], true);
+        lpr += Parameter::densityLogNorm(phi, proposedMphi[mixture], proposedStdDevSynthesisPrior[mixture], true) -
+            Parameter::densityLogNorm(phi, currentMphi[mixture], currentStdDevSynthesisPrior[mixture], true);
     }
 
     logProbabilityRatio[0] = lpr;
@@ -787,26 +787,26 @@ std::string PANSEModel::getGrouping(unsigned index)
 
 
 //---------------------------------------------------//
-//---------- stdDevSynthesisRate Functions ----------//
+//---------- stdDevSynthesisPrior Functions ----------//
 //---------------------------------------------------//
 
 
-double PANSEModel::getStdDevSynthesisRate(unsigned selectionCategory, bool proposed)
+double PANSEModel::getStdDevSynthesisPrior(unsigned selectionCategory, bool proposed)
 {
-    return parameter->getStdDevSynthesisRate(selectionCategory, proposed);
+    return parameter->getStdDevSynthesisPrior(selectionCategory, proposed);
 }
 
 
-double PANSEModel::getCurrentStdDevSynthesisRateProposalWidth()
+double PANSEModel::getCurrentStdDevSynthesisPriorProposalWidth()
 {
-    return parameter->getCurrentStdDevSynthesisRateProposalWidth();
+    return parameter->getCurrentStdDevSynthesisPriorProposalWidth();
 }
 
 
 
-void PANSEModel::updateStdDevSynthesisRate()
+void PANSEModel::updateStdDevSynthesisPrior()
 {
-    parameter->updateStdDevSynthesisRate();
+    parameter->updateStdDevSynthesisPrior();
 }
 
 
@@ -880,9 +880,9 @@ void PANSEModel::setLastIteration(unsigned iteration)
 //-------------------------------------//
 
 
-void PANSEModel::updateStdDevSynthesisRateTrace(unsigned sample)
+void PANSEModel::updateStdDevSynthesisPriorTrace(unsigned sample)
 {
-    parameter->updateStdDevSynthesisRateTrace(sample);
+    parameter->updateStdDevSynthesisPriorTrace(sample);
 }
 
 
@@ -918,7 +918,7 @@ void PANSEModel::updateCodonSpecificParameterTrace(unsigned sample, std::string 
 
 void PANSEModel::updateHyperParameterTraces(unsigned sample)
 {
-    updateStdDevSynthesisRateTrace(sample);
+    updateStdDevSynthesisPriorTrace(sample);
     updatePartitionFunctionTrace(sample);
     if (withPhi)
     {
@@ -999,9 +999,9 @@ bool PANSEModel::isShared(std::string csp_parameter)
 //----------------------------------------------//
 
 
-void PANSEModel::adaptStdDevSynthesisRateProposalWidth(unsigned adaptiveWidth, bool adapt)
+void PANSEModel::adaptStdDevSynthesisPriorProposalWidth(unsigned adaptiveWidth, bool adapt)
 {
-    parameter->adaptStdDevSynthesisRateProposalWidth(adaptiveWidth, adapt);
+    parameter->adaptStdDevSynthesisPriorProposalWidth(adaptiveWidth, adapt);
 }
 
 
@@ -1025,7 +1025,7 @@ void PANSEModel::adaptCodonSpecificParameterProposalWidth(unsigned adaptiveWidth
 
 void PANSEModel::adaptHyperParameterProposalWidths(unsigned adaptiveWidth, bool adapt)
 {
-    adaptStdDevSynthesisRateProposalWidth(adaptiveWidth, adapt);
+    adaptStdDevSynthesisPriorProposalWidth(adaptiveWidth, adapt);
     adaptPartitionFunctionProposalWidth(adaptiveWidth, adapt);
     if (withPhi)
         adaptNoiseOffsetProposalWidth(adaptiveWidth, adapt);
@@ -1046,7 +1046,7 @@ void PANSEModel::proposeCodonSpecificParameter()
 
 void PANSEModel::proposeHyperParameters()
 {
-    parameter->proposeStdDevSynthesisRate();
+    parameter->proposeStdDevSynthesisPrior();
     parameter->proposePartitionFunction();
     if (withPhi)
     {
@@ -1216,7 +1216,7 @@ void PANSEModel::updateCodonSpecificParameter(std::string codon,std::string para
 
 void PANSEModel::updateAllHyperParameter()
 {
-    updateStdDevSynthesisRate();
+    updateStdDevSynthesisPrior();
     updatePartitionFunction();
     if (withPhi)
     {
@@ -1233,7 +1233,7 @@ void PANSEModel::updateHyperParameter(unsigned hp)
     // NOTE: when adding additional hyper parameter, also add to updateAllHyperParameter()
     if (hp == 0)
     {
-        updateStdDevSynthesisRate();
+        updateStdDevSynthesisPrior();
     }
     else if (hp == 1)
     {
@@ -1241,7 +1241,7 @@ void PANSEModel::updateHyperParameter(unsigned hp)
     }       
     else if (hp > 1 and withPhi)
     {   
-        //subtract off 2 because the first two parameters withh be the updateStdDevSynthesisRate
+        //subtract off 2 because the first two parameters withh be the updateStdDevSynthesisPrior
         updateNoiseOffset(hp - 2);
     }
 }
@@ -1378,10 +1378,10 @@ void PANSEModel::printHyperParameters()
 {
     for (unsigned i = 0u; i < getNumSynthesisRateCategories(); i++)
     {
-        my_print("stdDevSynthesisRate posterior estimate for selection category %: %\n", i, parameter->getStdDevSynthesisRate(i));
+        my_print("stdDevSynthesisPrior posterior estimate for selection category %: %\n", i, parameter->getStdDevSynthesisPrior(i));
         my_print("partition function posterior estimate for selection category %: %\n", i, parameter->getPartitionFunction(i,false));
     }
-    my_print("\t current stdDevSynthesisRate proposal width: %\n", getCurrentStdDevSynthesisRateProposalWidth());
+    my_print("\t current stdDevSynthesisPrior proposal width: %\n", getCurrentStdDevSynthesisPriorProposalWidth());
 }
 
 

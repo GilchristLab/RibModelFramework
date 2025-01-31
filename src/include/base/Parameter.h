@@ -67,7 +67,7 @@ class Parameter {
 
 
 		//Initialization and Restart Functions: TODO: test
-		void initParameterSet(std::vector<double> stdDevSynthesisRate, unsigned _numMixtures,
+		void initParameterSet(std::vector<double> stdDevSynthesisPrior, unsigned _numMixtures,
 			std::vector<unsigned> geneAssignment, std::vector<std::vector<unsigned>> mixtureDefinitionMatrix,
 			bool splitSer = true, std::string _mutationSelectionState = "allUnique"); //Mostly tested; TODO caveats
 		void initBaseValuesFromFile(std::string filename);
@@ -110,14 +110,14 @@ class Parameter {
 		unsigned getGroupListSize();
 
 
-		//stdDevSynthesisRate Functions: Mostly tested, see comments.
-		double getStdDevSynthesisRate(unsigned selectionCategory, bool proposed = false);
-		virtual void proposeStdDevSynthesisRate(); //TODO: test
+		//stdDevSynthesisPrior Functions: Mostly tested, see comments.
+		double getStdDevSynthesisPrior(unsigned selectionCategory, bool proposed = false);
+		virtual void proposeStdDevSynthesisPrior(); //TODO: test
 		void fixStdDevSynthesis();
-		void setStdDevSynthesisRate(double stdDevSynthesisRate, unsigned selectionCategory);
-		double getCurrentStdDevSynthesisRateProposalWidth();
-		unsigned getNumAcceptForStdDevSynthesisRate(); //Only for unit testing.
-		void updateStdDevSynthesisRate(); //TODO: test
+		void setStdDevSynthesisPrior(double stdDevSynthesisPrior, unsigned selectionCategory);
+		double getCurrentStdDevSynthesisPriorProposalWidth();
+		unsigned getNumAcceptForStdDevSynthesisPrior(); //Only for unit testing.
+		void updateStdDevSynthesisPrior(); //TODO: test
 		double getStdCspForIndex(unsigned i); //Only for unit testing.
 
 
@@ -167,25 +167,25 @@ class Parameter {
 		void setTraceObject(Trace _trace);
 		void updateObservedSynthesisNoiseTraces(unsigned sample);
 		void updateNoiseOffsetTraces(unsigned sample);
-		void updateStdDevSynthesisRateTrace(unsigned sample);
+		void updateStdDevSynthesisPriorTrace(unsigned sample);
 		void updateSynthesisRateTrace(unsigned sample, unsigned geneIndex);
 		void updateMixtureAssignmentTrace(unsigned sample, unsigned geneIndex);
 		void updateMixtureProbabilitiesTrace(unsigned samples);
 
 
 		//Adaptive Width Functions: TODO: test
-		void adaptStdDevSynthesisRateProposalWidth(unsigned adaptationWidth, bool adapt);
+		void adaptStdDevSynthesisPriorProposalWidth(unsigned adaptationWidth, bool adapt);
 		void adaptSynthesisRateProposalWidth(unsigned adaptationWidth, bool adapt);
 		virtual void adaptCodonSpecificParameterProposalWidth(unsigned adaptationWidth, unsigned lastIteration, bool adapt);
 
 
 		//Posterior, Variance, and Estimates Functions: TODO: test
-		double getStdDevSynthesisRatePosteriorMean(unsigned samples, unsigned mixture);
+		double getStdDevSynthesisPriorPosteriorMean(unsigned samples, unsigned mixture);
 		double getSynthesisRatePosteriorMean(unsigned samples, unsigned geneIndex, bool log_scale=false);
 
 		double getCodonSpecificPosteriorMean(unsigned mixtureElement, unsigned samples, std::string &codon,
 			unsigned paramType, bool withoutReference = true, bool byGene = false, bool log_scale = false);
-		double getStdDevSynthesisRateVariance(unsigned samples, unsigned mixture, bool unbiased);
+		double getStdDevSynthesisPriorVariance(unsigned samples, unsigned mixture, bool unbiased);
 		double getSynthesisRateVariance(unsigned samples, unsigned geneIndex,
 			bool unbiased = true, bool log_scale = false);
 		double getCodonSpecificVariance(unsigned mixtureElement, unsigned samples, std::string &codon,
@@ -318,11 +318,11 @@ class Parameter {
 		unsigned maxGrouping;
 
 
-		std::vector<double> stdDevSynthesisRate_proposed;
-		std::vector<double> stdDevSynthesisRate;
-		double bias_stdDevSynthesisRate; //NOTE: Currently, this value is always set to 0.0
-		double std_stdDevSynthesisRate;
-		unsigned numAcceptForStdDevSynthesisRate;
+		std::vector<double> stdDevSynthesisPrior_proposed;
+		std::vector<double> stdDevSynthesisPrior;
+		double bias_stdDevSynthesisPrior; //NOTE: Currently, this value is always set to 0.0
+		double std_stdDevSynthesisPrior;
+		unsigned numAcceptForStdDevSynthesisPrior;
 		std::vector<double> std_csp;
 
 

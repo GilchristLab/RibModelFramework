@@ -47,7 +47,7 @@ class PANSEParameter: public Parameter {
 		//Constructors & Destructors:
 		explicit PANSEParameter();
 		PANSEParameter(std::string filename);
-		PANSEParameter(std::vector<double> stdDevSynthesisRate, unsigned _numMixtures, std::vector<unsigned> geneAssignment,
+		PANSEParameter(std::vector<double> stdDevSynthesisPrior, unsigned _numMixtures, std::vector<unsigned> geneAssignment,
 				std::vector<std::vector<unsigned>> thetaKMatrix, unsigned _numElongationMixtures, bool splitSer = true,
 				std::string _mutationSelectionState = "allUnique");
 		PANSEParameter& operator=(const PANSEParameter& rhs);
@@ -132,9 +132,9 @@ class PANSEParameter: public Parameter {
 #ifndef STANDALONE
 
 		//Constructors & Destructors:
-		PANSEParameter(std::vector<double> stdDevSynthesisRate, std::vector<unsigned> geneAssignment,
+		PANSEParameter(std::vector<double> stdDevSynthesisPrior, std::vector<unsigned> geneAssignment,
 			std::vector<unsigned> _matrix, unsigned _numElongationMixtures, bool splitSer = true);
-		PANSEParameter(std::vector<double> stdDevSynthesisRate, unsigned _numMixtures, std::vector<unsigned> geneAssignment, unsigned _numElongationMixtures,
+		PANSEParameter(std::vector<double> stdDevSynthesisPrior, unsigned _numMixtures, std::vector<unsigned> geneAssignment, unsigned _numElongationMixtures,
 			bool splitSer = true, std::string _mutationSelectionState = "allUnique");
 
 

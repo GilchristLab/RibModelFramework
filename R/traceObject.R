@@ -70,13 +70,13 @@ convergence.test.Rcpp_Trace <- function(object, samples = 10, frac1 = 0.1,
   }
   if(what[1] == "Sphi")
   {
-    sphi <- object$getStdDevSynthesisRateTraces()
+    sphi <- object$getStdDevSynthesisPriorTraces()
     current.trace <- do.call("rbind", sphi)
     current.trace <- t(current.trace)
   }
   if(what[1] == "Mphi")
   {
-    sphi <- object$getStdDevSynthesisRateTraces()
+    sphi <- object$getStdDevSynthesisPriorTraces()
     sphi <- do.call("rbind", sphi)
     mphi <- -(sphi * sphi) / 2;
     current.trace <- t(mphi)

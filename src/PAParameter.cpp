@@ -41,11 +41,11 @@ PAParameter::PAParameter(std::string filename) : Parameter(64)
  * Initializes the object from given values. If thetaK matrix is null or empty, the mutationSelectionState keyword
  * is used to generate the matrix.
 */
-PAParameter::PAParameter(std::vector<double> stdDevSynthesisRate, unsigned _numMixtures,
+PAParameter::PAParameter(std::vector<double> stdDevSynthesisPrior, unsigned _numMixtures,
 		std::vector<unsigned> geneAssignment, std::vector<std::vector<unsigned>> thetaKMatrix, bool splitSer,
 		std::string _mutationSelectionState) : Parameter(64)
 {
-	initParameterSet(stdDevSynthesisRate, _numMixtures, geneAssignment, thetaKMatrix, splitSer, _mutationSelectionState);
+	initParameterSet(stdDevSynthesisPrior, _numMixtures, geneAssignment, thetaKMatrix, splitSer, _mutationSelectionState);
 	initPAParameterSet();
 }
 
@@ -625,7 +625,7 @@ bool PAParameter::isLambdaFixed()
 //--------------------------------------------------//
 
 
-PAParameter::PAParameter(std::vector<double> stdDevSynthesisRate, std::vector<unsigned> geneAssignment, std::vector<unsigned> _matrix, bool splitSer) : Parameter(64)
+PAParameter::PAParameter(std::vector<double> stdDevSynthesisPrior, std::vector<unsigned> geneAssignment, std::vector<unsigned> _matrix, bool splitSer) : Parameter(64)
 {
   unsigned _numMixtures = _matrix.size() / 2;
   std::vector<std::vector<unsigned>> thetaKMatrix;
@@ -646,17 +646,17 @@ PAParameter::PAParameter(std::vector<double> stdDevSynthesisRate, std::vector<un
 			thetaKMatrix[i][j] = _matrix[index];
 	}
   }
-  initParameterSet(stdDevSynthesisRate, _numMixtures, geneAssignment, thetaKMatrix, splitSer, "");
+  initParameterSet(stdDevSynthesisPrior, _numMixtures, geneAssignment, thetaKMatrix, splitSer, "");
   initPAParameterSet();
 
 }
 
 
-PAParameter::PAParameter(std::vector<double> stdDevSynthesisRate, unsigned _numMixtures, std::vector<unsigned> geneAssignment, bool splitSer, std::string _mutationSelectionState) :
+PAParameter::PAParameter(std::vector<double> stdDevSynthesisPrior, unsigned _numMixtures, std::vector<unsigned> geneAssignment, bool splitSer, std::string _mutationSelectionState) :
 Parameter(64)
 {
   std::vector<std::vector<unsigned>> thetaKMatrix;
-  initParameterSet(stdDevSynthesisRate, _numMixtures, geneAssignment, thetaKMatrix, splitSer, _mutationSelectionState);
+  initParameterSet(stdDevSynthesisPrior, _numMixtures, geneAssignment, thetaKMatrix, splitSer, _mutationSelectionState);
   initPAParameterSet();
 }
 

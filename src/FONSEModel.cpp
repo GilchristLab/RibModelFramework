@@ -121,11 +121,11 @@ void FONSEModel::calculateLogLikelihoodRatioPerGene(Gene& gene, unsigned geneInd
 
 	unsigned mixture = getMixtureAssignment(geneIndex);
 	mixture = getSynthesisRateCategory(mixture);
-	double stdDevSynthesisRate = parameter->getStdDevSynthesisRate(mixture, false);
-	double mPhi = (-(stdDevSynthesisRate * stdDevSynthesisRate) * 0.5); // X * 0.5 = X / 2
-	//double stdDevSynthesisRate = parameter->getStdDevSynthesisRate(selectionCategory, false);
-	double logPhiProbability = Parameter::densityLogNorm(phiValue, mPhi, stdDevSynthesisRate, true);
-	double logPhiProbability_proposed = Parameter::densityLogNorm(phiValue_proposed, mPhi, stdDevSynthesisRate, true);
+	double stdDevSynthesisPrior = parameter->getStdDevSynthesisPrior(mixture, false);
+	double mPhi = (-(stdDevSynthesisPrior * stdDevSynthesisPrior) * 0.5); // X * 0.5 = X / 2
+	//double stdDevSynthesisPrior = parameter->getStdDevSynthesisPrior(selectionCategory, false);
+	double logPhiProbability = Parameter::densityLogNorm(phiValue, mPhi, stdDevSynthesisPrior, true);
+	double logPhiProbability_proposed = Parameter::densityLogNorm(phiValue_proposed, mPhi, stdDevSynthesisPrior, true);
 	if (withPhi)
 	{
 		for (unsigned i = 0; i < parameter->getNumObservedPhiSets(); i++)
@@ -223,7 +223,7 @@ void FONSEModel::calculateLogLikelihoodRatioForHyperParameters(Genome &genome, u
 	double lpr = 0.0;
 	if (withPhi)
 	{
-		// one for each noiseOffset, one for stdDevSynthesisRate, one for initiation_cost a1
+		// one for each noiseOffset, one for stdDevSynthesisPrior, one for initiation_cost a1
 		logProbabilityRatio.resize(getNumPhiGroupings() + 2);
 	}
 	else
@@ -235,18 +235,18 @@ void FONSEModel::calculateLogLikelihoodRatioForHyperParameters(Genome &genome, u
 	double a1_proposed = getInitiationCost(true);
 
 	unsigned selectionCategory = getNumSynthesisRateCategories();
-	std::vector<double> currentStdDevSynthesisRate(selectionCategory, 0.0);
+	std::vector<double> currentStdDevSynthesisPrior(selectionCategory, 0.0);
 	std::vector<double> currentMphi(selectionCategory, 0.0);
-	std::vector<double> proposedStdDevSynthesisRate(selectionCategory, 0.0);
+	std::vector<double> proposedStdDevSynthesisPrior(selectionCategory, 0.0);
 	std::vector<double> proposedMphi(selectionCategory, 0.0);
 	for (unsigned i = 0u; i < selectionCategory; i++)
 	{
-		currentStdDevSynthesisRate[i] = getStdDevSynthesisRate(i, false);
-		currentMphi[i] = -((currentStdDevSynthesisRate[i] * currentStdDevSynthesisRate[i]) * 0.5);
-		proposedStdDevSynthesisRate[i] = getStdDevSynthesisRate(i, true);
-		proposedMphi[i] = -((proposedStdDevSynthesisRate[i] * proposedStdDevSynthesisRate[i]) * 0.5);
+		currentStdDevSynthesisPrior[i] = getStdDevSynthesisPrior(i, false);
+		currentMphi[i] = -((currentStdDevSynthesisPrior[i] * currentStdDevSynthesisPrior[i]) * 0.5);
+		proposedStdDevSynthesisPrior[i] = getStdDevSynthesisPrior(i, true);
+		proposedMphi[i] = -((proposedStdDevSynthesisPrior[i] * proposedStdDevSynthesisPrior[i]) * 0.5);
 		// take the Jacobian into account for the non-linear transformation from logN to N distribution
-		lpr_sphi -= (std::log(currentStdDevSynthesisRate[i]) - std::log(proposedStdDevSynthesisRate[i]));
+		lpr_sphi -= (std::log(currentStdDevSynthesisPrior[i]) - std::log(proposedStdDevSynthesisPrior[i]));
 	}
 
 	lpr_a1 -= (std::log(a1_current) - std::log(a1_proposed));
@@ -261,8 +261,8 @@ void FONSEModel::calculateLogLikelihoodRatioForHyperParameters(Genome &genome, u
 		unsigned mixtureElement = getMixtureAssignment(i);
 		unsigned expressionCategory = getSynthesisRateCategory(mixtureElement);
 		double phi = getSynthesisRate(i, expressionCategory, false);
-		lpr_sphi += Parameter::densityLogNorm(phi, proposedMphi[expressionCategory], proposedStdDevSynthesisRate[expressionCategory], true)
-			   - Parameter::densityLogNorm(phi, currentMphi[expressionCategory], currentStdDevSynthesisRate[expressionCategory], true);
+		lpr_sphi += Parameter::densityLogNorm(phi, proposedMphi[expressionCategory], proposedStdDevSynthesisPrior[expressionCategory], true)
+			   - Parameter::densityLogNorm(phi, currentMphi[expressionCategory], currentStdDevSynthesisPrior[expressionCategory], true);
 
 		unsigned mutationCategory = parameter->getMutationCategory(mixtureElement);
 		unsigned selectionCategory = parameter->getSelectionCategory(mixtureElement);
@@ -400,25 +400,25 @@ std::string FONSEModel::getGrouping(unsigned index)
 
 
 //---------------------------------------------------//
-//---------- stdDevSynthesisRate Functions ----------//
+//---------- stdDevSynthesisPrior Functions ----------//
 //---------------------------------------------------//
 
 
-double FONSEModel::getStdDevSynthesisRate(unsigned selectionCategory, bool proposed)
+double FONSEModel::getStdDevSynthesisPrior(unsigned selectionCategory, bool proposed)
 {
-	return parameter->getStdDevSynthesisRate(selectionCategory, proposed);
+	return parameter->getStdDevSynthesisPrior(selectionCategory, proposed);
 }
 
 
-double FONSEModel::getCurrentStdDevSynthesisRateProposalWidth()
+double FONSEModel::getCurrentStdDevSynthesisPriorProposalWidth()
 {
-	return parameter->getCurrentStdDevSynthesisRateProposalWidth();
+	return parameter->getCurrentStdDevSynthesisPriorProposalWidth();
 }
 
 
-void FONSEModel::updateStdDevSynthesisRate()
+void FONSEModel::updateStdDevSynthesisPrior()
 {
-	parameter->updateStdDevSynthesisRate();
+	parameter->updateStdDevSynthesisPrior();
 }
 
 
@@ -481,9 +481,9 @@ void FONSEModel::setLastIteration(unsigned iteration)
 //-------------------------------------//
 
 
-void FONSEModel::updateStdDevSynthesisRateTrace(unsigned sample)
+void FONSEModel::updateStdDevSynthesisPriorTrace(unsigned sample)
 {
-	parameter->updateStdDevSynthesisRateTrace(sample);
+	parameter->updateStdDevSynthesisPriorTrace(sample);
 }
 
 void FONSEModel::updateInitiationCostParameterTrace(unsigned sample)
@@ -517,7 +517,7 @@ void FONSEModel::updateCodonSpecificParameterTrace(unsigned sample, std::string 
 
 void FONSEModel::updateHyperParameterTraces(unsigned sample)
 {
-	updateStdDevSynthesisRateTrace(sample);
+	updateStdDevSynthesisPriorTrace(sample);
 	updateInitiationCostParameterTrace(sample);
 	if (withPhi)
 	{
@@ -552,9 +552,9 @@ void FONSEModel::updateTracesWithInitialValues(Genome & genome)
 //----------------------------------------------//
 
 
-void FONSEModel::adaptStdDevSynthesisRateProposalWidth(unsigned adaptiveWidth, bool adapt)
+void FONSEModel::adaptStdDevSynthesisPriorProposalWidth(unsigned adaptiveWidth, bool adapt)
 {
-	parameter->adaptStdDevSynthesisRateProposalWidth(adaptiveWidth, adapt);
+	parameter->adaptStdDevSynthesisPriorProposalWidth(adaptiveWidth, adapt);
 }
 
 
@@ -577,7 +577,7 @@ void FONSEModel::adaptCodonSpecificParameterProposalWidth(unsigned adaptiveWidth
 
 void FONSEModel::adaptHyperParameterProposalWidths(unsigned adaptiveWidth, bool adapt)
 {
-	adaptStdDevSynthesisRateProposalWidth(adaptiveWidth, adapt);
+	adaptStdDevSynthesisPriorProposalWidth(adaptiveWidth, adapt);
 	adaptInitiationCostProposalWidth(adaptiveWidth,adapt);
 	if (withPhi)
 		adaptNoiseOffsetProposalWidth(adaptiveWidth, adapt);
@@ -764,7 +764,7 @@ void FONSEModel::updateCodonSpecificParameter(std::string grouping, std::string 
 
 void FONSEModel::updateAllHyperParameter()
 {
-	updateStdDevSynthesisRate();
+	updateStdDevSynthesisPrior();
 	updateInitiationCost();
 	if (withPhi)
 	{
@@ -780,7 +780,7 @@ void FONSEModel::updateHyperParameter(unsigned hp)
 	// NOTE: when adding additional hyper parameter, also add to updateAllHyperParameter()
 	if (hp == 0)
 	{
-		updateStdDevSynthesisRate();
+		updateStdDevSynthesisPrior();
 	}
 	else if (hp == 1)
 	{
@@ -788,7 +788,7 @@ void FONSEModel::updateHyperParameter(unsigned hp)
 	}		
 	else if (hp > 1 and withPhi)
 	{	
-		//subtract off 2 because the first two parameters withh be the updateStdDevSynthesisRate
+		//subtract off 2 because the first two parameters withh be the updateStdDevSynthesisPrior
 		updateNoiseOffset(hp - 2);
 	}
 }
@@ -861,9 +861,9 @@ void FONSEModel::printHyperParameters()
 {
 	for (unsigned i = 0u; i < getNumSynthesisRateCategories(); i++)
 	{
-		my_print("stdDevSynthesisRate posterior estimate for selection category %: %\n", i, getStdDevSynthesisRate(i));
+		my_print("stdDevSynthesisPrior posterior estimate for selection category %: %\n", i, getStdDevSynthesisPrior(i));
 	}
-	my_print("\t current stdDevSynthesisRate proposal width: %\n", getCurrentStdDevSynthesisRateProposalWidth());
+	my_print("\t current stdDevSynthesisPrior proposal width: %\n", getCurrentStdDevSynthesisPriorProposalWidth());
 	my_print("\t current initiation cost a_1 estimate: %\n",getInitiationCost(false));
 	my_print("\t current initiation cost a_1 proposal width: %\n", getCurrentInitiationCostProposalWidth());
 

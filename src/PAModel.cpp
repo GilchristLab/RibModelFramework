@@ -143,10 +143,10 @@ void PAModel::calculateLogLikelihoodRatioPerGene(Gene& gene, unsigned geneIndex,
 
 	unsigned mixture = getMixtureAssignment(geneIndex);
 	mixture = getSynthesisRateCategory(mixture);
-	double stdDevSynthesisRate = parameter->getStdDevSynthesisRate(mixture, false);
-	double mPhi = (-(stdDevSynthesisRate * stdDevSynthesisRate) * 0.5); // X * 0.5 = X / 2
-	double logPhiProbability = Parameter::densityLogNorm(phiValue, mPhi, stdDevSynthesisRate, true);
-	double logPhiProbability_proposed = Parameter::densityLogNorm(phiValue_proposed, mPhi, stdDevSynthesisRate, true);
+	double stdDevSynthesisPrior = parameter->getStdDevSynthesisPrior(mixture, false);
+	double mPhi = (-(stdDevSynthesisPrior * stdDevSynthesisPrior) * 0.5); // X * 0.5 = X / 2
+	double logPhiProbability = Parameter::densityLogNorm(phiValue, mPhi, stdDevSynthesisPrior, true);
+	double logPhiProbability_proposed = Parameter::densityLogNorm(phiValue_proposed, mPhi, stdDevSynthesisPrior, true);
 
 
 	if (withPhi)
@@ -250,26 +250,26 @@ void PAModel::calculateLogLikelihoodRatioForHyperParameters(Genome &genome, unsi
 	double lpr = 0.0; // this variable is only needed because OpenMP doesn't allow variables in reduction clause to be reference
 
 	unsigned selectionCategory = getNumSynthesisRateCategories();
-	std::vector<double> currentStdDevSynthesisRate(selectionCategory, 0.0);
+	std::vector<double> currentStdDevSynthesisPrior(selectionCategory, 0.0);
 	std::vector<double> currentMphi(selectionCategory, 0.0);
-	std::vector<double> proposedStdDevSynthesisRate(selectionCategory, 0.0);
+	std::vector<double> proposedStdDevSynthesisPrior(selectionCategory, 0.0);
 	std::vector<double> proposedMphi(selectionCategory, 0.0);
 	for (unsigned i = 0u; i < selectionCategory; i++)
 	{
-		currentStdDevSynthesisRate[i] = getStdDevSynthesisRate(i, false);
-		currentMphi[i] = -((currentStdDevSynthesisRate[i] * currentStdDevSynthesisRate[i]) * 0.5);
-		proposedStdDevSynthesisRate[i] = getStdDevSynthesisRate(i, true);
-		proposedMphi[i] = -((proposedStdDevSynthesisRate[i] * proposedStdDevSynthesisRate[i]) * 0.5);
+		currentStdDevSynthesisPrior[i] = getStdDevSynthesisPrior(i, false);
+		currentMphi[i] = -((currentStdDevSynthesisPrior[i] * currentStdDevSynthesisPrior[i]) * 0.5);
+		proposedStdDevSynthesisPrior[i] = getStdDevSynthesisPrior(i, true);
+		proposedMphi[i] = -((proposedStdDevSynthesisPrior[i] * proposedStdDevSynthesisPrior[i]) * 0.5);
 		// take the Jacobian into account for the non-linear transformation from logN to N distribution
-		lpr -= (std::log(currentStdDevSynthesisRate[i]) - std::log(proposedStdDevSynthesisRate[i]));
+		lpr -= (std::log(currentStdDevSynthesisPrior[i]) - std::log(proposedStdDevSynthesisPrior[i]));
 		// take prior into account
 		//TODO(Cedric): make sure you can control that prior from R
-		//lpr -= Parameter::densityNorm(currentStdDevSynthesisRate[i], 1.0, 0.1, true) - Parameter::densityNorm(proposedStdDevSynthesisRate[i], 1.0, 0.1, true);
+		//lpr -= Parameter::densityNorm(currentStdDevSynthesisPrior[i], 1.0, 0.1, true) - Parameter::densityNorm(proposedStdDevSynthesisPrior[i], 1.0, 0.1, true);
 	}
 
 	if (withPhi)
     {
-        // one for each noiseOffset, and one for stdDevSynthesisRate
+        // one for each noiseOffset, and one for stdDevSynthesisPrior
         logProbabilityRatio.resize(getNumPhiGroupings() + 1);
     }
     else
@@ -284,8 +284,8 @@ void PAModel::calculateLogLikelihoodRatioForHyperParameters(Genome &genome, unsi
 		unsigned mixture = getMixtureAssignment(i);
 		mixture = getSynthesisRateCategory(mixture);
 		double phi = getSynthesisRate(i, mixture, false);
-		lpr += Parameter::densityLogNorm(phi, proposedMphi[mixture], proposedStdDevSynthesisRate[mixture], true) -
-				Parameter::densityLogNorm(phi, currentMphi[mixture], currentStdDevSynthesisRate[mixture], true);
+		lpr += Parameter::densityLogNorm(phi, proposedMphi[mixture], proposedStdDevSynthesisPrior[mixture], true) -
+				Parameter::densityLogNorm(phi, currentMphi[mixture], currentStdDevSynthesisPrior[mixture], true);
 	}
 
 	logProbabilityRatio[0] = lpr;
@@ -402,25 +402,25 @@ std::string PAModel::getGrouping(unsigned index)
 
 
 //---------------------------------------------------//
-//---------- stdDevSynthesisRate Functions ----------//
+//---------- stdDevSynthesisPrior Functions ----------//
 //---------------------------------------------------//
 
 
-double PAModel::getStdDevSynthesisRate(unsigned selectionCategory, bool proposed)
+double PAModel::getStdDevSynthesisPrior(unsigned selectionCategory, bool proposed)
 {
-	return parameter->getStdDevSynthesisRate(selectionCategory, proposed);
+	return parameter->getStdDevSynthesisPrior(selectionCategory, proposed);
 }
 
 
-double PAModel::getCurrentStdDevSynthesisRateProposalWidth()
+double PAModel::getCurrentStdDevSynthesisPriorProposalWidth()
 {
-	return parameter->getCurrentStdDevSynthesisRateProposalWidth();
+	return parameter->getCurrentStdDevSynthesisPriorProposalWidth();
 }
 
 
-void PAModel::updateStdDevSynthesisRate()
+void PAModel::updateStdDevSynthesisPrior()
 {
-	parameter->updateStdDevSynthesisRate();
+	parameter->updateStdDevSynthesisPrior();
 }
 
 
@@ -472,9 +472,9 @@ void PAModel::setLastIteration(unsigned iteration)
 //-------------------------------------//
 
 
-void PAModel::updateStdDevSynthesisRateTrace(unsigned sample)
+void PAModel::updateStdDevSynthesisPriorTrace(unsigned sample)
 {
-	parameter->updateStdDevSynthesisRateTrace(sample);
+	parameter->updateStdDevSynthesisPriorTrace(sample);
 }
 
 
@@ -504,7 +504,7 @@ void PAModel::updateCodonSpecificParameterTrace(unsigned sample, std::string cod
 
 void PAModel::updateHyperParameterTraces(unsigned sample)
 {
-	updateStdDevSynthesisRateTrace(sample);
+	updateStdDevSynthesisPriorTrace(sample);
 	if(withPhi)
 	{
 		updateNoiseOffsetTrace(sample);
@@ -538,9 +538,9 @@ void PAModel::updateTracesWithInitialValues(Genome & genome)
 //----------------------------------------------//
 
 
-void PAModel::adaptStdDevSynthesisRateProposalWidth(unsigned adaptiveWidth, bool adapt)
+void PAModel::adaptStdDevSynthesisPriorProposalWidth(unsigned adaptiveWidth, bool adapt)
 {
-	parameter->adaptStdDevSynthesisRateProposalWidth(adaptiveWidth, adapt);
+	parameter->adaptStdDevSynthesisPriorProposalWidth(adaptiveWidth, adapt);
 }
 
 
@@ -558,7 +558,7 @@ void PAModel::adaptCodonSpecificParameterProposalWidth(unsigned adaptiveWidth, u
 
 void PAModel::adaptHyperParameterProposalWidths(unsigned adaptiveWidth, bool adapt)
 {
-	adaptStdDevSynthesisRateProposalWidth(adaptiveWidth, adapt);
+	adaptStdDevSynthesisPriorProposalWidth(adaptiveWidth, adapt);
 	if (withPhi)
 		adaptNoiseOffsetProposalWidth(adaptiveWidth, adapt);
 }
@@ -580,7 +580,7 @@ void PAModel::proposeCodonSpecificParameter()
 
 void PAModel::proposeHyperParameters()
 {
-	parameter->proposeStdDevSynthesisRate();
+	parameter->proposeStdDevSynthesisPrior();
 	if (withPhi)
 	{
 		parameter->proposeNoiseOffset();
@@ -741,7 +741,7 @@ void PAModel::updateCodonSpecificParameter(std::string codon, std::string param)
 
 void PAModel::updateAllHyperParameter()
 {
-	updateStdDevSynthesisRate();
+	updateStdDevSynthesisPrior();
 	if (withPhi)
 	{
 		for (unsigned i =0; i < parameter->getNumObservedPhiSets(); i++)
@@ -757,7 +757,7 @@ void PAModel::updateHyperParameter(unsigned hp)
 	// NOTE: when adding additional hyper parameter, also add to updateAllHyperParameter()
 	if (hp == 0)
 	{
-		updateStdDevSynthesisRate();
+		updateStdDevSynthesisPrior();
 	}
 	else if (hp > 0 && withPhi)
 	{
@@ -872,9 +872,9 @@ void PAModel::printHyperParameters()
 {
 	for (unsigned i = 0u; i < getNumSynthesisRateCategories(); i++)
 	{
-		my_print("stdDevSynthesisRate posterior estimate for selection category %: %\n", i, parameter->getStdDevSynthesisRate(i));
+		my_print("stdDevSynthesisPrior posterior estimate for selection category %: %\n", i, parameter->getStdDevSynthesisPrior(i));
 	}
-	my_print("\t current stdDevSynthesisRate proposal width: %\n", getCurrentStdDevSynthesisRateProposalWidth());
+	my_print("\t current stdDevSynthesisPrior proposal width: %\n", getCurrentStdDevSynthesisPriorProposalWidth());
     //printCodonSpecificParameters(); //TODO put this in MCMC instead
 }
 

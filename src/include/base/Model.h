@@ -56,12 +56,12 @@ class Model
 
 
 
-		//stdDevSynthesisRate Functions:
-		virtual double getStdDevSynthesisRate(unsigned selectionCategory, bool proposed = false) = 0;
+		//stdDevSynthesisPrior Functions:
+		virtual double getStdDevSynthesisPrior(unsigned selectionCategory, bool proposed = false) = 0;
 		//propose function?
 		//set function?
-		virtual double getCurrentStdDevSynthesisRateProposalWidth() = 0;
-		virtual void updateStdDevSynthesisRate() = 0;
+		virtual double getCurrentStdDevSynthesisPriorProposalWidth() = 0;
+		virtual void updateStdDevSynthesisPrior() = 0;
 
 
 
@@ -77,7 +77,7 @@ class Model
 
 
 		//Trace Functions:
-		virtual void updateStdDevSynthesisRateTrace(unsigned sample) = 0;
+		virtual void updateStdDevSynthesisPriorTrace(unsigned sample) = 0;
 		virtual void updateSynthesisRateTrace(unsigned sample, unsigned i) = 0;
 		virtual void updateMixtureAssignmentTrace(unsigned sample, unsigned i) = 0;
 		virtual void updateMixtureProbabilitiesTrace(unsigned sample) = 0;
@@ -86,7 +86,7 @@ class Model
 		virtual void updateTracesWithInitialValues(Genome &genome) = 0;
 
 		//Adaptive Width Functions:
-		virtual void adaptStdDevSynthesisRateProposalWidth(unsigned adaptiveWidth, bool adapt) = 0;
+		virtual void adaptStdDevSynthesisPriorProposalWidth(unsigned adaptiveWidth, bool adapt) = 0;
 		virtual void adaptSynthesisRateProposalWidth(unsigned adaptiveWidth, bool adapt) = 0;
 		virtual void adaptCodonSpecificParameterProposalWidth(unsigned adaptiveWidth, unsigned lastIteration,
 					bool adapt) = 0;

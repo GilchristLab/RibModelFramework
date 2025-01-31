@@ -408,7 +408,7 @@ plotHyperParameterTrace <- function(trace, what = c("Sphi", "Mphi", "Aphi", "Sep
   
   if (what[1] == "Sphi")
   {
-    sphi <- trace$getStdDevSynthesisRateTraces();
+    sphi <- trace$getStdDevSynthesisPriorTraces();
     numMixtures <- length(sphi)
     sphi <- do.call("cbind", sphi)
     
@@ -427,7 +427,7 @@ plotHyperParameterTrace <- function(trace, what = c("Sphi", "Mphi", "Aphi", "Sep
   }
   else if (what[1] == "Mphi")
   {
-    sphi <- trace$getStdDevSynthesisRateTraces();
+    sphi <- trace$getStdDevSynthesisPriorTraces();
     numMixtures <- length(sphi)
     sphi <- do.call("cbind", sphi)
     mphi <- -(sphi * sphi) / 2;

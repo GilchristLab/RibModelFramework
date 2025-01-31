@@ -18,8 +18,8 @@ class Trace {
 
 		unsigned numCodonSpecificParamTypes;
 
-		std::vector<std::vector<double>> stdDevSynthesisRateTrace; //mixture, samples
-		std::vector<double> stdDevSynthesisRateAcceptanceRateTrace; //samples TODO: Correctly sized for the time being,
+		std::vector<std::vector<double>> stdDevSynthesisPriorTrace; //mixture, samples
+		std::vector<double> stdDevSynthesisPriorAcceptanceRateTrace; //samples TODO: Correctly sized for the time being,
         //however, it will need to be changed at some point when there are some adjustments to hyper parameter acceptance/rejection
 		std::vector<std::vector<std::vector<double>>>synthesisRateAcceptanceRateTrace; //order: expressionCategory, gene, sample
 		std::vector<std::vector<double>> codonSpecificAcceptanceRateTrace;//order: codon, sample
@@ -52,7 +52,7 @@ class Trace {
 		void initializeSharedTraces(unsigned samples, unsigned num_genes, unsigned numSelectionCategories, unsigned numMixtures,
 			std::vector<mixtureDefinition> &_categories, unsigned maxGrouping,std::vector<double> init_phi, std::vector<unsigned> init_mix_assign, unsigned numObservedPhiSets,bool estimateSynthesisRate = true);
 
-		void initStdDevSynthesisRateTrace(unsigned numSelectionCategories, unsigned samples);
+		void initStdDevSynthesisPriorTrace(unsigned numSelectionCategories, unsigned samples);
 		void initSynthesisRateAcceptanceRateTrace(unsigned num_genes, unsigned numExpressionCategories);
 		void initSynthesisRateTrace(unsigned samples, unsigned num_genes, unsigned numExpressionCategories,std::vector<double> init_phi,bool estimateSynthesisRate = true);
 		void initMixtureAssignmentTrace(unsigned samples, unsigned num_genes,std::vector<unsigned> init_mix_assign);
@@ -106,9 +106,9 @@ class Trace {
 		//------------------------------//
 		//------ Getter Functions ------//
 		//------------------------------//
-        std::vector<double> getStdDevSynthesisRateTrace(unsigned selectionCategory);
+        std::vector<double> getStdDevSynthesisPriorTrace(unsigned selectionCategory);
         std::vector<double> getExpectedSynthesisRateTrace();
-        std::vector<double> getStdDevSynthesisRateAcceptanceRateTrace();
+        std::vector<double> getStdDevSynthesisPriorAcceptanceRateTrace();
         std::vector<std::vector<std::vector<float>>> getSynthesisRateTrace();
         std::vector<double> getSynthesisRateAcceptanceRateTraceByMixtureElementForGene(unsigned mixtureElement, unsigned geneIndex);
         std::vector<std::vector<std::vector<double>>> getSynthesisRateAcceptanceRateTrace();
@@ -152,8 +152,8 @@ class Trace {
         //------------------------------//
 		//------ Update Functions ------//
 		//------------------------------//
-        void updateStdDevSynthesisRateTrace(unsigned sample, double stdDevSynthesisRate, unsigned synthesisRateCategory);
-        void updateStdDevSynthesisRateAcceptanceRateTrace(double acceptanceLevel);
+        void updateStdDevSynthesisPriorTrace(unsigned sample, double stdDevSynthesisPrior, unsigned synthesisRateCategory);
+        void updateStdDevSynthesisPriorAcceptanceRateTrace(double acceptanceLevel);
         void updateSynthesisRateAcceptanceRateTrace(unsigned category, unsigned geneIndex, double acceptanceLevel);
         void updateCodonSpecificAcceptanceRateTrace(unsigned codonIndex, double acceptanceLevel);
         void updateSynthesisRateTrace(unsigned sample, unsigned geneIndex, std::vector<std::vector <double>> &currentExpressionLevel);
@@ -194,12 +194,12 @@ class Trace {
         std::vector<float> getSynthesisRateTraceByMixtureElementForGeneR(unsigned mixtureElement, unsigned geneIndex);//R WRAPPER
         std::vector<unsigned> getMixtureAssignmentTraceForGeneR(unsigned geneIndex);//R WRAPPER
         std::vector<double> getMixtureProbabilitiesTraceForMixtureR(unsigned mixtureIndex);//R WRAPPER
-        std::vector<std::vector<double>> getStdDevSynthesisRateTraces();
+        std::vector<std::vector<double>> getStdDevSynthesisPriorTraces();
         unsigned getNumberOfMixtures();
 
         //Setter Functions:
-        void setStdDevSynthesisRateTraces(std::vector<std::vector<double>> _stdDevSynthesisRateTrace);
-        void setStdDevSynthesisRateAcceptanceRateTrace(std::vector<double> _stdDevSynthesisRateAcceptanceRateTrace);
+        void setStdDevSynthesisPriorTraces(std::vector<std::vector<double>> _stdDevSynthesisPriorTrace);
+        void setStdDevSynthesisPriorAcceptanceRateTrace(std::vector<double> _stdDevSynthesisPriorAcceptanceRateTrace);
         void setSynthesisRateTrace(std::vector<std::vector<std::vector<float>>> _synthesisRateTrace);
         void setSynthesisRateAcceptanceRateTrace(std::vector<std::vector<std::vector<double>>>_synthesisRateAcceptanceRateTrace);
         void setMixtureAssignmentTrace(std::vector<std::vector<unsigned>> _mixtureAssignmentTrace);

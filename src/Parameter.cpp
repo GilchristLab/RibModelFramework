@@ -43,17 +43,17 @@ Parameter::Parameter()
 	obsPhiSets = 0u;
 	adaptiveStepPrev = 0;
 	adaptiveStepCurr = 0;
-	stdDevSynthesisRate.resize(1);
-	stdDevSynthesisRate_proposed.resize(1);
-	numAcceptForStdDevSynthesisRate = 0u;
-	bias_stdDevSynthesisRate = 0.0;
+	stdDevSynthesisPrior.resize(1);
+	stdDevSynthesisPrior_proposed.resize(1);
+	numAcceptForStdDevSynthesisPrior = 0u;
+	bias_stdDevSynthesisPrior = 0.0;
 	bias_phi = 0.0;
 	numMutationCategories = 0u;
 	numSelectionCategories = 0u;
 	numSynthesisRateCategories = 0u;
 	numMixtures = 0u;
 	numElongationMixtures = numMixtures;
-	std_stdDevSynthesisRate = 0.1;
+	std_stdDevSynthesisPrior = 0.1;
 	maxGrouping = 22;
 }
 
@@ -65,17 +65,17 @@ Parameter::Parameter(unsigned _maxGrouping)
 	obsPhiSets = 0u;
 	adaptiveStepPrev = 0;
 	adaptiveStepCurr = 0;
-	stdDevSynthesisRate.resize(1);
-	stdDevSynthesisRate_proposed.resize(1);
-	numAcceptForStdDevSynthesisRate = 0u;
-	bias_stdDevSynthesisRate = 0.0;
+	stdDevSynthesisPrior.resize(1);
+	stdDevSynthesisPrior_proposed.resize(1);
+	numAcceptForStdDevSynthesisPrior = 0u;
+	bias_stdDevSynthesisPrior = 0.0;
 	bias_phi = 0.0;
 	numMutationCategories = 0u;
 	numSelectionCategories = 0u;
 	numSynthesisRateCategories = 0u;
 	numMixtures = 0u;
 	numElongationMixtures = numMixtures;
-	std_stdDevSynthesisRate = 0.1;
+	std_stdDevSynthesisPrior = 0.1;
 	maxGrouping = _maxGrouping;
 	numAcceptForCodonSpecificParameters.resize(maxGrouping, 0u);
 }
@@ -86,10 +86,10 @@ Parameter& Parameter::operator=(const Parameter& rhs)
 	if (this == &rhs) return *this; // handle self assignment
 	numParam = rhs.numParam;
 
-	stdDevSynthesisRate = rhs.stdDevSynthesisRate;
-	stdDevSynthesisRate_proposed = rhs.stdDevSynthesisRate_proposed;
+	stdDevSynthesisPrior = rhs.stdDevSynthesisPrior;
+	stdDevSynthesisPrior_proposed = rhs.stdDevSynthesisPrior_proposed;
 
-	numAcceptForStdDevSynthesisRate = rhs.numAcceptForStdDevSynthesisRate;
+	numAcceptForStdDevSynthesisPrior = rhs.numAcceptForStdDevSynthesisPrior;
 	obsPhiSets = rhs.obsPhiSets;
 	categories = rhs.categories;
 
@@ -97,8 +97,8 @@ Parameter& Parameter::operator=(const Parameter& rhs)
 	adaptiveStepCurr = rhs.adaptiveStepCurr;
 
   	// proposal bias and std for phi values
-  	bias_stdDevSynthesisRate = rhs.bias_stdDevSynthesisRate;
-  	std_stdDevSynthesisRate = rhs.std_stdDevSynthesisRate;
+  	bias_stdDevSynthesisPrior = rhs.bias_stdDevSynthesisPrior;
+  	std_stdDevSynthesisPrior = rhs.std_stdDevSynthesisPrior;
 
   	// proposal bias and std for phi values
   	bias_phi = rhs.bias_phi;
@@ -152,7 +152,7 @@ Parameter::~Parameter()
 //--------------------------------------------------------------//
 
 
-void Parameter::initParameterSet(std::vector<double> _stdDevSynthesisRate, unsigned _numMixtures,
+void Parameter::initParameterSet(std::vector<double> _stdDevSynthesisPrior, unsigned _numMixtures,
 	std::vector<unsigned> geneAssignment, std::vector<std::vector<unsigned>> mixtureDefinitionMatrix, bool splitSer,
     std::string _mutationSelectionState)
 {
@@ -197,13 +197,13 @@ void Parameter::initParameterSet(std::vector<double> _stdDevSynthesisRate, unsig
 	numMixtures = _numMixtures;
 	numElongationMixtures = numMixtures;
 
-	stdDevSynthesisRate = _stdDevSynthesisRate;
-	stdDevSynthesisRate_proposed = _stdDevSynthesisRate;
+	stdDevSynthesisPrior = _stdDevSynthesisPrior;
+	stdDevSynthesisPrior_proposed = _stdDevSynthesisPrior;
 
-	bias_stdDevSynthesisRate = 0;
-	std_stdDevSynthesisRate = 0.1;
+	bias_stdDevSynthesisPrior = 0;
+	std_stdDevSynthesisPrior = 0.1;
 
-	numAcceptForStdDevSynthesisRate = 0u;
+	numAcceptForStdDevSynthesisPrior = 0u;
 	std_csp.resize(numParam, 0.1);
 	numAcceptForCodonSpecificParameters.resize(maxGrouping, 0u);
 	// proposal bias and std for phi values
@@ -286,14 +286,14 @@ void Parameter::initBaseValuesFromFile(std::string filename)
 						groupList.push_back(val);
 					}
 				}
-				else if (variableName == "stdDevSynthesisRate")
+				else if (variableName == "stdDevSynthesisPrior")
 				{
-					stdDevSynthesisRate.resize(0);
+					stdDevSynthesisPrior.resize(0);
 					double val;
 					iss.str(tmp);
 					while (iss >> val)
 					{
-						stdDevSynthesisRate.push_back(val);
+						stdDevSynthesisPrior.push_back(val);
 					}
 				}
 				else if (variableName == "numParam") {iss.str(tmp); iss >> numParam;}
@@ -403,10 +403,10 @@ void Parameter::initBaseValuesFromFile(std::string filename)
 						}
 					}
 				}
-				else if (variableName == "std_stdDevSynthesisRate")
+				else if (variableName == "std_stdDevSynthesisPrior")
 				{
 					iss.str(tmp);
-					iss >> std_stdDevSynthesisRate;
+					iss >> std_stdDevSynthesisPrior;
 				}
 				else if (variableName == "std_phi")
 				{
@@ -460,9 +460,9 @@ void Parameter::initBaseValuesFromFile(std::string filename)
 			numSynthesisRateCategories = numSelectionCategories;
 		}
 		//initialize all the default Parameter values now.
-		stdDevSynthesisRate_proposed = stdDevSynthesisRate;
-		numAcceptForStdDevSynthesisRate = 0u;
-		bias_stdDevSynthesisRate = 0;
+		stdDevSynthesisPrior_proposed = stdDevSynthesisPrior;
+		numAcceptForStdDevSynthesisPrior = 0u;
+		bias_stdDevSynthesisPrior = 0;
 		bias_phi = 0;
 		//obsPhiSets = 0;
 		numAcceptForNoiseOffset.resize(obsPhiSets, 0);
@@ -501,17 +501,17 @@ void Parameter::writeBasicRestartFile(std::string filename)
 			else oss << " ";
 		}
 		if (i % 10 != 0) oss << "\n";
-		oss << ">stdDevSynthesisRate:\n";
-		for (i = 0; i < stdDevSynthesisRate.size(); i++)
+		oss << ">stdDevSynthesisPrior:\n";
+		for (i = 0; i < stdDevSynthesisPrior.size(); i++)
 		{
-			oss << stdDevSynthesisRate[i];
+			oss << stdDevSynthesisPrior[i];
 			if ((i + 1) % 10 == 0) oss << "\n";
 			else oss <<" ";
 		}
 		if (i % 10 != 0) oss << "\n";
 		oss << ">numParam:\n" << numParam << "\n";
 		oss << ">numMixtures:\n" << numMixtures << "\n";
-		oss << ">std_stdDevSynthesisRate:\n" << std_stdDevSynthesisRate << "\n";
+		oss << ">std_stdDevSynthesisPrior:\n" << std_stdDevSynthesisPrior << "\n";
 		//TODO: maybe clear the buffer
 		oss << ">std_phi:\n";
 		for (i = 0; i < std_phi.size(); i++)
@@ -1053,7 +1053,7 @@ unsigned Parameter::getGroupListSize()
 
 
 //----------------------------------------------------//
-//---------- stdDevSynthesisRate Functions -----------//
+//---------- stdDevSynthesisPrior Functions -----------//
 //----------------------------------------------------//
 
 void Parameter::fixStdDevSynthesis()
@@ -1062,59 +1062,59 @@ void Parameter::fixStdDevSynthesis()
 }
 
 
-double Parameter::getStdDevSynthesisRate(unsigned selectionCategory, bool proposed)
+double Parameter::getStdDevSynthesisPrior(unsigned selectionCategory, bool proposed)
 {
-	return (proposed ? stdDevSynthesisRate_proposed[selectionCategory] : stdDevSynthesisRate[selectionCategory]);
+	return (proposed ? stdDevSynthesisPrior_proposed[selectionCategory] : stdDevSynthesisPrior[selectionCategory]);
 }
 
 
-void Parameter::proposeStdDevSynthesisRate()
+void Parameter::proposeStdDevSynthesisPrior()
 {
 	for (unsigned i = 0u; i < numSynthesisRateCategories; i++)
 	{	
 		if (!fix_stdDevSynthesis)
 		{
-			stdDevSynthesisRate_proposed[i] = std::exp(randNorm(std::log(stdDevSynthesisRate[i]), std_stdDevSynthesisRate));	
+			stdDevSynthesisPrior_proposed[i] = std::exp(randNorm(std::log(stdDevSynthesisPrior[i]), std_stdDevSynthesisPrior));	
 		}
 		else
 		{
-			stdDevSynthesisRate_proposed[i] = stdDevSynthesisRate[i];
+			stdDevSynthesisPrior_proposed[i] = stdDevSynthesisPrior[i];
 		}
 	}
 }
 
 
-void Parameter::setStdDevSynthesisRate(double _stdDevSynthesisRate, unsigned selectionCategory)
+void Parameter::setStdDevSynthesisPrior(double _stdDevSynthesisPrior, unsigned selectionCategory)
 {
-	stdDevSynthesisRate[selectionCategory] = _stdDevSynthesisRate;
+	stdDevSynthesisPrior[selectionCategory] = _stdDevSynthesisPrior;
 }
 
 
-double Parameter::getCurrentStdDevSynthesisRateProposalWidth()
+double Parameter::getCurrentStdDevSynthesisPriorProposalWidth()
 {
-	return std_stdDevSynthesisRate;
+	return std_stdDevSynthesisPrior;
 }
 
 
-/* getNumAcceptForStdDevSynthesisRate (NOT EXPOSED)
+/* getNumAcceptForStdDevSynthesisPrior (NOT EXPOSED)
  * Arguments: None
- * Returns the numAcceptForStdDevSynthesisRate.
+ * Returns the numAcceptForStdDevSynthesisPrior.
  * Note: Used in unit testing only.
 */
-unsigned Parameter::getNumAcceptForStdDevSynthesisRate()
+unsigned Parameter::getNumAcceptForStdDevSynthesisPrior()
 {
-	return numAcceptForStdDevSynthesisRate;
+	return numAcceptForStdDevSynthesisPrior;
 }
 
 
 
-void Parameter::updateStdDevSynthesisRate()
+void Parameter::updateStdDevSynthesisPrior()
 {
 	for (unsigned i = 0u; i < numSynthesisRateCategories; i++)
 	{
-		stdDevSynthesisRate[i] = stdDevSynthesisRate_proposed[i];
+		stdDevSynthesisPrior[i] = stdDevSynthesisPrior_proposed[i];
 	}
-	numAcceptForStdDevSynthesisRate++;
+	numAcceptForStdDevSynthesisPrior++;
 }
 
 
@@ -1436,11 +1436,11 @@ void Parameter::updateGibbsSampledHyperParameters(Genome &genome, bool withPhi, 
 }
 
 
-void Parameter::updateStdDevSynthesisRateTrace(unsigned sample)
+void Parameter::updateStdDevSynthesisPriorTrace(unsigned sample)
 {
 	for (unsigned i = 0u; i < numSynthesisRateCategories; i++)
 	{
-		traces.updateStdDevSynthesisRateTrace(sample, stdDevSynthesisRate[i], i);
+		traces.updateStdDevSynthesisPriorTrace(sample, stdDevSynthesisPrior[i], i);
 	}
 }
 
@@ -1490,19 +1490,19 @@ void Parameter::adaptNoiseOffsetProposalWidth(unsigned adaptationWidth, bool ada
 
 
 //Adjust s_phi proposal distribution
-void Parameter::adaptStdDevSynthesisRateProposalWidth(unsigned adaptationWidth, bool adapt)
+void Parameter::adaptStdDevSynthesisPriorProposalWidth(unsigned adaptationWidth, bool adapt)
 {
-	double acceptanceLevel = (double)numAcceptForStdDevSynthesisRate / (double)adaptationWidth;
-	traces.updateStdDevSynthesisRateAcceptanceRateTrace(acceptanceLevel);
+	double acceptanceLevel = (double)numAcceptForStdDevSynthesisPrior / (double)adaptationWidth;
+	traces.updateStdDevSynthesisPriorAcceptanceRateTrace(acceptanceLevel);
 	if (adapt && !fix_stdDevSynthesis)
 	{
 		if (acceptanceLevel < 0.2)
-			std_stdDevSynthesisRate *= 0.8;
+			std_stdDevSynthesisPrior *= 0.8;
 
 		if (acceptanceLevel > 0.3)
-			std_stdDevSynthesisRate *= 1.2;
+			std_stdDevSynthesisPrior *= 1.2;
 	}
-	numAcceptForStdDevSynthesisRate = 0u;
+	numAcceptForStdDevSynthesisPrior = 0u;
 }
 
 
@@ -1817,28 +1817,28 @@ double Parameter::getNoiseOffsetVariance(unsigned index, unsigned samples, bool 
 
 
 
-/* getStdDevSynthesisRatePosteriorMean (RCPP EXPOSED)
+/* getStdDevSynthesisPriorPosteriorMean (RCPP EXPOSED)
  * Arguments: the number of samples from the end of the trace to examine, and the mixture element, both as unsigned values
  * Returns the standard deviation synthesis rate posterior mean of the mixture element.
  * This is calculated by simply gathering a number of traces from the end of the entire trace (up to all of it) to the end
  * of the standard deviation synthesis rate trace, and then getting the mean of these values.
 */
 
-//' @name getStdDevSynthesisRatePosteriorMean
+//' @name getStdDevSynthesisPriorPosteriorMean
 //' @title Calculate posterior mean of standard deviation parameter of lognormal describing distribution of synthesis rates
 //' @param samples number of samples over which to calculate posterior mean
 //' @param mixture mixture index to use. Should be number between 0 and n, where n is number of mixtures
 //' @return returns posterior mean for standard deviation of lognormal distribution of synthesis rates
-double Parameter::getStdDevSynthesisRatePosteriorMean(unsigned samples, unsigned mixture)
+double Parameter::getStdDevSynthesisPriorPosteriorMean(unsigned samples, unsigned mixture)
 {
 	double posteriorMean = 0.0;
 	unsigned selectionCategory = getSelectionCategory(mixture);
-	std::vector<double> stdDevSynthesisRateTrace = traces.getStdDevSynthesisRateTrace(selectionCategory);
+	std::vector<double> stdDevSynthesisPriorTrace = traces.getStdDevSynthesisPriorTrace(selectionCategory);
 	unsigned traceLength = lastIteration + 1;
 
 	if (samples > traceLength)
 	{
-		my_printError("Warning in Parameter::getStdDevSynthesisRatePosteriorMean throws: Number of anticipated samples");
+		my_printError("Warning in Parameter::getStdDevSynthesisPriorPosteriorMean throws: Number of anticipated samples");
 		my_printError("(%) is greater than the length of the available trace (%).", samples, traceLength);
 		my_printError("Whole trace is used for posterior estimate!\n");
 
@@ -1847,7 +1847,7 @@ double Parameter::getStdDevSynthesisRatePosteriorMean(unsigned samples, unsigned
 	unsigned start = traceLength - samples;
 
 	for (unsigned i = start; i < traceLength; i++)
-		posteriorMean += stdDevSynthesisRateTrace[i];
+		posteriorMean += stdDevSynthesisPriorTrace[i];
 
 	return posteriorMean / (double)samples;
 }
@@ -1953,17 +1953,17 @@ double Parameter::getCodonSpecificPosteriorMean(unsigned element, unsigned sampl
 	return posteriorMean / (double)samples;
 }
 
-//' @name getStdDevSynthesisRateVariance
+//' @name getStdDevSynthesisPriorVariance
 //' @title Calculate variance of standard deviation parameter of lognormal describing distribution of synthesis rates
 //' @param samples number of samples over which to calculate variance
 //' @param mixture mixture index to use. Should be number between 0 and n, where n is number of mixtures
 //' @param unbiased If TRUE, should calculate variance using unbiased (N-1). Otherwise, used biased (N) correction
 //' @return returns variance for standard deviation of lognormal distribution of synthesis rates
-double Parameter::getStdDevSynthesisRateVariance(unsigned samples, unsigned mixture, bool unbiased)
+double Parameter::getStdDevSynthesisPriorVariance(unsigned samples, unsigned mixture, bool unbiased)
 {
 	unsigned selectionCategory = getSynthesisRateCategory(mixture);
-	std::vector<double> StdDevSynthesisRateTrace = traces.getStdDevSynthesisRateTrace(selectionCategory);
-	unsigned traceLength = (unsigned)StdDevSynthesisRateTrace.size();
+	std::vector<double> StdDevSynthesisPriorTrace = traces.getStdDevSynthesisPriorTrace(selectionCategory);
+	unsigned traceLength = (unsigned)StdDevSynthesisPriorTrace.size();
 	if (samples > traceLength)
 	{
 		my_printError("Warning in Parameter::getSynthesisRateVariance throws: Number of anticipated samples ");
@@ -1972,14 +1972,14 @@ double Parameter::getStdDevSynthesisRateVariance(unsigned samples, unsigned mixt
 
 		samples = traceLength;
 	}
-	double posteriorMean = getStdDevSynthesisRatePosteriorMean(samples, mixture);
+	double posteriorMean = getStdDevSynthesisPriorPosteriorMean(samples, mixture);
 
 	double posteriorVariance = 0.0;
 
 	unsigned start = traceLength - samples;
 	for (unsigned i = start; i < traceLength; i++)
 	{
-		double difference = StdDevSynthesisRateTrace[i] - posteriorMean;
+		double difference = StdDevSynthesisPriorTrace[i] - posteriorMean;
 		posteriorVariance += difference * difference;
 	}
 	double normalizationTerm = unbiased ? (1.0 / ((double)samples - 1.0)) : (1.0 / (double)samples);

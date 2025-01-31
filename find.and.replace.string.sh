@@ -38,31 +38,32 @@ find . -type f ! -path '*/\.*' | while read -r file; do
     # Count occurrences before making changes
     count_target=$(count_occurrences "$target_string" "$file")
 
+    # Get the basename of the file for temporary files in /tmp
+    base_file=$(basename "$file")
+
     # Perform replacements using sed if not a dry run
     if [ "$dry_run" = false ]; then
-        source_file=/tmp/"$file_"tmp
-        cp -f $file $source_file;
-        outfile=$file
+        source_file="/tmp/${base_file}_tmp"
+        cp -f "$file" "$source_file"
+        outfile="$file"
         sed -i "s/$target_string/$replacement_string/g" "$file"
-
     else
-        source_file=$file;
-        outfile=/tmp/"$file"_tmp
-        sed "s/$target_string/$replacement_string/g" "$file" > $outfile
+        source_file="$file"
+        outfile="/tmp/${base_file}_tmp"
+        sed "s/$target_string/$replacement_string/g" "$file" > "$outfile"
     fi
 
     # Count occurrences after making changes (or simulate for dry run)
-    new_count_target=$(count_occurrences "$replacement_string" "$outfile")
- 
+    count_replacements=$(count_occurrences "$replacement_string" "$outfile")
 
     # Output the file name and number of changes if any changes were made (or simulated)
     if [ $count_target -gt 0 ]; then
         echo "Modified file: $file"
         echo "Changes made:"
-        echo "  $target_string -> $replacement_string: $changes_target"
+        echo "  $target_string -> $replacement_string: $count_target"
 
         # Output detailed information if verbose mode is enabled
-        if [ "$verbose" = true & ]; then
+        if [ "$verbose" = true ]; then
             echo "Before:"
             grep --color=always -n "$target_string" "$source_file"
             echo "After:"

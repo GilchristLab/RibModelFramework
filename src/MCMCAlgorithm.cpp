@@ -799,12 +799,12 @@ void MCMCAlgorithm::varyInitialConditions(Genome& genome, Model& model, unsigned
 
 					unsigned mixture = model.getMixtureAssignment(k);
 					mixture = model.getSynthesisRateCategory(mixture);
-					double stdDevSynthesisRate = model.getStdDevSynthesisRate(mixture, false);
-					double mPhi = (-(stdDevSynthesisRate * stdDevSynthesisRate) / 2);
+					double stdDevSynthesisPrior = model.getStdDevSynthesisPrior(mixture, false);
+					double mPhi = (-(stdDevSynthesisPrior * stdDevSynthesisPrior) / 2);
 
 					// accept/ reject based on prior ratio
-					double logPhiProbability = Parameter::densityLogNorm(phiValue, mPhi, stdDevSynthesisRate, true);
-					double logPhiProbability_proposed = Parameter::densityLogNorm(phiValue_proposed, mPhi, stdDevSynthesisRate, true);
+					double logPhiProbability = Parameter::densityLogNorm(phiValue, mPhi, stdDevSynthesisPrior, true);
+					double logPhiProbability_proposed = Parameter::densityLogNorm(phiValue_proposed, mPhi, stdDevSynthesisPrior, true);
 					if ( -Parameter::randExp(1) < (logPhiProbability_proposed - logPhiProbability) )
 						model.updateSynthesisRate(i, k);
 				}

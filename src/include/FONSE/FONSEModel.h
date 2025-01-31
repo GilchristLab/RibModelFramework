@@ -49,10 +49,10 @@ class FONSEModel : public Model
 
 
 
-		//stdDevSynthesisRate Functions:
-		virtual double getStdDevSynthesisRate(unsigned selectionCategory, bool proposed = false);
-		virtual double getCurrentStdDevSynthesisRateProposalWidth();
-		virtual void updateStdDevSynthesisRate();
+		//stdDevSynthesisPrior Functions:
+		virtual double getStdDevSynthesisPrior(unsigned selectionCategory, bool proposed = false);
+		virtual double getCurrentStdDevSynthesisPriorProposalWidth();
+		virtual void updateStdDevSynthesisPrior();
 
 
 
@@ -69,7 +69,7 @@ class FONSEModel : public Model
 
 
 		//Trace Functions:
-		virtual void updateStdDevSynthesisRateTrace(unsigned sample);
+		virtual void updateStdDevSynthesisPriorTrace(unsigned sample);
 		virtual void updateInitiationCostParameterTrace(unsigned sample);
 		virtual void updateSynthesisRateTrace(unsigned sample, unsigned i);
 		virtual void updateMixtureAssignmentTrace(unsigned sample, unsigned i);
@@ -81,7 +81,7 @@ class FONSEModel : public Model
 
 
 		//Adaptive Width Functions:
-		virtual void adaptStdDevSynthesisRateProposalWidth(unsigned adaptiveWidth, bool adapt = true);
+		virtual void adaptStdDevSynthesisPriorProposalWidth(unsigned adaptiveWidth, bool adapt = true);
 		virtual void adaptInitiationCostProposalWidth(unsigned adaptiveWidth, bool adapt = true);
 		virtual void adaptSynthesisRateProposalWidth(unsigned adaptiveWidth, bool adapt = true);
 		virtual void adaptCodonSpecificParameterProposalWidth(unsigned adaptiveWidth, unsigned lastIteration, bool adapt = true);

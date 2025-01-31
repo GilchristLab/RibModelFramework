@@ -35,11 +35,11 @@ FONSEParameter::FONSEParameter(std::string filename) : Parameter(22)
 }
 
 
-FONSEParameter::FONSEParameter(std::vector<double> stdDevSynthesisRate, unsigned _numMixtures, std::vector<unsigned> geneAssignment,
+FONSEParameter::FONSEParameter(std::vector<double> stdDevSynthesisPrior, unsigned _numMixtures, std::vector<unsigned> geneAssignment,
 	std::vector<std::vector<unsigned>> thetaKMatrix, bool splitSer, std::string _mutationSelectionState,double _a1) :
 	Parameter(22)
 {
-	initParameterSet(stdDevSynthesisRate, _numMixtures, geneAssignment, thetaKMatrix, splitSer, _mutationSelectionState);
+	initParameterSet(stdDevSynthesisPrior, _numMixtures, geneAssignment, thetaKMatrix, splitSer, _mutationSelectionState);
 	initFONSEParameterSet(_a1);
 }
 
@@ -700,7 +700,7 @@ void FONSEParameter::proposeHyperParameters()
 {
     for (unsigned i = 0u; i < numSelectionCategories; i++)
     {
-		stdDevSynthesisRate_proposed[i] = std::exp(randNorm(std::log(stdDevSynthesisRate[i]), std_stdDevSynthesisRate));
+		stdDevSynthesisPrior_proposed[i] = std::exp(randNorm(std::log(stdDevSynthesisPrior[i]), std_stdDevSynthesisPrior));
     }
     if (!fix_a1)
     {
@@ -751,7 +751,7 @@ void FONSEParameter::adaptInitiationCostProposalWidth(unsigned adaptationWidth, 
 //--------------------------------------------------//
 
 
-FONSEParameter::FONSEParameter(std::vector<double> stdDevSynthesisRate, std::vector<unsigned> geneAssignment,
+FONSEParameter::FONSEParameter(std::vector<double> stdDevSynthesisPrior, std::vector<unsigned> geneAssignment,
                                std::vector<unsigned> _matrix, bool splitSer,double _a1) : Parameter(22)
 {
     unsigned _numMixtures = _matrix.size() / 2;
@@ -773,17 +773,17 @@ FONSEParameter::FONSEParameter(std::vector<double> stdDevSynthesisRate, std::vec
 			thetaKMatrix[i][j] = _matrix[index];
 		}
 	}
-    initParameterSet(stdDevSynthesisRate, _numMixtures, geneAssignment, thetaKMatrix, splitSer, "");
+    initParameterSet(stdDevSynthesisPrior, _numMixtures, geneAssignment, thetaKMatrix, splitSer, "");
     initFONSEParameterSet(_a1);
 
 }
 
 
-FONSEParameter::FONSEParameter(std::vector<double> stdDevSynthesisRate, unsigned _numMixtures, std::vector<unsigned> geneAssignment,
+FONSEParameter::FONSEParameter(std::vector<double> stdDevSynthesisPrior, unsigned _numMixtures, std::vector<unsigned> geneAssignment,
                                bool splitSer, std::string _mutationSelectionState, double _a1) : Parameter(22)
 {
     std::vector<std::vector<unsigned>> thetaKMatrix;
-    initParameterSet(stdDevSynthesisRate, _numMixtures, geneAssignment, thetaKMatrix, splitSer, _mutationSelectionState);
+    initParameterSet(stdDevSynthesisPrior, _numMixtures, geneAssignment, thetaKMatrix, splitSer, _mutationSelectionState);
     initFONSEParameterSet(_a1);
 }
 

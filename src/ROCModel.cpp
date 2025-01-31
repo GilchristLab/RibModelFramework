@@ -135,10 +135,10 @@ void ROCModel::calculateLogLikelihoodRatioPerGene(Gene& gene, unsigned geneIndex
 	}
 	//unsigned mixture = getMixtureAssignment(geneIndex);
 	unsigned mixture = getSynthesisRateCategory(expressionCategory);
-	double stdDevSynthesisRate = parameter->getStdDevSynthesisRate(mixture, false);
-	double mPhi = (-(stdDevSynthesisRate * stdDevSynthesisRate) * 0.5); // X * 0.5 = X / 2
-	double logPhiProbability = Parameter::densityLogNorm(phiValue, mPhi, stdDevSynthesisRate, true);
-	double logPhiProbability_proposed = Parameter::densityLogNorm(phiValue_proposed, mPhi, stdDevSynthesisRate, true);
+	double stdDevSynthesisPrior = parameter->getStdDevSynthesisPrior(mixture, false);
+	double mPhi = (-(stdDevSynthesisPrior * stdDevSynthesisPrior) * 0.5); // X * 0.5 = X / 2
+	double logPhiProbability = Parameter::densityLogNorm(phiValue, mPhi, stdDevSynthesisPrior, true);
+	double logPhiProbability_proposed = Parameter::densityLogNorm(phiValue_proposed, mPhi, stdDevSynthesisPrior, true);
 
 	// TODO: make this work for more than one phi value, or for genes that don't have phi values
 	if (withPhi)
@@ -236,25 +236,25 @@ void ROCModel::calculateLogLikelihoodRatioForHyperParameters(Genome &genome, uns
 {
 	double lpr = 0.0;
 	unsigned selectionCategory = getNumSynthesisRateCategories();
-	std::vector<double> currentStdDevSynthesisRate(selectionCategory, 0.0);
+	std::vector<double> currentStdDevSynthesisPrior(selectionCategory, 0.0);
 	std::vector<double> currentMphi(selectionCategory, 0.0);
-	std::vector<double> proposedStdDevSynthesisRate(selectionCategory, 0.0);
+	std::vector<double> proposedStdDevSynthesisPrior(selectionCategory, 0.0);
 	std::vector<double> proposedMphi(selectionCategory, 0.0);
 
 	//Calculating reverse jump probabilities due to asymmetry of logNormal
 	for (unsigned i = 0u; i < selectionCategory; i++)
 	{
-		currentStdDevSynthesisRate[i] = getStdDevSynthesisRate(i, false);
-		currentMphi[i] = -((currentStdDevSynthesisRate[i] * currentStdDevSynthesisRate[i]) * 0.5);
-		proposedStdDevSynthesisRate[i] = getStdDevSynthesisRate(i, true);
-		proposedMphi[i] = -((proposedStdDevSynthesisRate[i] * proposedStdDevSynthesisRate[i]) * 0.5);
+		currentStdDevSynthesisPrior[i] = getStdDevSynthesisPrior(i, false);
+		currentMphi[i] = -((currentStdDevSynthesisPrior[i] * currentStdDevSynthesisPrior[i]) * 0.5);
+		proposedStdDevSynthesisPrior[i] = getStdDevSynthesisPrior(i, true);
+		proposedMphi[i] = -((proposedStdDevSynthesisPrior[i] * proposedStdDevSynthesisPrior[i]) * 0.5);
 		// take the Jacobian into account for the non-linear transformation from logN to N distribution
-		lpr -= (std::log(currentStdDevSynthesisRate[i]) - std::log(proposedStdDevSynthesisRate[i]));
+		lpr -= (std::log(currentStdDevSynthesisPrior[i]) - std::log(proposedStdDevSynthesisPrior[i]));
 	}
 
 	if (withPhi)
 	{
-		// one for each noiseOffset, and one for stdDevSynthesisRate
+		// one for each noiseOffset, and one for stdDevSynthesisPrior
 		logProbabilityRatio.resize(getNumPhiGroupings() + 1);
 	}
 	else
@@ -272,8 +272,8 @@ void ROCModel::calculateLogLikelihoodRatioForHyperParameters(Genome &genome, uns
 		if (!std::isfinite(phi))
 			my_printError("Error: Phi value for gene % is not finite (%)!", i, phi);
 
-		lpr += Parameter::densityLogNorm(phi, proposedMphi[mixture], proposedStdDevSynthesisRate[mixture], true)
-			   - Parameter::densityLogNorm(phi, currentMphi[mixture], currentStdDevSynthesisRate[mixture], true);
+		lpr += Parameter::densityLogNorm(phi, proposedMphi[mixture], proposedStdDevSynthesisPrior[mixture], true)
+			   - Parameter::densityLogNorm(phi, currentMphi[mixture], currentStdDevSynthesisPrior[mixture], true);
 	}
 
 	// TODO: USE CONSTANTS INSTEAD OF 0
@@ -396,25 +396,25 @@ std::string ROCModel::getGrouping(unsigned index)
 
 
 //---------------------------------------------------//
-//---------- stdDevSynthesisRate Functions ----------//
+//---------- stdDevSynthesisPrior Functions ----------//
 //---------------------------------------------------//
 
 
-double ROCModel::getStdDevSynthesisRate(unsigned selectionCategory, bool proposed)
+double ROCModel::getStdDevSynthesisPrior(unsigned selectionCategory, bool proposed)
 {
-	return parameter->getStdDevSynthesisRate(selectionCategory, proposed);
+	return parameter->getStdDevSynthesisPrior(selectionCategory, proposed);
 }
 
 
-double ROCModel::getCurrentStdDevSynthesisRateProposalWidth()
+double ROCModel::getCurrentStdDevSynthesisPriorProposalWidth()
 {
-	return parameter->getCurrentStdDevSynthesisRateProposalWidth();
+	return parameter->getCurrentStdDevSynthesisPriorProposalWidth();
 }
 
 
-void ROCModel::updateStdDevSynthesisRate()
+void ROCModel::updateStdDevSynthesisPrior()
 {
-	parameter->updateStdDevSynthesisRate();
+	parameter->updateStdDevSynthesisPrior();
 }
 
 
@@ -483,9 +483,9 @@ bool ROCModel::isShared(std::string csp_parameters)
 //-------------------------------------//
 
 
-void ROCModel::updateStdDevSynthesisRateTrace(unsigned sample)
+void ROCModel::updateStdDevSynthesisPriorTrace(unsigned sample)
 {
-	parameter->updateStdDevSynthesisRateTrace(sample);
+	parameter->updateStdDevSynthesisPriorTrace(sample);
 }
 
 
@@ -515,7 +515,7 @@ void ROCModel::updateCodonSpecificParameterTrace(unsigned sample, std::string gr
 
 void ROCModel::updateHyperParameterTraces(unsigned sample)
 {
-	updateStdDevSynthesisRateTrace(sample);
+	updateStdDevSynthesisPriorTrace(sample);
 	if (withPhi)
 	{
 		updateNoiseOffsetTrace(sample);
@@ -541,9 +541,9 @@ void ROCModel::updateTracesWithInitialValues(Genome &genome)
 //----------------------------------------------//
 
 
-void ROCModel::adaptStdDevSynthesisRateProposalWidth(unsigned adaptiveWidth, bool adapt)
+void ROCModel::adaptStdDevSynthesisPriorProposalWidth(unsigned adaptiveWidth, bool adapt)
 {
-	parameter->adaptStdDevSynthesisRateProposalWidth(adaptiveWidth, adapt);
+	parameter->adaptStdDevSynthesisPriorProposalWidth(adaptiveWidth, adapt);
 }
 
 
@@ -561,7 +561,7 @@ void ROCModel::adaptCodonSpecificParameterProposalWidth(unsigned adaptiveWidth, 
 
 void ROCModel::adaptHyperParameterProposalWidths(unsigned adaptiveWidth, bool adapt)
 {
-	adaptStdDevSynthesisRateProposalWidth(adaptiveWidth, adapt);
+	adaptStdDevSynthesisPriorProposalWidth(adaptiveWidth, adapt);
 	if (withPhi)
 		adaptNoiseOffsetProposalWidth(adaptiveWidth, adapt);
 }
@@ -631,7 +631,7 @@ void ROCModel::proposeCodonSpecificParameter()
 
 void ROCModel::proposeHyperParameters()
 {
-	parameter->proposeStdDevSynthesisRate();
+	parameter->proposeStdDevSynthesisPrior();
 	if (withPhi)
 		parameter->proposeNoiseOffset();
 }
@@ -700,7 +700,7 @@ void ROCModel::updateCodonSpecificParameter(std::string grouping, std::string pa
 
 void ROCModel::updateAllHyperParameter()
 {
-	updateStdDevSynthesisRate();
+	updateStdDevSynthesisPrior();
 	for (unsigned i = 0; i < parameter->getNumObservedPhiSets(); i++)
 	{
 		updateNoiseOffset(i);
@@ -711,7 +711,7 @@ void ROCModel::updateAllHyperParameter()
 void ROCModel::updateHyperParameter(unsigned hp)
 {
 	if (hp == 0)
-		updateStdDevSynthesisRate();
+		updateStdDevSynthesisPrior();
 	else if (hp > 0 && withPhi)
 		updateNoiseOffset(hp - 1);
 }
@@ -789,9 +789,9 @@ void ROCModel::simulateGenome(Genome &genome)
 void ROCModel::printHyperParameters()
 {
 	for (unsigned i = 0u; i < getNumSynthesisRateCategories(); i++)
-		my_print("\t current stdDevSynthesisRate estimate for selection category %: %\n", i, getStdDevSynthesisRate(i, false));
+		my_print("\t current stdDevSynthesisPrior estimate for selection category %: %\n", i, getStdDevSynthesisPrior(i, false));
 
-	my_print("\t current stdDevSynthesisRate proposal width: %\n", getCurrentStdDevSynthesisRateProposalWidth());
+	my_print("\t current stdDevSynthesisPrior proposal width: %\n", getCurrentStdDevSynthesisPriorProposalWidth());
 
 	if (withPhi)
 	{
