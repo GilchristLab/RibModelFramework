@@ -1,0 +1,233 @@
+parameterObject.R-#' 
+parameterObject.R-writeParameterObject <- function(parameter, file)
+parameterObject.R-{
+parameterObject.R-  UseMethod("writeParameterObject", parameter)
+parameterObject.R-}
+parameterObject.R-
+parameterObject.R-
+parameterObject.R-# extracts traces and parameter information from the base class Parameter
+parameterObject.R-extractBaseInfo <- function(parameter){
+parameterObject.R-  trace <- parameter$getTraceObject()
+parameterObject.R:  stdDevSynthesisPriorTraces <- trace$getStdDevSynthesisPriorTraces()
+parameterObject.R:  stdDevSynthesisPriorAcceptRatTrace <- trace$getStdDevSynthesisPriorAcceptanceRateTrace()
+parameterObject.R-  synthRateTrace <- trace$getSynthesisRateTrace()
+parameterObject.R-  synthAcceptRatTrace <- trace$getSynthesisRateAcceptanceRateTrace()
+parameterObject.R-  mixAssignTrace <- trace$getMixtureAssignmentTrace()
+parameterObject.R-  mixProbTrace <- trace$getMixtureProbabilitiesTrace()
+parameterObject.R-  codonSpecificAcceptRatTrace <- trace$getCodonSpecificAcceptanceRateTrace()
+parameterObject.R-  numMix <- parameter$numMixtures
+parameterObject.R-  numMut <- parameter$numMutationCategories
+parameterObject.R-  numSel <- parameter$numSelectionCategories
+parameterObject.R-  categories <- parameter$getCategories()
+parameterObject.R-  curMixAssignment <- parameter$getMixtureAssignment()
+--
+parameterObject.R-  
+parameterObject.R-  synthesisOffsetAcceptRatTrace <- trace$getSynthesisOffsetAcceptanceRateTrace()
+parameterObject.R-  synthesisOffsetTrace <- trace$getSynthesisOffsetTrace()
+parameterObject.R-  observedSynthesisNoiseTrace <- trace$getObservedSynthesisNoiseTrace()
+parameterObject.R-  if (length(synthesisOffsetTrace) == 0){
+parameterObject.R-    withPhi <- FALSE
+parameterObject.R-  }else{
+parameterObject.R-    withPhi <- TRUE
+parameterObject.R-  }
+parameterObject.R-  
+parameterObject.R:  varList <- list(stdDevSynthesisPriorTraces = stdDevSynthesisPriorTraces, 
+parameterObject.R:                  stdDevSynthesisPriorAcceptRatTrace = stdDevSynthesisPriorAcceptRatTrace,
+parameterObject.R-                  synthRateTrace = synthRateTrace,
+parameterObject.R-                  synthAcceptRatTrace = synthAcceptRatTrace,
+parameterObject.R-                  mixAssignTrace = mixAssignTrace,
+parameterObject.R-                  mixProbTrace = mixProbTrace,
+parameterObject.R-                  codonSpecificAcceptRatTrace = codonSpecificAcceptRatTrace,
+parameterObject.R-                  numMix = numMix,
+parameterObject.R-                  numMut = numMut,
+parameterObject.R-                  numSel = numSel,
+parameterObject.R-                  categories = categories,
+parameterObject.R-                  curMixAssignment = curMixAssignment,
+--
+parameterObject.R-      categories <- tempEnv$paramBase$categories
+parameterObject.R-      categories.matrix <- do.call("rbind", tempEnv$paramBase$categories)
+parameterObject.R-      numMixtures <- tempEnv$paramBase$numMix
+parameterObject.R-      numMutationCategories <- tempEnv$paramBase$numMut
+parameterObject.R-      numSelectionCategories <- tempEnv$paramBase$numSel
+parameterObject.R-      mixtureAssignment <- tempEnv$paramBase$curMixAssignment
+parameterObject.R-      lastIteration <- tempEnv$paramBase$lastIteration
+parameterObject.R-      max <- tempEnv$paramBase$lastIteration + 1
+parameterObject.R-      grouplist <- tempEnv$paramBase$grouplist
+parameterObject.R-      
+parameterObject.R:      stdDevSynthesisPriorTraces <- vector("list", length = numSelectionCategories)
+parameterObject.R-      for (j in 1:numSelectionCategories) {
+parameterObject.R:        stdDevSynthesisPriorTraces[[j]] <- tempEnv$paramBase$stdDevSynthesisPriorTraces[[j]][1:max]
+parameterObject.R-      }
+parameterObject.R:      stdDevSynthesisPriorAcceptanceRateTrace <- tempEnv$paramBase$stdDevSynthesisPriorAcceptRatTrace
+parameterObject.R-      synthesisRateTrace <- vector("list", length = numSelectionCategories)
+parameterObject.R-      for (j in 1:numSelectionCategories) {
+parameterObject.R-        for (k in 1:length(tempEnv$paramBase$synthRateTrace[[j]])){
+parameterObject.R-          synthesisRateTrace[[j]][[k]] <- tempEnv$paramBase$synthRateTrace[[j]][[k]][1:max]
+parameterObject.R-        }
+parameterObject.R-      }
+parameterObject.R-      synthesisRateAcceptanceRateTrace <- tempEnv$paramBase$synthAcceptRatTrace
+parameterObject.R-      mixtureAssignmentTrace <- vector("list", length = length(tempEnv$paramBase$mixAssignTrace))
+parameterObject.R-      for (j in 1:length(tempEnv$paramBase$mixAssignTrace)){
+parameterObject.R-        mixtureAssignmentTrace[[j]] <- tempEnv$paramBase$mixAssignTrace[[j]][1:max]
+--
+parameterObject.R-      curObservedSynthesisNoiseTrace <- tempEnv$paramBase$observedSynthesisNoiseTrace
+parameterObject.R-      
+parameterObject.R-      if (withPhi){
+parameterObject.R-        combineTwoDimensionalTrace(synthesisOffsetTrace, curSynthesisOffsetTrace, max)
+parameterObject.R-        size <- length(curSynthesisOffsetAcceptanceRateTrace)
+parameterObject.R-        combineTwoDimensionalTrace(synthesisOffsetAcceptanceRateTrace, curSynthesisOffsetAcceptanceRateTrace, size)
+parameterObject.R-        combineTwoDimensionalTrace(observedSynthesisNoiseTrace, curObservedSynthesisNoiseTrace, max)
+parameterObject.R-      }
+parameterObject.R-
+parameterObject.R-      
+parameterObject.R:      curStdDevSynthesisPriorTraces <- tempEnv$paramBase$stdDevSynthesisPriorTraces
+parameterObject.R:      curStdDevSynthesisPriorAcceptanceRateTrace <- tempEnv$paramBase$stdDevSynthesisPriorAcceptRatTrace
+parameterObject.R-      curSynthesisRateTrace <- tempEnv$paramBase$synthRateTrace
+parameterObject.R-      curSynthesisRateAcceptanceRateTrace <- tempEnv$paramBase$synthAcceptRatTrace
+parameterObject.R-      curMixtureAssignmentTrace <- tempEnv$paramBase$mixAssignTrace
+parameterObject.R-      curMixtureProbabilitiesTrace <- tempEnv$paramBase$mixProbTrace
+parameterObject.R-      curCodonSpecificAcceptanceRateTrace <- tempEnv$paramBase$codonSpecificAcceptRatTrace
+parameterObject.R-      
+parameterObject.R-      lastIteration <- lastIteration + tempEnv$paramBase$lastIteration
+parameterObject.R-      
+parameterObject.R-      
+parameterObject.R-      #assuming all checks have passed, time to concatenate traces
+parameterObject.R-      max <- tempEnv$paramBase$lastIteration + 1
+parameterObject.R:      combineTwoDimensionalTrace(stdDevSynthesisPriorTraces, curStdDevSynthesisPriorTraces, max)
+parameterObject.R-      
+parameterObject.R:      size <- length(curStdDevSynthesisPriorAcceptanceRateTrace)
+parameterObject.R:      stdDevSynthesisPriorAcceptanceRateTrace <- c(stdDevSynthesisPriorAcceptanceRateTrace, 
+parameterObject.R:                                                  curStdDevSynthesisPriorAcceptanceRateTrace[2:size])
+parameterObject.R-      
+parameterObject.R-      
+parameterObject.R-      combineThreeDimensionalTrace(synthesisRateTrace, curSynthesisRateTrace, max)
+parameterObject.R-      size <- length(curSynthesisRateAcceptanceRateTrace)
+parameterObject.R-      combineThreeDimensionalTrace(synthesisRateAcceptanceRateTrace, curSynthesisRateAcceptanceRateTrace, size)
+parameterObject.R-      
+parameterObject.R-      combineTwoDimensionalTrace(mixtureAssignmentTrace, curMixtureAssignmentTrace, max)
+parameterObject.R-      combineTwoDimensionalTrace(mixtureProbabilitiesTrace, curMixtureProbabilitiesTrace, max)
+parameterObject.R-      size <- length(curCodonSpecificAcceptanceRateTrace)
+parameterObject.R-      combineTwoDimensionalTrace(codonSpecificAcceptanceRateTrace, curCodonSpecificAcceptanceRateTrace, size)
+--
+parameterObject.R-  parameter$setCategories(categories)
+parameterObject.R-  parameter$setCategoriesForTrace()  
+parameterObject.R-  parameter$numMixtures <- numMixtures
+parameterObject.R-  parameter$numMutationCategories <- numMutationCategories
+parameterObject.R-  parameter$numSelectionCategories <- numSelectionCategories
+parameterObject.R-  parameter$setMixtureAssignment(tempEnv$paramBase$curMixAssignment) #want the last in the file sequence
+parameterObject.R-  parameter$setLastIteration(lastIteration)
+parameterObject.R-  parameter$setGroupList(grouplist)
+parameterObject.R-  
+parameterObject.R-  trace <- parameter$getTraceObject()
+parameterObject.R:  trace$setStdDevSynthesisPriorTraces(stdDevSynthesisPriorTraces)
+parameterObject.R:  trace$setStdDevSynthesisPriorAcceptanceRateTrace(stdDevSynthesisPriorAcceptanceRateTrace)
+parameterObject.R-  trace$setSynthesisRateTrace(synthesisRateTrace)
+parameterObject.R-  trace$setSynthesisRateAcceptanceRateTrace(synthesisRateAcceptanceRateTrace)
+parameterObject.R-  trace$setSynthesisOffsetTrace(synthesisOffsetTrace)
+parameterObject.R-  trace$setSynthesisOffsetAcceptanceRateTrace(synthesisOffsetAcceptanceRateTrace)
+parameterObject.R-  trace$setObservedSynthesisNoiseTrace(observedSynthesisNoiseTrace)
+parameterObject.R-  trace$setMixtureAssignmentTrace(mixtureAssignmentTrace)
+parameterObject.R-  trace$setMixtureProbabilitiesTrace(mixtureProbabilitiesTrace)
+parameterObject.R-  trace$setCodonSpecificAcceptanceRateTrace(codonSpecificAcceptanceRateTrace)
+parameterObject.R-  
+parameterObject.R-  parameter$setTraceObject(trace)
+--
+plotTraceObject.R-# NOT EXPOSED
+plotTraceObject.R-# Currently can only be one of Sphi, Mphi, Aphi, and Sepsilon.
+plotTraceObject.R-plotHyperParameterTrace <- function(trace, what = c("Sphi", "Mphi", "Aphi", "Sepsilon"))
+plotTraceObject.R-{
+plotTraceObject.R-#  opar <- par(no.readonly = T) 
+plotTraceObject.R-#  par(oma=c(1,1,2,1), mgp=c(2,1,0), mar = c(3,4,2,1), mfrow=c(2, 1))
+plotTraceObject.R-  xlab <- "Sample"
+plotTraceObject.R-  
+plotTraceObject.R-  if (what[1] == "Sphi")
+plotTraceObject.R-  {
+plotTraceObject.R:    sphi <- trace$getStdDevSynthesisPriorTraces();
+plotTraceObject.R-    numMixtures <- length(sphi)
+plotTraceObject.R-    sphi <- do.call("cbind", sphi)
+plotTraceObject.R-    
+plotTraceObject.R-    ylimit <- range(sphi) + c(-0.1, 0.1)
+plotTraceObject.R-    xlimit <- c(1, nrow(sphi))
+plotTraceObject.R-    ylab <- expression("s"[phi])
+plotTraceObject.R-    main <- expression("s"[phi]*"Trace")
+plotTraceObject.R-    plot(NULL, NULL, type="l", xlab = xlab, ylab = ylab, xlim = xlimit, ylim = ylimit, main = main)
+plotTraceObject.R-    
+plotTraceObject.R-    for(i in 1:ncol(sphi))
+plotTraceObject.R-    {
+plotTraceObject.R-      lines(sphi[-1,i], col = .mixtureColors[i])
+plotTraceObject.R-    }
+plotTraceObject.R-    legend("topleft", legend = paste0("Mixture Element", 1:numMixtures), 
+plotTraceObject.R-           col = .mixtureColors[1:numMixtures], lty = rep(1, numMixtures), bty = "n")
+plotTraceObject.R-  }
+plotTraceObject.R-  else if (what[1] == "Mphi")
+plotTraceObject.R-  {
+plotTraceObject.R:    sphi <- trace$getStdDevSynthesisPriorTraces();
+plotTraceObject.R-    numMixtures <- length(sphi)
+plotTraceObject.R-    sphi <- do.call("cbind", sphi)
+plotTraceObject.R-    mphi <- -(sphi * sphi) / 2;
+plotTraceObject.R-
+plotTraceObject.R-    ylimit <- range(mphi) + c(-0.1, 0.1)
+plotTraceObject.R-    xlimit <- c(1, nrow(mphi))
+plotTraceObject.R-    ylab <- expression("m"[phi])
+plotTraceObject.R-    main <- expression("m"[phi]*"Trace")
+plotTraceObject.R-    plot(NULL, NULL, type="l", xlab = xlab, ylab = ylab, xlim  = xlimit, ylim = ylimit, main = main)
+plotTraceObject.R-    
+--
+RcppExports.R-NULL
+RcppExports.R-
+RcppExports.R-#' @name getEstimatedMixtureAssignmentProbabilitiesForGene
+RcppExports.R-#' @title getEstimatedMixtureAssignmentProbabilitiesForGene
+RcppExports.R-#' @description Method of Parameter class (access via parameter$<function name>, where parameter is an object initialized by initializeParameterObject). Get estimated mixture assignment probabilities for gene
+RcppExports.R-#' @param samples number of samples over which to calculate mixture assignment probabilities
+RcppExports.R-#' @param geneIndex corresponding index of gene in genome. Should be a number between 1 and length(genome). 
+RcppExports.R-#' @return returns vector of probabilities representing mixture probabilities for gene
+RcppExports.R-NULL
+RcppExports.R-
+RcppExports.R:#' @name getStdDevSynthesisPriorPosteriorMean
+RcppExports.R:#' @title getStdDevSynthesisPriorPosteriorMean
+RcppExports.R-#' @description Method of Parameter class (access via parameter$<function name>, where parameter is an object initialized by initializeParameterObject). Calculate posterior mean of standard deviation parameter of lognormal describing distribution of synthesis rates
+RcppExports.R-#' @param samples number of samples over which to calculate posterior mean
+RcppExports.R-#' @param mixture mixture index to use. Should be number between 0 and n-1, where n is number of mixtures
+RcppExports.R-#' @return returns posterior mean for standard deviation of lognormal distribution of synthesis rates
+RcppExports.R-NULL
+RcppExports.R-
+RcppExports.R:#' @name getStdDevSynthesisPriorVariance
+RcppExports.R:#' @title getStdDevSynthesisPriorVariance
+RcppExports.R-#' @description Method of Parameter class (access via parameter$<function name>, where parameter is an object initialized by initializeParameterObject). Calculate variance of standard deviation parameter of lognormal describing distribution of synthesis rates
+RcppExports.R-#' @param samples number of samples over which to calculate variance
+RcppExports.R-#' @param mixture mixture index to use. Should be number between 0 and n-1, where n is number of mixtures
+RcppExports.R-#' @param unbiased If TRUE, should calculate variance using unbiased (N-1). Otherwise, used biased (N) correction
+RcppExports.R-#' @return returns variance for standard deviation of lognormal distribution of synthesis rates
+RcppExports.R-NULL
+RcppExports.R-
+RcppExports.R-#' @name getCodonSpecificPosteriorMeanForCodon
+RcppExports.R-#' @title getCodonSpecificPosteriorMeanForCodon
+RcppExports.R-#' @description Method of Parameter class (access via parameter$<function name>, where parameter is an object initialized by initializeParameterObject). Calculate codon-specific parameter (CSP) posterior mean
+--
+traceObject.R-    cur.trace <- vector("list", numMixtures)
+traceObject.R-    for(i in 1:numMixtures)
+traceObject.R-    {
+traceObject.R-      cur.trace[[i]] <- object$getMixtureProbabilitiesTraceForMixture(i)
+traceObject.R-    }
+traceObject.R-    current.trace <- do.call("rbind", cur.trace)
+traceObject.R-    current.trace <- t(current.trace)
+traceObject.R-  }
+traceObject.R-  if(what[1] == "Sphi")
+traceObject.R-  {
+traceObject.R:    sphi <- object$getStdDevSynthesisPriorTraces()
+traceObject.R-    current.trace <- do.call("rbind", sphi)
+traceObject.R-    current.trace <- t(current.trace)
+traceObject.R-  }
+traceObject.R-  if(what[1] == "Mphi")
+traceObject.R-  {
+traceObject.R:    sphi <- object$getStdDevSynthesisPriorTraces()
+traceObject.R-    sphi <- do.call("rbind", sphi)
+traceObject.R-    mphi <- -(sphi * sphi) / 2;
+traceObject.R-    current.trace <- t(mphi)
+traceObject.R-  }
+traceObject.R-  if(what[1] == "Aphi")
+traceObject.R-  {
+traceObject.R-    # TODO need way to determine number of Aphi traces
+traceObject.R-  }
+traceObject.R-  if(what[1] == "Sepsilon")
+traceObject.R-  {

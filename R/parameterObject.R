@@ -1613,9 +1613,14 @@ writeParameterObject.Rcpp_ROCParameter <- function(parameter, file){
   proposedMutation <- parameter$proposedMutationParameter
   proposedSelection <- parameter$proposedSelectionParameter
   model = "ROC"
-  mutationPrior <- parameter$getMutationPriorStandardDeviation()
-  selectionPrior <- parameter$getSelectionPriorStandardDeviation()
-  
+  ## TODO: Add mean value of prior
+  ##
+  mutationPriorMean <- parameter$getMutationPriorMean()
+  selectionPriorMean <- parameter$getSelectionPriorMean()
+
+  mutationPriorSD <- parameter$getMutationPriorStandardDeviation()
+  selectionPriorSD <- parameter$getSelectionPriorStandardDeviation()
+
   trace <- parameter$getTraceObject()
   
   mutationTrace <- trace$getCodonSpecificParameterTrace(0)
@@ -1624,7 +1629,7 @@ writeParameterObject.Rcpp_ROCParameter <- function(parameter, file){
   
   save(list = c("paramBase", "currentMutation", "currentSelection",
                 "proposedMutation", "proposedSelection", "model",  
-                "mutationPrior", "mutationTrace", "selectionPrior", "selectionTrace"),
+                "mutationPriorSD", "mutationPriorMean", "mutationTrace", "selectionPriorSD", "selectionPriorMean", "selectionTrace"),
        file=file)
 }
 
