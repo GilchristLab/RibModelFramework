@@ -839,7 +839,13 @@ getCSPEstimates <- function(parameter, filename=NULL, mixture = 1, samples = 10,
       {
         param.4[codon,"Mean"] <- parameter$getCodonSpecificPosteriorMean(mixtureElement=mixture,samples=samples,codon=codon,paramType=2,withoutReference=model.uses.ref.codon,log_scale=log.scale)
         param.4[codon,"Std.Dev"] <- sqrt(parameter$getCodonSpecificVariance(mixtureElement=mixture,samples=samples,codon=codon,paramType=2,unbiased=T,withoutReference=model.uses.ref.codon,log_scale=log.scale))
+<<<<<<< HEAD
         param.4[codon,quantiles] <- parameter$getCodonSpecificQuantile(mixtureElement=mixture, samples=samples,codon=codon,paramType=2, probs=quantiles,withoutReference=model.uses.ref.codon,log_scale=log.scale)
+||||||| 8c5debc
+        param.4[codon,c("Lower.quant","Upper.quant")] <- parameter$getCodonSpecificQuantile(mixtureElement=mixture, samples=samples,codon=codon,paramType=2, probs=c(0.025, 0.975),withoutReference=model.uses.ref.codon,log_scale=log.scale)
+=======
+        param.4[codon,quantiles] <- parameter$getCodonSpecificQuantile(mixtureElement=mixture, samples=samples,codon=codon,paramType=2, probs=c(0.025, 0.975),withoutReference=model.uses.ref.codon,log_scale=log.scale)
+>>>>>>> 084d58da2f37684aa81ff4e4b8446d6758cd4467
         prob.nse.trace <- getNSEProbabilityTrace(trace,mixture,codon,samples)
         if (log.scale)
         {
