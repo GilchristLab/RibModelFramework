@@ -575,7 +575,7 @@ void FONSEParameter::proposeCodonSpecificParameter()
 		{
 			if (fix_dOmega)
 			{
-				proposedCodonSpecificParameter[dEta][i][l] = currentCodonSpecificParameter[dOmega][i][l];
+				proposedCodonSpecificParameter[dOmega][i][l] = currentCodonSpecificParameter[dOmega][i][l];
 			}
 			else
 			{
