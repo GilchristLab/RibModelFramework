@@ -219,23 +219,48 @@ barplot(pausing_times, names.arg = codonList,
 
 ## PANSE model
 
-PANSE extends PA by jointly estimating per-codon nonsense error (NSE) rates.
-The model accounts for the fact that ribosomes that drop off upstream reduce the
-observed RFP counts at downstream positions.
+> **Status**: The PANSE model is unpublished and currently in beta testing.
+> Results should be interpreted with caution and validated against simulated
+> data before use in publications.
 
-The setup is identical to PA except for the model string:
+PANSE extends PA by jointly estimating per-codon nonsense error (NSE) rates.
+Ribosomes that drop off at upstream codons reduce the observed RFP counts at
+downstream positions; PANSE accounts for this modulation via a cumulative
+survival probability.
+
+### Step 1: Load genome (positional mode)
+
+PANSE requires per-position RFP counts; set `positional = TRUE`:
+
+```{r, echo = TRUE, eval = FALSE}
+rfp_file   <- system.file("extdata", "pa_rfpdata.csv", package = "AnaCoDa")
+genome_nse <- initializeGenomeObject(file = rfp_file, fasta = FALSE,
+                                      positional = TRUE)
+```
+
+### Step 2: Initialize PANSE parameter object
 
 ```{r, echo = TRUE, eval = FALSE}
 parameter_nse <- initializeParameterObject(
-  genome          = genome,
+  genome          = genome_nse,
   sphi            = 2,
   num.mixtures    = 1,
-  gene.assignment = rep(1, length(genome)),
+  gene.assignment = rep(1, length(genome_nse)),
   model           = "PANSE",
   split.serine    = TRUE,
   mixture.definition = "allUnique"
 )
+```
 
+PANSE-specific mixture definitions:
+
+- `"allUnique"` (default): each mixture has its own alpha, lambda, and NSE rates
+- `"elongationShared"`: all mixtures share alpha and lambda but have separate NSE rates
+- `"nseShared"`: all mixtures share NSE rates but have separate alpha and lambda
+
+### Step 3-4: Model, MCMC, and run
+
+```{r, echo = TRUE, eval = FALSE}
 model_nse <- initializeModelObject(parameter_nse, "PANSE")
 
 mcmc_nse <- initializeMCMCObject(
@@ -247,12 +272,86 @@ mcmc_nse <- initializeMCMCObject(
   est.hyper      = TRUE
 )
 
-runMCMC(mcmc_nse, genome, model_nse)
+runMCMC(mcmc_nse, genome_nse, model_nse)
 ```
 
-The same diagnostic and posterior extraction functions shown above apply to the
-PANSE parameter object.
-NSE rate traces are accessed via `what = "NSERates"` in `plot(trace, ...)`.
+### NSE rate traces and posterior summaries
+
+NSE rate traces are accessed via `what = "NSERate"` in `plot(trace, ...)`:
+
+```{r, echo = TRUE, eval = FALSE}
+trace_nse <- parameter_nse$getTraceObject()
+plot(trace_nse, what = "NSERate", mixture = 1)
+```
+
+Extract posterior means and credible intervals for NSE rates:
+
+```{r, echo = TRUE, eval = FALSE}
+codonList  <- codons()     # 61 sense codons
+burnin_idx <- 500          # discard first 50% of 1000 samples
+
+nse_mean <- numeric(61)
+nse_ci   <- matrix(0, nrow = 61, ncol = 2)
+
+for (i in seq_along(codonList)) {
+  codon <- codonList[i]
+  nse_trace   <- trace_nse$getCodonSpecificParameterTraceByMixtureElementForCodon(
+                   1, codon, 2, FALSE)
+  post_nse    <- nse_trace[burnin_idx:length(nse_trace)]
+  nse_mean[i] <- mean(post_nse)
+  nse_ci[i, ] <- quantile(post_nse, probs = c(0.025, 0.975))
+}
+
+barplot(nse_mean, names.arg = codonList,
+        main = "Posterior mean NSE rate per codon",
+        las = 2, cex.names = 0.6)
+```
+
+`getCSPEstimates` with `log.scale = TRUE` returns all five PANSE parameters
+(alpha, lambda, mean waiting time, NSE rate, NSE probability) for each codon:
+
+```{r, echo = TRUE, eval = FALSE}
+csp_nse <- getCSPEstimates(parameter_nse, samples = 500, log.scale = TRUE)
+head(csp_nse$NSERate)
+head(csp_nse$NSEProb)
+```
+
+### Partition function trace
+
+The partition function Z normalises the per-gene expression model in PANSE.
+Its trace can be inspected with:
+
+```{r, echo = TRUE, eval = FALSE}
+plot(trace_nse, what = "PartitionFunction")
+
+pf_traces <- trace_nse$getPartitionFunctionTraces()  # list, one per mixture
+pf_post   <- pf_traces[[1]][burnin_idx:length(pf_traces[[1]])]
+cat("Z posterior mean:", mean(pf_post), "\n")
+cat("Z 95% CI:        ", quantile(pf_post, c(0.025, 0.975)), "\n")
+```
+
+### Fixing parameters
+
+To hold specific parameters constant (e.g., to test the PA model nested within
+PANSE), use the locking methods:
+
+```{r, echo = TRUE, eval = FALSE}
+parameter_nse$fixAlpha()       # fix pausing shape
+parameter_nse$fixLambdaPrime() # fix elongation rate
+parameter_nse$fixNSERate()     # fix NSE rates (PANSE only)
+parameter_nse$fixZ()           # fix partition function (PANSE only)
+```
+
+### Known limitations
+
+- **Unpublished model**: PANSE has not undergone peer review. Results should
+  be cross-validated against simulations before use in publications.
+- **RFP count table size**: The model pre-computes a lgamma table for RFP
+  counts 0-49 per codon. For highly expressed genes with counts >= 50, it falls
+  back to runtime computation (correct, but slower).
+- **Positional data required**: Unlike PA, PANSE needs `positional = TRUE`
+  in `initializeGenomeObject` because cumulative survival probabilities depend
+  on codon order within each gene.
 
 ## Restart files
 

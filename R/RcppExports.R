@@ -278,3 +278,28 @@ NULL
 #' @description Method of FONSEParameter class (access via parameter$fixedInitiationCost(), where parameter is initialized with model="FONSE"). Fix the initiation cost parameter (a1) at its current value for the remainder of the MCMC run.
 NULL
 
+#' @name fixAlpha
+#' @title fixAlpha
+#' @description Method of PAParameter or PANSEParameter class (access via parameter$fixAlpha(), where parameter is initialized with model="PA" or "PANSE"). Fix the pausing shape parameter (alpha) at its current values for the remainder of the MCMC run.
+NULL
+
+#' @name fixLambdaPrime
+#' @title fixLambdaPrime
+#' @description Method of PAParameter or PANSEParameter class (access via parameter$fixLambdaPrime(), where parameter is initialized with model="PA" or "PANSE"). Fix the elongation rate parameter (lambdaPrime) at its current values for the remainder of the MCMC run.
+NULL
+
+#' @name fixNSERate
+#' @title fixNSERate
+#' @description Method of PANSEParameter class (access via parameter$fixNSERate(), where parameter is initialized with model="PANSE"). Fix the per-codon nonsense error rates at their current values for the remainder of the MCMC run.
+NULL
+
+#' @name fixZ
+#' @title fixZ
+#' @description Method of PANSEParameter class (access via parameter$fixZ(), where parameter is initialized with model="PANSE"). Fix the partition function Z at its current value for the remainder of the MCMC run.
+NULL
+
+#' @name shareNSERate
+#' @title shareNSERate
+#' @description Method of PANSEParameter class (access via parameter$shareNSERate(), where parameter is initialized with model="PANSE"). Share (pool) the nonsense error rate across all mixture categories.
+NULL
+
