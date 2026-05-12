@@ -130,16 +130,24 @@ knitr::opts_chunk$set(
 
 
 ## ----echo = TRUE, eval = FALSE------------------------------------------------
+# rfp_file   <- system.file("extdata", "pa_rfpdata.csv", package = "AnaCoDa")
+# genome_nse <- initializeGenomeObject(file = rfp_file, fasta = FALSE,
+#                                       positional = TRUE)
+
+
+## ----echo = TRUE, eval = FALSE------------------------------------------------
 # parameter_nse <- initializeParameterObject(
-#   genome          = genome,
+#   genome          = genome_nse,
 #   sphi            = 2,
 #   num.mixtures    = 1,
-#   gene.assignment = rep(1, length(genome)),
+#   gene.assignment = rep(1, length(genome_nse)),
 #   model           = "PANSE",
 #   split.serine    = TRUE,
 #   mixture.definition = "allUnique"
 # )
-# 
+
+
+## ----echo = TRUE, eval = FALSE------------------------------------------------
 # model_nse <- initializeModelObject(parameter_nse, "PANSE")
 # 
 # mcmc_nse <- initializeMCMCObject(
@@ -151,7 +159,55 @@ knitr::opts_chunk$set(
 #   est.hyper      = TRUE
 # )
 # 
-# runMCMC(mcmc_nse, genome, model_nse)
+# runMCMC(mcmc_nse, genome_nse, model_nse)
+
+
+## ----echo = TRUE, eval = FALSE------------------------------------------------
+# trace_nse <- parameter_nse$getTraceObject()
+# plot(trace_nse, what = "NSERate", mixture = 1)
+
+
+## ----echo = TRUE, eval = FALSE------------------------------------------------
+# codonList  <- codons()     # 61 sense codons
+# burnin_idx <- 500          # discard first 50% of 1000 samples
+# 
+# nse_mean <- numeric(61)
+# nse_ci   <- matrix(0, nrow = 61, ncol = 2)
+# 
+# for (i in seq_along(codonList)) {
+#   codon <- codonList[i]
+#   nse_trace   <- trace_nse$getCodonSpecificParameterTraceByMixtureElementForCodon(
+#                    1, codon, 2, FALSE)
+#   post_nse    <- nse_trace[burnin_idx:length(nse_trace)]
+#   nse_mean[i] <- mean(post_nse)
+#   nse_ci[i, ] <- quantile(post_nse, probs = c(0.025, 0.975))
+# }
+# 
+# barplot(nse_mean, names.arg = codonList,
+#         main = "Posterior mean NSE rate per codon",
+#         las = 2, cex.names = 0.6)
+
+
+## ----echo = TRUE, eval = FALSE------------------------------------------------
+# csp_nse <- getCSPEstimates(parameter_nse, samples = 500, log.scale = TRUE)
+# head(csp_nse$NSERate)
+# head(csp_nse$NSEProb)
+
+
+## ----echo = TRUE, eval = FALSE------------------------------------------------
+# plot(trace_nse, what = "PartitionFunction")
+# 
+# pf_traces <- trace_nse$getPartitionFunctionTraces()  # list, one per mixture
+# pf_post   <- pf_traces[[1]][burnin_idx:length(pf_traces[[1]])]
+# cat("Z posterior mean:", mean(pf_post), "\n")
+# cat("Z 95% CI:        ", quantile(pf_post, c(0.025, 0.975)), "\n")
+
+
+## ----echo = TRUE, eval = FALSE------------------------------------------------
+# parameter_nse$fixAlpha()       # fix pausing shape
+# parameter_nse$fixLambdaPrime() # fix elongation rate
+# parameter_nse$fixNSERate()     # fix NSE rates (PANSE only)
+# parameter_nse$fixZ()           # fix partition function (PANSE only)
 
 
 ## ----echo = TRUE, eval = FALSE------------------------------------------------
