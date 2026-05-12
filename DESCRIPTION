@@ -34,10 +34,10 @@ Description: Is a collection of models to analyze genome scale codon
         time + NonSense Error) models use ribosome footprinting data to
         analyze estimate ribosome pausing times with and without
         nonsense error rate from ribosome footprinting data.
+Encoding: UTF-8
 License: GPL (>= 2)
 Imports:
 LinkingTo: Rcpp
 LazyLoad: yes
 LazyData: yes
-RoxygenNote: 7.1.1
-
+Config/roxygen2/version: 8.0.0

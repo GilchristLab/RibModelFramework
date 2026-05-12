@@ -268,3 +268,13 @@ NULL
 #' @description Method of Parameter class (access via parameter$<function name>, where parameter is an object initialized by initializeParameterObject). Fix the value of selection its current value
 NULL
 
+#' @name fixDOmega
+#' @title fixDOmega
+#' @description Method of FONSEParameter class (access via parameter$fixDOmega(), where parameter is initialized with model="FONSE"). Fix the nonsense error coefficients (dOmega) at their current values for the remainder of the MCMC run.
+NULL
+
+#' @name fixedInitiationCost
+#' @title fixedInitiationCost
+#' @description Method of FONSEParameter class (access via parameter$fixedInitiationCost(), where parameter is initialized with model="FONSE"). Fix the initiation cost parameter (a1) at its current value for the remainder of the MCMC run.
+NULL
+
