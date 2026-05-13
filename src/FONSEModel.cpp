@@ -416,6 +416,12 @@ double FONSEModel::getLogPhiPrior(double phi, unsigned mixtureCategory)
 }
 
 
+void FONSEModel::updatePhiMixtureHyperparameters(Genome& genome)
+{
+	parameter->updatePhiMixtureHyperparameters(genome);
+}
+
+
 double FONSEModel::getCurrentStdDevSynthesisRateProposalWidth()
 {
 	return parameter->getCurrentStdDevSynthesisRateProposalWidth();

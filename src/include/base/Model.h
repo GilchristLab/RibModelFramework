@@ -68,6 +68,10 @@ class Model
 		// behavior bit-for-bit; MIXTURE_LN evaluates the constrained mixture.
 		virtual double getLogPhiPrior(double phi, unsigned mixtureCategory) = 0;
 
+		// Mixture-LN hyperparameter MCMC update (task #12c.1). No-op for
+		// SINGLE_LN. Delegates to Parameter::updatePhiMixtureHyperparameters.
+		virtual void updatePhiMixtureHyperparameters(Genome& genome) = 0;
+
 
 
 		//Synthesis Rate Functions:

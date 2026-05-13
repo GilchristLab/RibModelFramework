@@ -54,6 +54,7 @@ class FONSEModel : public Model
 		virtual double getCurrentStdDevSynthesisRateProposalWidth();
 		virtual void updateStdDevSynthesisRate();
 		virtual double getLogPhiPrior(double phi, unsigned mixtureCategory);
+		virtual void updatePhiMixtureHyperparameters(Genome& genome);
 
 
 

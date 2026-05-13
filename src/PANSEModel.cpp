@@ -813,6 +813,12 @@ double PANSEModel::getLogPhiPrior(double phi, unsigned mixtureCategory)
 }
 
 
+void PANSEModel::updatePhiMixtureHyperparameters(Genome& genome)
+{
+    parameter->updatePhiMixtureHyperparameters(genome);
+}
+
+
 double PANSEModel::getCurrentStdDevSynthesisRateProposalWidth()
 {
     return parameter->getCurrentStdDevSynthesisRateProposalWidth();

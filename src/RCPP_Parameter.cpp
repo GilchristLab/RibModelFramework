@@ -313,6 +313,10 @@ RCPP_MODULE(Parameter_mod)
 		.method("setPhiMixtureHyperSigma1Scale", &Parameter::setPhiMixtureHyperSigma1Scale)
 		.method("getPhiMixtureHyperSigma2Scale", &Parameter::getPhiMixtureHyperSigma2Scale)
 		.method("setPhiMixtureHyperSigma2Scale", &Parameter::setPhiMixtureHyperSigma2Scale)
+		.method("getNumAcceptForPhiMixtureP",      &Parameter::getNumAcceptForPhiMixtureP)
+		.method("getNumAcceptForPhiMixtureMu1",    &Parameter::getNumAcceptForPhiMixtureMu1)
+		.method("getNumAcceptForPhiMixtureSigma1", &Parameter::getNumAcceptForPhiMixtureSigma1)
+		.method("getNumAcceptForPhiMixtureSigma2", &Parameter::getNumAcceptForPhiMixtureSigma2)
 
 		//Used for getters and setters
 		.property("numMutationCategories", &Parameter::getNumMutationCategories, &Parameter::setNumMutationCategories)

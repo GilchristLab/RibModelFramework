@@ -67,10 +67,12 @@ Parameter::Parameter()
 	// Phi prior defaults: legacy single LogNormal, mean=1 anchor.
 	phiPriorType = PHI_PRIOR_SINGLE_LN;
 	phiPriorConstraint = PHI_CONSTRAINT_MEAN;
-	std_phiMixtureP = 0.05;
+	// Defaults match validated R prototype proposals (regime A acceptance ~0.15
+	// for p, ~0.5 for sigma2). Adaptive tuning in 12c.2 will refine.
+	std_phiMixtureP = 0.3;
 	std_phiMixtureMu1 = 0.1;
-	std_phiMixtureSigma1 = 0.05;
-	std_phiMixtureSigma2 = 0.05;
+	std_phiMixtureSigma1 = 0.15;
+	std_phiMixtureSigma2 = 0.15;
 	numAcceptForPhiMixtureP = 0u;
 	numAcceptForPhiMixtureMu1 = 0u;
 	numAcceptForPhiMixtureSigma1 = 0u;
@@ -108,10 +110,12 @@ Parameter::Parameter(unsigned _maxGrouping)
 	// Phi prior defaults: legacy single LogNormal, mean=1 anchor.
 	phiPriorType = PHI_PRIOR_SINGLE_LN;
 	phiPriorConstraint = PHI_CONSTRAINT_MEAN;
-	std_phiMixtureP = 0.05;
+	// Defaults match validated R prototype proposals (regime A acceptance ~0.15
+	// for p, ~0.5 for sigma2). Adaptive tuning in 12c.2 will refine.
+	std_phiMixtureP = 0.3;
 	std_phiMixtureMu1 = 0.1;
-	std_phiMixtureSigma1 = 0.05;
-	std_phiMixtureSigma2 = 0.05;
+	std_phiMixtureSigma1 = 0.15;
+	std_phiMixtureSigma2 = 0.15;
 	numAcceptForPhiMixtureP = 0u;
 	numAcceptForPhiMixtureMu1 = 0u;
 	numAcceptForPhiMixtureSigma1 = 0u;
@@ -2809,6 +2813,176 @@ double Parameter::getLogPhiPrior(double phi, unsigned mixtureCategory)
 	                             phiMixtureSigma2[mixtureCategory],
 	                             phiPriorConstraint, true);
 }
+
+
+// Hyperparameter log-prior on the four free mixture parameters. Mirrors
+// prototypes/phi_mixture.R::log_prior:
+//   p      ~ Beta(alpha, beta)
+//   mu1    ~ Normal(mean, sd)
+//   sigma1 ~ half-Normal(scale)
+//   sigma2 ~ half-Normal(scale) truncated above by sigma1
+// Returns -DBL_MAX if support constraints violated (so an M-H proposal that
+// lands outside the prior support auto-rejects via the log-ratio).
+static double phiMixtureLogPrior_helper(double p, double mu1, double s1, double s2,
+                                        double p_alpha, double p_beta,
+                                        double mu1_mean, double mu1_sd,
+                                        double s1_scale, double s2_scale)
+{
+	if (p <= 0.0 || p >= 1.0) return -DBL_MAX;
+	if (s1 <= 0.0 || s2 <= 0.0) return -DBL_MAX;
+	if (s2 >= s1) return -DBL_MAX;  // half-Normal truncation hard wall
+
+	// log Beta(p; alpha, beta) = (a-1)log(p) + (b-1)log(1-p) - log B(a,b)
+#ifndef STANDALONE
+	double log_p_prior = (p_alpha - 1.0) * std::log(p)
+	                   + (p_beta  - 1.0) * std::log(1.0 - p)
+	                   - R::lbeta(p_alpha, p_beta);
+#else
+	double log_p_prior = (p_alpha - 1.0) * std::log(p)
+	                   + (p_beta  - 1.0) * std::log(1.0 - p)
+	                   - (std::lgamma(p_alpha) + std::lgamma(p_beta)
+	                      - std::lgamma(p_alpha + p_beta));
+#endif
+
+	double log_mu1_prior = Parameter::densityNorm(mu1, mu1_mean, mu1_sd, true);
+
+	// log halfNormal(s1; scale) = log(2) + log dnorm(s1; 0, scale)
+	double log_s1_prior = std::log(2.0)
+	                    + Parameter::densityNorm(s1, 0.0, s1_scale, true);
+
+	// log halfNormal_truncAbove(s2; scale, s1)
+	//   = log(2) + log dnorm(s2; 0, scale) - log(2 * Phi(s1; 0, scale) - 1)
+	// Phi(s1; 0, scale) = Pr(N(0, scale) <= s1)
+	double Phi_s1;
+#ifndef STANDALONE
+	Phi_s1 = R::pnorm5(s1, 0.0, s2_scale, 1, 0);
+#else
+	Phi_s1 = 0.5 * std::erfc(-s1 / (s2_scale * std::sqrt(2.0)));
+#endif
+	double Z = 2.0 * Phi_s1 - 1.0;
+	if (Z <= 0.0) return -DBL_MAX;
+	double log_s2_prior = std::log(2.0)
+	                    + Parameter::densityNorm(s2, 0.0, s2_scale, true)
+	                    - std::log(Z);
+
+	return log_p_prior + log_mu1_prior + log_s1_prior + log_s2_prior;
+}
+
+
+void Parameter::updatePhiMixtureHyperparameters(Genome& genome)
+{
+	if (phiPriorType != PHI_PRIOR_MIXTURE_LN) return;
+
+	unsigned numGenes = genome.getGenomeSize();
+
+	// Build a per-mixture-category index of gene indices (so we can iterate
+	// just the genes whose phi is governed by this category's prior).
+	std::vector<std::vector<unsigned>> genesByCategory(numSynthesisRateCategories);
+	for (unsigned g = 0u; g < numGenes; g++)
+	{
+		unsigned mix = getMixtureAssignment(g);
+		unsigned cat = getSynthesisRateCategory(mix);
+		if (cat < numSynthesisRateCategories) genesByCategory[cat].push_back(g);
+	}
+
+	// Compute current log-posterior for a (mixture-category, hyperparam) tuple.
+	auto logPost = [&](unsigned k, double p, double mu1, double s1, double s2) -> double
+	{
+		double lp = phiMixtureLogPrior_helper(p, mu1, s1, s2,
+		                                       phiMixtureHyper_p_alpha,  phiMixtureHyper_p_beta,
+		                                       phiMixtureHyper_mu1_mean, phiMixtureHyper_mu1_sd,
+		                                       phiMixtureHyper_sigma1_scale,
+		                                       phiMixtureHyper_sigma2_scale);
+		if (lp <= -DBL_MAX / 2.0) return -DBL_MAX;
+
+		double ll = 0.0;
+		const std::vector<unsigned>& geneIdx = genesByCategory[k];
+		for (size_t gi = 0; gi < geneIdx.size(); gi++)
+		{
+			unsigned g = geneIdx[gi];
+			double phi = currentSynthesisRateLevel[k][g];
+			double d = densityLogNormMixture(phi, p, mu1, s1, s2,
+			                                  phiPriorConstraint, true);
+			if (d <= -DBL_MAX / 2.0) return -DBL_MAX;  // infeasible / label-switch
+			ll += d;
+		}
+		return lp + ll;
+	};
+
+	for (unsigned k = 0u; k < numSynthesisRateCategories; k++)
+	{
+		double p   = phiMixtureP[k];
+		double mu1 = phiMixtureMu1[k];
+		double s1  = phiMixtureSigma1[k];
+		double s2  = phiMixtureSigma2[k];
+
+		double current_lp = logPost(k, p, mu1, s1, s2);
+
+		// --- 1. p (logit-scale random walk) ---
+		double logit_p = std::log(p / (1.0 - p));
+		double logit_p_new = logit_p + randNorm(0.0, std_phiMixtureP);
+		double p_new = 1.0 / (1.0 + std::exp(-logit_p_new));
+		double log_jac = std::log(p_new * (1.0 - p_new))
+		               - std::log(p     * (1.0 - p    ));
+		double proposed_lp = logPost(k, p_new, mu1, s1, s2);
+		if (-randExp(1) < (proposed_lp - current_lp + log_jac))
+		{
+			p = p_new;
+			current_lp = proposed_lp;
+			phiMixtureP[k] = p;
+			numAcceptForPhiMixtureP++;
+		}
+
+		// --- 2. mu1 (identity-scale random walk; no Jacobian) ---
+		double mu1_new = mu1 + randNorm(0.0, std_phiMixtureMu1);
+		proposed_lp = logPost(k, p, mu1_new, s1, s2);
+		if (-randExp(1) < (proposed_lp - current_lp))
+		{
+			mu1 = mu1_new;
+			current_lp = proposed_lp;
+			phiMixtureMu1[k] = mu1;
+			numAcceptForPhiMixtureMu1++;
+		}
+
+		// --- 3. sigma1 (log-scale random walk) ---
+		double s1_new = s1 * std::exp(randNorm(0.0, std_phiMixtureSigma1));
+		log_jac = std::log(s1_new) - std::log(s1);
+		proposed_lp = logPost(k, p, mu1, s1_new, s2);
+		if (-randExp(1) < (proposed_lp - current_lp + log_jac))
+		{
+			s1 = s1_new;
+			current_lp = proposed_lp;
+			phiMixtureSigma1[k] = s1;
+			numAcceptForPhiMixtureSigma1++;
+		}
+
+		// --- 4. sigma2 (log-scale random walk) ---
+		double s2_new = s2 * std::exp(randNorm(0.0, std_phiMixtureSigma2));
+		log_jac = std::log(s2_new) - std::log(s2);
+		proposed_lp = logPost(k, p, mu1, s1, s2_new);
+		if (-randExp(1) < (proposed_lp - current_lp + log_jac))
+		{
+			s2 = s2_new;
+			current_lp = proposed_lp;
+			phiMixtureSigma2[k] = s2;
+			numAcceptForPhiMixtureSigma2++;
+		}
+
+		// Sync proposed counterparts (12c.1 has no separate "propose then
+		// accept" phase -- proposals are inline; keep proposed mirrors of
+		// current so downstream code that reads `proposed=true` is safe).
+		phiMixtureP_proposed[k]      = p;
+		phiMixtureMu1_proposed[k]    = mu1;
+		phiMixtureSigma1_proposed[k] = s1;
+		phiMixtureSigma2_proposed[k] = s2;
+	}
+}
+
+
+unsigned Parameter::getNumAcceptForPhiMixtureP()      { return numAcceptForPhiMixtureP; }
+unsigned Parameter::getNumAcceptForPhiMixtureMu1()    { return numAcceptForPhiMixtureMu1; }
+unsigned Parameter::getNumAcceptForPhiMixtureSigma1() { return numAcceptForPhiMixtureSigma1; }
+unsigned Parameter::getNumAcceptForPhiMixtureSigma2() { return numAcceptForPhiMixtureSigma2; }
 
 
 

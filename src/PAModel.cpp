@@ -418,6 +418,12 @@ double PAModel::getLogPhiPrior(double phi, unsigned mixtureCategory)
 }
 
 
+void PAModel::updatePhiMixtureHyperparameters(Genome& genome)
+{
+	parameter->updatePhiMixtureHyperparameters(genome);
+}
+
+
 double PAModel::getCurrentStdDevSynthesisRateProposalWidth()
 {
 	return parameter->getCurrentStdDevSynthesisRateProposalWidth();

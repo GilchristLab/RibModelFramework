@@ -172,6 +172,25 @@ class Parameter {
 		// LogNormal(-sigma^2/2, sigma) computation.
 		double getLogPhiPrior(double phi, unsigned mixtureCategory);
 
+		// Single-site Metropolis-Hastings update for the mixture hyperparams
+		// (p, mu1, sigma1, sigma2), per mixture category (task #12c.1).
+		// Sequential transformed-scale random walks with Jacobian corrections:
+		//   p     -> logit-scale (jacobian: log(p*(1-p)))
+		//   mu1   -> identity-scale
+		//   sigma -> log-scale (jacobian: log(sigma))
+		// No-op when phiPriorType != PHI_PRIOR_MIXTURE_LN. Fixed proposal
+		// widths (std_phiMixture*); adaptive tuning + trace storage land
+		// in 12c.2. Mirrors prototypes/phi_mixture.R::mh_phi_mixture.
+		void updatePhiMixtureHyperparameters(Genome& genome);
+
+		// Accept counters for the four mixture hyperparams. Reset each
+		// adaptive-width window in 12c.2; in 12c.1 they grow monotonically
+		// and are exposed only for testing.
+		unsigned getNumAcceptForPhiMixtureP();
+		unsigned getNumAcceptForPhiMixtureMu1();
+		unsigned getNumAcceptForPhiMixtureSigma1();
+		unsigned getNumAcceptForPhiMixtureSigma2();
+
 
 		//Synthesis Rate Functions: Mostly tested, see comments
 		double getSynthesisRate(unsigned geneIndex, unsigned mixtureElement, bool proposed = false);

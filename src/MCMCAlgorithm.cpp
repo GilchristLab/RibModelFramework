@@ -663,6 +663,10 @@ void MCMCAlgorithm::run(Genome& genome, Model& model, unsigned numCores, unsigne
 
 				model.adaptHyperParameterProposalWidths(adaptiveWidth, iteration <= stepsToAdapt);
 
+			// Task #12c.1: mixture-LN hyperparameter M-H update. No-op when
+			// phiPriorType != PHI_PRIOR_MIXTURE_LN. Adaptive proposal width
+			// tuning for these lands in 12c.2.
+			model.updatePhiMixtureHyperparameters(genome);
 		}
 		// update expression level values
 		if (estimateSynthesisRate || estimateMixtureAssignment)

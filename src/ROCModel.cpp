@@ -413,6 +413,12 @@ double ROCModel::getLogPhiPrior(double phi, unsigned mixtureCategory)
 }
 
 
+void ROCModel::updatePhiMixtureHyperparameters(Genome& genome)
+{
+	parameter->updatePhiMixtureHyperparameters(genome);
+}
+
+
 double ROCModel::getCurrentStdDevSynthesisRateProposalWidth()
 {
 	return parameter->getCurrentStdDevSynthesisRateProposalWidth();

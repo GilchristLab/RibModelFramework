@@ -263,3 +263,92 @@ test_that("ROC MCMC runs under phi.prior = 'mixture-lognormal' without NaN/Inf",
                 info = paste("non-finite logPosterior values:",
                               paste(body[!is.finite(body)], collapse = ", ")))
 })
+
+
+# ---------------- 12c.1 test: mixture hyperparams actually update ----------------
+
+test_that("mixture hyperparams move during MCMC under phi.prior = 'mixture-lognormal'", {
+    # Task #12c.1: the updatePhiMixtureHyperparameters M-H step should run
+    # each iteration when phiPriorType == MIXTURE_LN. Verify by:
+    #   1. At least one of (p, mu1, sigma1, sigma2) gets accepted (counters > 0)
+    #   2. The current values are no longer exactly at init (chain moved)
+    fasta <- file.path("UnitTestingData", "testMCMCROCFiles", "simulatedAllUniqueR.fasta")
+    skip_if_not(file.exists(fasta), "test fixture FASTA missing")
+
+    set.seed(54321)
+    genome_local <- initializeGenomeObject(file = fasta)
+    geneAssignment_local <- rep(1, length(genome_local))
+
+    init_p <- 0.9; init_mu1 <- -0.4; init_s1 <- 0.4; init_s2 <- 0.25
+    parameter <- initializeParameterObject(
+        genome = genome_local, sphi = 1, num.mixtures = 1,
+        gene.assignment = geneAssignment_local,
+        model = "ROC",
+        phi.prior = "mixture-lognormal",
+        phi.prior.constraint = "mean",
+        phi.prior.init = list(p = init_p, mu1 = init_mu1,
+                               sigma1 = init_s1, sigma2 = init_s2)
+    )
+
+    # 30 iterations: enough for at least a few accepts across 4 params.
+    mcmc <- initializeMCMCObject(samples = 30, thinning = 1, adaptive.width = 5,
+                                  est.expression = TRUE, est.csp = TRUE,
+                                  est.hyper = TRUE)
+    model <- initializeModelObject(parameter, "ROC", with.phi = FALSE)
+
+    sink(tempfile())
+    runMCMC(mcmc = mcmc, genome = genome_local, model = model, ncores = 1,
+            divergence.iteration = 0)
+    sink()
+
+    # Counters: at least one of the 4 hyperparams should have accepted.
+    totalAccepts <- parameter$getNumAcceptForPhiMixtureP() +
+                    parameter$getNumAcceptForPhiMixtureMu1() +
+                    parameter$getNumAcceptForPhiMixtureSigma1() +
+                    parameter$getNumAcceptForPhiMixtureSigma2()
+    expect_gt(totalAccepts, 0)
+
+    # Current values: at least one should have moved from init.
+    moved <- (parameter$getPhiMixtureP(0L, FALSE)       != init_p)  ||
+             (parameter$getPhiMixtureMu1(0L, FALSE)     != init_mu1) ||
+             (parameter$getPhiMixtureSigma1(0L, FALSE)  != init_s1) ||
+             (parameter$getPhiMixtureSigma2(0L, FALSE)  != init_s2)
+    expect_true(moved)
+
+    # The derived mu2 should still satisfy mu2 >= mu1 (label-switching guard).
+    expect_gte(parameter$getPhiMixtureMu2Derived(0L),
+                parameter$getPhiMixtureMu1(0L, FALSE))
+})
+
+
+test_that("default phi.prior = 'lognormal' does NOT call mixture update step", {
+    # Counter check: with the default prior, the mixture update is a no-op
+    # (early return). Accept counters should stay at zero across MCMC.
+    fasta <- file.path("UnitTestingData", "testMCMCROCFiles", "simulatedAllUniqueR.fasta")
+    skip_if_not(file.exists(fasta), "test fixture FASTA missing")
+
+    set.seed(99)
+    genome_local <- initializeGenomeObject(file = fasta)
+    geneAssignment_local <- rep(1, length(genome_local))
+
+    parameter <- initializeParameterObject(
+        genome = genome_local, sphi = 1, num.mixtures = 1,
+        gene.assignment = geneAssignment_local,
+        model = "ROC"
+        # default phi.prior = "lognormal"
+    )
+
+    mcmc <- initializeMCMCObject(samples = 10, thinning = 1, adaptive.width = 5,
+                                  est.expression = TRUE, est.csp = TRUE,
+                                  est.hyper = TRUE)
+    model <- initializeModelObject(parameter, "ROC", with.phi = FALSE)
+    sink(tempfile())
+    runMCMC(mcmc = mcmc, genome = genome_local, model = model, ncores = 1,
+            divergence.iteration = 0)
+    sink()
+
+    expect_equal(parameter$getNumAcceptForPhiMixtureP(), 0)
+    expect_equal(parameter$getNumAcceptForPhiMixtureMu1(), 0)
+    expect_equal(parameter$getNumAcceptForPhiMixtureSigma1(), 0)
+    expect_equal(parameter$getNumAcceptForPhiMixtureSigma2(), 0)
+})
