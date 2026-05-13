@@ -223,7 +223,9 @@ setRestartSettings <- function(mcmc, filename, samples, write.multiple=TRUE){
 #' @details  Be aware that convergence.test for Trace objects works primarily for Trace objects from the ROC parameter class. Future updates will adapt this function to work for parameters from other models and expression traces
 #' 
 #' @return Geweke score object evaluating whether means of two fractions (frac1 and frac2) differ.  Convergence occurs when they don't differ significantly, i.e. pnorm(abs(convergence.test(mcmcObj)$a, ,lower.tail=FALSE)*2 > 0.05
-#' 
+#'
+#' @importFrom coda as.mcmc mcmc geweke.diag geweke.plot
+#'
 #' @examples 
 #' 
 #' ## check for convergence after a run:
@@ -259,6 +261,7 @@ setRestartSettings <- function(mcmc, filename, samples, write.multiple=TRUE){
 #' # check if ExpectedPhi trace has converged
 #' convergence.test(object = trace, samples = 500, plot = TRUE, what = "ExpectedPhi")
 #' }
+#' @export
 convergence.test <- function(object, samples = NULL, frac1 = 0.1, frac2 = 0.5,
                     thin = 1, plot = FALSE, what = "Mutation", mixture = 1){
   UseMethod("convergence.test", object)
@@ -267,17 +270,39 @@ convergence.test <- function(object, samples = NULL, frac1 = 0.1, frac2 = 0.5,
 convergence.test.Rcpp_MCMCAlgorithm <- function(object, samples = NULL, frac1 = 0.1,
                                        frac2 = 0.5, thin = 1, plot = FALSE, what = "Mutation", mixture = 1){
   # TODO: extend to work with multiple chains once we have that capability.
-  loglik.trace <- object$getLogPosteriorTrace()
-  trace.length <- length(loglik.trace)
+  trace <- object$getLogPosteriorTrace()
+  trace.length <- length(trace)
   window <- if (is.null(samples)) trace.length else min(samples, trace.length)
-  windowed <- utils::tail(loglik.trace, n = window)
+  windowed <- utils::tail(trace, n = window)
   mcmcobj <- coda::mcmc(data = windowed, thin = thin)
-  diag <- coda::geweke.diag(mcmcobj, frac1=frac1, frac2=frac2)
-  if(plot){ 
+  if(plot){
     coda::geweke.plot(mcmcobj, frac1=frac1, frac2=frac2)
-  }else{
-    return(diag)
+  } else {
+    coda::geweke.diag(mcmcobj, frac1=frac1, frac2=frac2)
   }
+}
+
+#' Coerce an AnaCoDa MCMC object to a \code{coda::mcmc} object
+#'
+#' @param x an \code{Rcpp_MCMCAlgorithm} object as returned by \code{initializeMCMCObject}
+#'   and populated by \code{runMCMC}.
+#' @param what which trace to extract: \code{"LogPosterior"} (default) or
+#'   \code{"LogLikelihood"}.
+#' @param thin thinning interval recorded as metadata on the returned mcmc object;
+#'   does not subsample.
+#' @param ... unused; present for S3 generic compatibility.
+#'
+#' @return a length-1 \code{coda::mcmc} object containing the selected trace.
+#'
+#' @export
+as.mcmc.Rcpp_MCMCAlgorithm <- function(x, what = c("LogPosterior", "LogLikelihood"),
+                                       thin = 1, ...)
+{
+  what <- match.arg(what)
+  trace <- switch(what,
+                  LogPosterior  = x$getLogPosteriorTrace(),
+                  LogLikelihood = x$getLogLikelihoodTrace())
+  coda::mcmc(data = trace, thin = thin)
 }
 
 
