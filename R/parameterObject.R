@@ -228,6 +228,10 @@ initializeParameterObject <- function(genome = NULL, sphi = NULL, num.mixtures =
     if (!phi.prior.constraint %in% c("mean", "median")) {
       stop("phi.prior.constraint must be 'mean' or 'median'\n")
     }
+    # Task #12b: mixture prior is currently wired only for ROC.
+    if (phi.prior == "mixture-lognormal" && model != "ROC") {
+      stop("phi.prior = 'mixture-lognormal' is currently supported only with model = 'ROC'\n")
+    }
   } else {
     if (!file.exists(init.with.restart.file)) {
       stop("init.with.restart.file provided does not exist\n")

@@ -799,12 +799,12 @@ void MCMCAlgorithm::varyInitialConditions(Genome& genome, Model& model, unsigned
 
 					unsigned mixture = model.getMixtureAssignment(k);
 					mixture = model.getSynthesisRateCategory(mixture);
-					double stdDevSynthesisRate = model.getStdDevSynthesisRate(mixture, false);
-					double mPhi = (-(stdDevSynthesisRate * stdDevSynthesisRate) / 2);
 
-					// accept/ reject based on prior ratio
-					double logPhiProbability = Parameter::densityLogNorm(phiValue, mPhi, stdDevSynthesisRate, true);
-					double logPhiProbability_proposed = Parameter::densityLogNorm(phiValue_proposed, mPhi, stdDevSynthesisRate, true);
+					// Task #12b: route through Model::getLogPhiPrior which
+					// switches on phiPriorType. SINGLE_LN preserves the
+					// legacy single-LN computation bit-for-bit.
+					double logPhiProbability          = model.getLogPhiPrior(phiValue,          mixture);
+					double logPhiProbability_proposed = model.getLogPhiPrior(phiValue_proposed, mixture);
 					if ( -Parameter::randExp(1) < (logPhiProbability_proposed - logPhiProbability) )
 						model.updateSynthesisRate(i, k);
 				}

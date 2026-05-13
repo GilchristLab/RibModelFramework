@@ -412,6 +412,12 @@ double PAModel::getStdDevSynthesisRate(unsigned selectionCategory, bool proposed
 }
 
 
+double PAModel::getLogPhiPrior(double phi, unsigned mixtureCategory)
+{
+	return parameter->getLogPhiPrior(phi, mixtureCategory);
+}
+
+
 double PAModel::getCurrentStdDevSynthesisRateProposalWidth()
 {
 	return parameter->getCurrentStdDevSynthesisRateProposalWidth();

@@ -807,6 +807,12 @@ double PANSEModel::getStdDevSynthesisRate(unsigned selectionCategory, bool propo
 }
 
 
+double PANSEModel::getLogPhiPrior(double phi, unsigned mixtureCategory)
+{
+    return parameter->getLogPhiPrior(phi, mixtureCategory);
+}
+
+
 double PANSEModel::getCurrentStdDevSynthesisRateProposalWidth()
 {
     return parameter->getCurrentStdDevSynthesisRateProposalWidth();

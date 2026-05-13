@@ -63,6 +63,11 @@ class Model
 		virtual double getCurrentStdDevSynthesisRateProposalWidth() = 0;
 		virtual void updateStdDevSynthesisRate() = 0;
 
+		// Phi prior (task #12b). Delegates to Parameter::getLogPhiPrior, which
+		// switches on phiPriorType. SINGLE_LN reproduces legacy single-LN
+		// behavior bit-for-bit; MIXTURE_LN evaluates the constrained mixture.
+		virtual double getLogPhiPrior(double phi, unsigned mixtureCategory) = 0;
+
 
 
 		//Synthesis Rate Functions:

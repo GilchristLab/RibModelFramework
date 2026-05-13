@@ -165,6 +165,13 @@ class Parameter {
 		// Called from initParameterSet; safe to call again to re-seed.
 		void initPhiMixtureStorage();
 
+		// Log-prior on phi at the given mixture category, switching internally
+		// on phiPriorType. Single source of truth for the prior choice -- both
+		// MCMCAlgorithm and per-model codon updates route through this.
+		// For SINGLE_LN this is bit-for-bit identical to the legacy inline
+		// LogNormal(-sigma^2/2, sigma) computation.
+		double getLogPhiPrior(double phi, unsigned mixtureCategory);
+
 
 		//Synthesis Rate Functions: Mostly tested, see comments
 		double getSynthesisRate(unsigned geneIndex, unsigned mixtureElement, bool proposed = false);

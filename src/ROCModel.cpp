@@ -135,10 +135,11 @@ void ROCModel::calculateLogLikelihoodRatioPerGene(Gene& gene, unsigned geneIndex
 	}
 	//unsigned mixture = getMixtureAssignment(geneIndex);
 	unsigned mixture = getSynthesisRateCategory(expressionCategory);
-	double stdDevSynthesisRate = parameter->getStdDevSynthesisRate(mixture, false);
-	double mPhi = (-(stdDevSynthesisRate * stdDevSynthesisRate) * 0.5); // X * 0.5 = X / 2
-	double logPhiProbability = Parameter::densityLogNorm(phiValue, mPhi, stdDevSynthesisRate, true);
-	double logPhiProbability_proposed = Parameter::densityLogNorm(phiValue_proposed, mPhi, stdDevSynthesisRate, true);
+	// Task #12b: single source of truth for the phi prior, switches on
+	// phiPriorType. For SINGLE_LN (default), arithmetic is identical to the
+	// inline mPhi/densityLogNorm computation this replaces.
+	double logPhiProbability          = parameter->getLogPhiPrior(phiValue,          mixture);
+	double logPhiProbability_proposed = parameter->getLogPhiPrior(phiValue_proposed, mixture);
 
 	// TODO: make this work for more than one phi value, or for genes that don't have phi values
 	if (withPhi)
@@ -403,6 +404,12 @@ std::string ROCModel::getGrouping(unsigned index)
 double ROCModel::getStdDevSynthesisRate(unsigned selectionCategory, bool proposed)
 {
 	return parameter->getStdDevSynthesisRate(selectionCategory, proposed);
+}
+
+
+double ROCModel::getLogPhiPrior(double phi, unsigned mixtureCategory)
+{
+	return parameter->getLogPhiPrior(phi, mixtureCategory);
 }
 
 

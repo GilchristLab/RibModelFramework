@@ -410,6 +410,12 @@ double FONSEModel::getStdDevSynthesisRate(unsigned selectionCategory, bool propo
 }
 
 
+double FONSEModel::getLogPhiPrior(double phi, unsigned mixtureCategory)
+{
+	return parameter->getLogPhiPrior(phi, mixtureCategory);
+}
+
+
 double FONSEModel::getCurrentStdDevSynthesisRateProposalWidth()
 {
 	return parameter->getCurrentStdDevSynthesisRateProposalWidth();

@@ -2783,6 +2783,28 @@ void Parameter::initPhiMixtureStorage()
 }
 
 
+double Parameter::getLogPhiPrior(double phi, unsigned mixtureCategory)
+{
+	if (phiPriorType == PHI_PRIOR_SINGLE_LN)
+	{
+		// Legacy single LogNormal anchored at E[phi] = 1 via mPhi = -s^2/2.
+		// Same arithmetic as the inline blocks this method replaces, so
+		// bit-for-bit identical for SINGLE_LN (the default).
+		double s = stdDevSynthesisRate[mixtureCategory];
+		double mPhi = (-(s * s) * 0.5);
+		return densityLogNorm(phi, mPhi, s, true);
+	}
+	// PHI_PRIOR_MIXTURE_LN: density helper handles the label-switching guard
+	// and infeasibility (returns -DBL_MAX so M-H proposals auto-reject).
+	return densityLogNormMixture(phi,
+	                             phiMixtureP[mixtureCategory],
+	                             phiMixtureMu1[mixtureCategory],
+	                             phiMixtureSigma1[mixtureCategory],
+	                             phiMixtureSigma2[mixtureCategory],
+	                             phiPriorConstraint, true);
+}
+
+
 
 
 

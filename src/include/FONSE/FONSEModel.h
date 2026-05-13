@@ -53,6 +53,7 @@ class FONSEModel : public Model
 		virtual double getStdDevSynthesisRate(unsigned selectionCategory, bool proposed = false);
 		virtual double getCurrentStdDevSynthesisRateProposalWidth();
 		virtual void updateStdDevSynthesisRate();
+		virtual double getLogPhiPrior(double phi, unsigned mixtureCategory);
 
 
 

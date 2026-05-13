@@ -208,3 +208,58 @@ test_that("phi.prior.init$p out of (0,1) is rejected", {
         "phi.prior.init\\$p must be in"
     )
 })
+
+test_that("phi.prior = 'mixture-lognormal' rejects non-ROC models", {
+    # Task #12b: mixture wiring is currently ROC-only.
+    expect_error(
+        initializeParameterObject(genome = genome, sphi = 1, num.mixtures = 1,
+                                   gene.assignment = gene_assignment,
+                                   model = "FONSE",
+                                   phi.prior = "mixture-lognormal"),
+        "supported only with model = 'ROC'"
+    )
+})
+
+
+# ---------------- 12b smoke test: ROC MCMC under mixture-LN prior ----------------
+
+test_that("ROC MCMC runs under phi.prior = 'mixture-lognormal' without NaN/Inf", {
+    # Smoke test that the mixture prior wiring (task #12b) is exercised by
+    # the MCMC loops and produces finite log-posteriors. Mixture hyperparams
+    # stay frozen at the init values (their MCMC update step lands in 12c).
+    fasta <- file.path("UnitTestingData", "testMCMCROCFiles", "simulatedAllUniqueR.fasta")
+    skip_if_not(file.exists(fasta), "test fixture FASTA missing")
+
+    set.seed(12345)
+    genome_local <- initializeGenomeObject(file = fasta)
+    geneAssignment_local <- rep(1, length(genome_local))
+
+    parameter <- initializeParameterObject(
+        genome = genome_local, sphi = 1, num.mixtures = 1,
+        gene.assignment = geneAssignment_local,
+        model = "ROC",
+        phi.prior = "mixture-lognormal",
+        phi.prior.constraint = "mean",
+        phi.prior.init = list(p = 0.9, mu1 = -0.4, sigma1 = 0.4, sigma2 = 0.25)
+    )
+    expect_equal(parameter$getPhiPriorType(), PRIOR_MIXTURE)
+    expect_true(is.finite(parameter$getPhiMixtureMu2Derived(0L)))
+
+    mcmc <- initializeMCMCObject(samples = 5, thinning = 2, adaptive.width = 5,
+                                  est.expression = TRUE, est.csp = TRUE,
+                                  est.hyper = TRUE)
+    model <- initializeModelObject(parameter, "ROC", with.phi = FALSE)
+
+    outFile <- file.path("UnitTestingOut", "testPhiMixtureMCMCLog.txt")
+    sink(outFile)
+    runMCMC(mcmc = mcmc, genome = genome_local, model = model, ncores = 1,
+            divergence.iteration = 0)
+    sink()
+
+    trace <- mcmc$getLogPosteriorTrace()
+    # The first entry can be 0 on a fresh chain; check the chain body.
+    body <- trace[-1]
+    expect_true(all(is.finite(body)),
+                info = paste("non-finite logPosterior values:",
+                              paste(body[!is.finite(body)], collapse = ", ")))
+})
