@@ -89,6 +89,47 @@ parameter <- initializeParameterObject(genome = genome, sphi = c(0.5, 2), num.mi
 
 To accommodate for this mixing we only have to adjust `sphi`, which is now a vector of length 2,  `num.mixtures`, and `gene.assignment`, which is chosen at random here.
 
+### Mixture-of-two-lognormal prior on $\phi$ (ROC)
+
+The default ROC prior on the synthesis rate $\phi$ is a single LogNormal anchored at $E[\phi]=1$. For genomes whose synthesis-rate distribution is better described by two log-normal components (for example, a bulk distribution plus a high-expression tail), ROC supports an alternative prior:
+
+\begin{align}
+f(\phi) = p \cdot \text{LN}(\mu_1, \sigma_1) + (1-p) \cdot \text{LN}(\mu_2, \sigma_2)
+\end{align}
+
+where $\mu_2$ is **derived** from one of two user-selectable constraints on the mixture, so the prior remains anchored at $E[\phi]=1$ (or $\text{Median}[\phi]=1$):
+
+- `phi.prior.constraint = "mean"` (default): $\,p\,e^{\mu_1+\sigma_1^2/2} + (1-p)\,e^{\mu_2+\sigma_2^2/2} = 1$
+- `phi.prior.constraint = "median"`: $\,p\,\Phi(-\mu_1/\sigma_1) + (1-p)\,\Phi(-\mu_2/\sigma_2) = 0.5$
+
+Both have closed-form solutions for $\mu_2$. The four free parameters $(p, \mu_1, \sigma_1, \sigma_2)$ are sampled by a single-site Metropolis-Hastings step alongside the rest of the ROC chain.
+
+```{r, echo = TRUE, eval = FALSE}
+parameter <- initializeParameterObject(
+    genome = genome, sphi = 1, num.mixtures = 1,
+    gene.assignment = rep(1, length(genome)),
+    model = "ROC",
+    phi.prior = "mixture-lognormal",
+    phi.prior.constraint = "mean",          # or "median"
+    phi.prior.init = list(p = 0.9, mu1 = -0.4,
+                           sigma1 = 0.4, sigma2 = 0.25)
+)
+```
+
+**Identifiability constraints.** To rule out label-switching the sampler enforces $\mu_2 \geq \mu_1$ as a hard prior wall. Soft priors discourage degenerate mixtures: $p \sim \text{Beta}(8,2)$ (encodes "$p > 0.8$"), $\sigma_1 \sim$ half-Normal, $\sigma_2 \sim$ half-Normal truncated above by $\sigma_1$ ("$\sigma_2 < \sigma_1$"). Any of these can be overridden via `phi.prior.hyperparams = list(p = list(alpha = ..., beta = ...), ...)`.
+
+**Identifiability caveat.** Simulation studies (`prototypes/phi_mixture_identifiability_report.md`) show the dominant axis of weak identifiability is the mode separation $\mu_2 - \mu_1$. When the posterior mean of $\mu_2 - \mu_1$ is small ($< 0.2$ on the log scale, roughly), the model has collapsed to a single log-normal and $p$ becomes unidentifiable -- this is correct behavior, not a bug. A small posterior credible interval near zero on $\mu_2 - \mu_1$ is the diagnostic for "is this really a mixture?"; if so, the simpler `phi.prior = "lognormal"` is preferred.
+
+Posterior traces are available via the standard trace API:
+
+```{r, echo = TRUE, eval = FALSE}
+trace <- parameter$getTraceObject()
+p_trace      <- trace$getPhiMixturePTrace()      # list, one vector per mixture category
+mu1_trace    <- trace$getPhiMixtureMu1Trace()
+sigma1_trace <- trace$getPhiMixtureSigma1Trace()
+sigma2_trace <- trace$getPhiMixtureSigma2Trace()
+```
+
 ### Using empirical protein synthesis rate values
 To use empirical values as prior information one can simply specify an `observed.expression.file` when initializing the genome object.
 

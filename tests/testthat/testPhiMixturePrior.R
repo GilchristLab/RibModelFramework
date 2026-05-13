@@ -411,6 +411,86 @@ test_that("acceptance-rate trace pushes one value per adaptation window", {
 })
 
 
+test_that("posterior recovers mixture hyperparams from simulated phi (integration)", {
+    # End-to-end recovery check: simulate phi from a known mixture, feed those
+    # phi values to AnaCoDa with est.expression = FALSE so the synthesis
+    # rates stay fixed at truth, and verify the C++ M-H sampler's posterior
+    # means roughly recover the four mixture hyperparams.
+    #
+    # Tolerance is loose because (a) the chain is short (test budget), (b)
+    # the codon counts in the fixture were generated under single-LN phi so
+    # csp updates may thrash, and (c) the mixture step inherits whatever
+    # noise that produces in the (fixed) phi values. The mixture update sees
+    # only the phi values, not the codon data, so signal should still be
+    # strong enough to land within a few standard errors of truth.
+    fasta <- file.path("UnitTestingData", "testMCMCROCFiles", "simulatedAllUniqueR.fasta")
+    skip_if_not(file.exists(fasta), "test fixture FASTA missing")
+
+    set.seed(20260513)
+    genome_local <- initializeGenomeObject(file = fasta)
+    n_genes <- length(genome_local)
+
+    # Truth: well-identified regime A from prototypes/phi_mixture_identifiability.R
+    true_p  <- 0.85; true_mu1 <- -0.40
+    true_s1 <- 0.40; true_s2  <- 0.25
+    # mu2 from the mean=1 constraint, closed form
+    true_mu2 <- log((1 - true_p * exp(true_mu1 + true_s1^2 / 2)) /
+                    (1 - true_p)) - true_s2^2 / 2
+
+    # Simulate phi from the mixture
+    component <- rbinom(n_genes, size = 1, prob = true_p)  # 1 with prob p
+    phi_sim <- numeric(n_genes)
+    n1 <- sum(component == 1); n2 <- n_genes - n1
+    phi_sim[component == 1] <- rlnorm(n1, meanlog = true_mu1, sdlog = true_s1)
+    phi_sim[component == 0] <- rlnorm(n2, meanlog = true_mu2, sdlog = true_s2)
+
+    parameter <- initializeParameterObject(
+        genome = genome_local, sphi = 1, num.mixtures = 1,
+        gene.assignment = rep(1, n_genes),
+        initial.expression.values = phi_sim,
+        model = "ROC",
+        phi.prior = "mixture-lognormal",
+        phi.prior.constraint = "mean",
+        # Start moderately off from truth so the chain has to move
+        phi.prior.init = list(p = 0.92, mu1 = -0.2, sigma1 = 0.5, sigma2 = 0.3)
+    )
+
+    # est.expression = FALSE: keep phi fixed at the simulated mixture truth.
+    mcmc <- initializeMCMCObject(samples = 200, thinning = 2,
+                                  adaptive.width = 25,
+                                  est.expression = FALSE, est.csp = TRUE,
+                                  est.hyper = TRUE)
+    model <- initializeModelObject(parameter, "ROC", with.phi = FALSE)
+    sink(tempfile())
+    runMCMC(mcmc = mcmc, genome = genome_local, model = model, ncores = 1,
+            divergence.iteration = 0)
+    sink()
+
+    # Drop a generous burn-in for posterior means.
+    trace <- parameter$getTraceObject()
+    pSamples  <- trace$getPhiMixturePTrace()[[1]]
+    m1Samples <- trace$getPhiMixtureMu1Trace()[[1]]
+    s1Samples <- trace$getPhiMixtureSigma1Trace()[[1]]
+    s2Samples <- trace$getPhiMixtureSigma2Trace()[[1]]
+    keep <- (length(pSamples) %/% 2 + 1):length(pSamples)
+    p_post  <- mean(pSamples[keep])
+    m1_post <- mean(m1Samples[keep])
+    s1_post <- mean(s1Samples[keep])
+    s2_post <- mean(s2Samples[keep])
+
+    # Loose tolerance: posterior mean within ~0.15 of truth on each free
+    # param. Tighter than this is unreliable for a 200-sample chain.
+    expect_lt(abs(p_post  - true_p),  0.12)
+    expect_lt(abs(m1_post - true_mu1), 0.20)
+    expect_lt(abs(s1_post - true_s1), 0.15)
+    expect_lt(abs(s2_post - true_s2), 0.15)
+
+    # Label-switching guard: posterior mean state must satisfy mu2 >= mu1
+    final_mu2 <- parameter$getPhiMixtureMu2Derived(0L)
+    expect_gte(final_mu2, parameter$getPhiMixtureMu1(0L, FALSE))
+})
+
+
 test_that("default phi.prior = 'lognormal' does NOT call mixture update step", {
     # Counter check: with the default prior, the mixture update is a no-op
     # (early return). Accept counters should stay at zero across MCMC.
