@@ -30,6 +30,15 @@ RCPP_MODULE(Trace_mod)
     .method("getMixtureProbabilitiesTraceForMixture", &Trace::getMixtureProbabilitiesTraceForMixtureR)
     .method("getStdDevSynthesisRateTraces", &Trace::getStdDevSynthesisRateTraces)
     .method("getNumberOfMixtures", &Trace::getNumberOfMixtures)
+    // Phi mixture hyperparam traces (task #12c.2)
+    .method("getPhiMixturePTrace",      &Trace::getPhiMixturePTrace)
+    .method("getPhiMixtureMu1Trace",    &Trace::getPhiMixtureMu1Trace)
+    .method("getPhiMixtureSigma1Trace", &Trace::getPhiMixtureSigma1Trace)
+    .method("getPhiMixtureSigma2Trace", &Trace::getPhiMixtureSigma2Trace)
+    .method("getPhiMixturePAcceptanceRateTrace",      &Trace::getPhiMixturePAcceptanceRateTrace)
+    .method("getPhiMixtureMu1AcceptanceRateTrace",    &Trace::getPhiMixtureMu1AcceptanceRateTrace)
+    .method("getPhiMixtureSigma1AcceptanceRateTrace", &Trace::getPhiMixtureSigma1AcceptanceRateTrace)
+    .method("getPhiMixtureSigma2AcceptanceRateTrace", &Trace::getPhiMixtureSigma2AcceptanceRateTrace)
     
 
     //Setter Functions:

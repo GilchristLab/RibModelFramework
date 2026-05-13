@@ -46,6 +46,19 @@ class Trace {
 		std::vector<std::vector <double>> partitionFunctionTrace;
 		std::vector<double> partitionFunctionTraceAcceptanceRateTrace;
 
+		// Phi mixture prior hyperparameter traces (task #12c.2).
+		// Shape: [synthesisRateCategory][sample]. Always allocated; populated
+		// only when phiPriorType == PHI_PRIOR_MIXTURE_LN.
+		std::vector<std::vector<double>> phiMixturePTrace;
+		std::vector<std::vector<double>> phiMixtureMu1Trace;
+		std::vector<std::vector<double>> phiMixtureSigma1Trace;
+		std::vector<std::vector<double>> phiMixtureSigma2Trace;
+		// Acceptance-rate traces (one value per adaptation window).
+		std::vector<double> phiMixturePAcceptanceRateTrace;
+		std::vector<double> phiMixtureMu1AcceptanceRateTrace;
+		std::vector<double> phiMixtureSigma1AcceptanceRateTrace;
+		std::vector<double> phiMixtureSigma2AcceptanceRateTrace;
+
 		//--------------------------------------//
 		//------ Initialization Functions ------//
 		//--------------------------------------//
@@ -183,6 +196,21 @@ class Trace {
         std::vector<std::vector<double>> getNseRateSpecificAcceptanceRateTrace();
         void setPartitionFunctionTraces(std::vector<std::vector <double> > _PartitionFunctionTrace);
         std::vector<std::vector<double>> getPartitionFunctionTraces();
+
+        // Phi mixture prior hyperparameter trace API (task #12c.2).
+        void initPhiMixtureTraces(unsigned numSynthesisRateCategories, unsigned samples);
+        void updatePhiMixtureTrace(unsigned sample, unsigned synthesisRateCategory,
+                                    double p, double mu1, double sigma1, double sigma2);
+        void updatePhiMixtureAcceptanceRateTraces(double pRate, double mu1Rate,
+                                                   double sigma1Rate, double sigma2Rate);
+        std::vector<std::vector<double>> getPhiMixturePTrace();
+        std::vector<std::vector<double>> getPhiMixtureMu1Trace();
+        std::vector<std::vector<double>> getPhiMixtureSigma1Trace();
+        std::vector<std::vector<double>> getPhiMixtureSigma2Trace();
+        std::vector<double> getPhiMixturePAcceptanceRateTrace();
+        std::vector<double> getPhiMixtureMu1AcceptanceRateTrace();
+        std::vector<double> getPhiMixtureSigma1AcceptanceRateTrace();
+        std::vector<double> getPhiMixtureSigma2AcceptanceRateTrace();
 
 
 

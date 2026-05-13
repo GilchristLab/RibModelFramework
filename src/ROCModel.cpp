@@ -529,6 +529,9 @@ void ROCModel::updateCodonSpecificParameterTrace(unsigned sample, std::string gr
 void ROCModel::updateHyperParameterTraces(unsigned sample)
 {
 	updateStdDevSynthesisRateTrace(sample);
+	// Task #12c.2: write phi-mixture hyperparams into their traces.
+	// No-op for SINGLE_LN (early return inside Parameter).
+	parameter->updatePhiMixtureTrace(sample);
 	if (withPhi)
 	{
 		updateNoiseOffsetTrace(sample);
@@ -575,6 +578,8 @@ void ROCModel::adaptCodonSpecificParameterProposalWidth(unsigned adaptiveWidth, 
 void ROCModel::adaptHyperParameterProposalWidths(unsigned adaptiveWidth, bool adapt)
 {
 	adaptStdDevSynthesisRateProposalWidth(adaptiveWidth, adapt);
+	// Task #12c.2: adapt phi-mixture proposal widths (no-op for SINGLE_LN).
+	parameter->adaptPhiMixtureProposalWidths(adaptiveWidth, adapt);
 	if (withPhi)
 		adaptNoiseOffsetProposalWidth(adaptiveWidth, adapt);
 }

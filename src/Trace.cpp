@@ -51,6 +51,7 @@ void Trace::initializeSharedTraces(unsigned samples, unsigned num_genes, unsigne
 	//numSelectionCategories always == numSynthesisRateCategories, so only one is passed in for convenience
 
 	initStdDevSynthesisRateTrace(numSelectionCategories, samples);
+	initPhiMixtureTraces(numSelectionCategories, samples);
 	initSynthesisRateAcceptanceRateTrace(num_genes, numSelectionCategories);
 	codonSpecificAcceptanceRateTrace.resize(maxGrouping);
 	initSynthesisRateTrace(samples, num_genes, numSelectionCategories,init_phi,estimateSynthesisRate);
@@ -71,6 +72,19 @@ void Trace::initStdDevSynthesisRateTrace(unsigned numSelectionCategories, unsign
 		std::vector<double> temp(samples, 0.0);
 		stdDevSynthesisRateTrace[i] = temp;
 	}
+}
+
+
+void Trace::initPhiMixtureTraces(unsigned numSynthesisRateCategories, unsigned samples)
+{
+	phiMixturePTrace.assign(numSynthesisRateCategories, std::vector<double>(samples, 0.0));
+	phiMixtureMu1Trace.assign(numSynthesisRateCategories, std::vector<double>(samples, 0.0));
+	phiMixtureSigma1Trace.assign(numSynthesisRateCategories, std::vector<double>(samples, 0.0));
+	phiMixtureSigma2Trace.assign(numSynthesisRateCategories, std::vector<double>(samples, 0.0));
+	phiMixturePAcceptanceRateTrace.clear();
+	phiMixtureMu1AcceptanceRateTrace.clear();
+	phiMixtureSigma1AcceptanceRateTrace.clear();
+	phiMixtureSigma2AcceptanceRateTrace.clear();
 }
 
 
@@ -575,6 +589,26 @@ void Trace::updateStdDevSynthesisRateAcceptanceRateTrace(double acceptanceLevel)
 }
 
 
+void Trace::updatePhiMixtureTrace(unsigned sample, unsigned synthesisRateCategory,
+                                  double p, double mu1, double sigma1, double sigma2)
+{
+	phiMixturePTrace[synthesisRateCategory][sample]      = p;
+	phiMixtureMu1Trace[synthesisRateCategory][sample]    = mu1;
+	phiMixtureSigma1Trace[synthesisRateCategory][sample] = sigma1;
+	phiMixtureSigma2Trace[synthesisRateCategory][sample] = sigma2;
+}
+
+
+void Trace::updatePhiMixtureAcceptanceRateTraces(double pRate, double mu1Rate,
+                                                 double sigma1Rate, double sigma2Rate)
+{
+	phiMixturePAcceptanceRateTrace.push_back(pRate);
+	phiMixtureMu1AcceptanceRateTrace.push_back(mu1Rate);
+	phiMixtureSigma1AcceptanceRateTrace.push_back(sigma1Rate);
+	phiMixtureSigma2AcceptanceRateTrace.push_back(sigma2Rate);
+}
+
+
 void Trace::updateSynthesisRateAcceptanceRateTrace(unsigned category, unsigned geneIndex, double acceptanceLevel)
 {
 	synthesisRateAcceptanceRateTrace[category][geneIndex].push_back(acceptanceLevel);
@@ -780,6 +814,16 @@ std::vector<std::vector<double>> Trace::getStdDevSynthesisRateTraces()
 {
 	return stdDevSynthesisRateTrace;
 }
+
+
+std::vector<std::vector<double>> Trace::getPhiMixturePTrace()      { return phiMixturePTrace; }
+std::vector<std::vector<double>> Trace::getPhiMixtureMu1Trace()    { return phiMixtureMu1Trace; }
+std::vector<std::vector<double>> Trace::getPhiMixtureSigma1Trace() { return phiMixtureSigma1Trace; }
+std::vector<std::vector<double>> Trace::getPhiMixtureSigma2Trace() { return phiMixtureSigma2Trace; }
+std::vector<double> Trace::getPhiMixturePAcceptanceRateTrace()      { return phiMixturePAcceptanceRateTrace; }
+std::vector<double> Trace::getPhiMixtureMu1AcceptanceRateTrace()    { return phiMixtureMu1AcceptanceRateTrace; }
+std::vector<double> Trace::getPhiMixtureSigma1AcceptanceRateTrace() { return phiMixtureSigma1AcceptanceRateTrace; }
+std::vector<double> Trace::getPhiMixtureSigma2AcceptanceRateTrace() { return phiMixtureSigma2AcceptanceRateTrace; }
 
 //TODO: How well does this generalize?
 unsigned Trace::getNumberOfMixtures()

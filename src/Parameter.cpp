@@ -2985,6 +2985,58 @@ unsigned Parameter::getNumAcceptForPhiMixtureSigma1() { return numAcceptForPhiMi
 unsigned Parameter::getNumAcceptForPhiMixtureSigma2() { return numAcceptForPhiMixtureSigma2; }
 
 
+void Parameter::updatePhiMixtureTrace(unsigned sample)
+{
+	if (phiPriorType != PHI_PRIOR_MIXTURE_LN) return;
+	for (unsigned k = 0u; k < numSynthesisRateCategories; k++)
+	{
+		traces.updatePhiMixtureTrace(sample, k,
+		                              phiMixtureP[k],
+		                              phiMixtureMu1[k],
+		                              phiMixtureSigma1[k],
+		                              phiMixtureSigma2[k]);
+	}
+}
+
+
+void Parameter::adaptPhiMixtureProposalWidths(unsigned adaptationWidth, bool adapt)
+{
+	if (phiPriorType != PHI_PRIOR_MIXTURE_LN) return;
+
+	// Acceptance rate computed against per-iteration M-H attempts. With one
+	// attempt per category per iteration, the denominator is
+	// adaptationWidth * numSynthesisRateCategories.
+	double denom = (double)adaptationWidth * (double)numSynthesisRateCategories;
+	if (denom <= 0.0) return;
+
+	double pRate  = (double)numAcceptForPhiMixtureP      / denom;
+	double m1Rate = (double)numAcceptForPhiMixtureMu1    / denom;
+	double s1Rate = (double)numAcceptForPhiMixtureSigma1 / denom;
+	double s2Rate = (double)numAcceptForPhiMixtureSigma2 / denom;
+
+	traces.updatePhiMixtureAcceptanceRateTraces(pRate, m1Rate, s1Rate, s2Rate);
+
+	if (adapt)
+	{
+		// Same 0.2/0.3 brackets and 0.8/1.2 multipliers as
+		// adaptStdDevSynthesisRateProposalWidth, applied per param.
+		auto adjust = [](double rate, double& width) {
+			if (rate < 0.2) width *= 0.8;
+			if (rate > 0.3) width *= 1.2;
+		};
+		adjust(pRate,  std_phiMixtureP);
+		adjust(m1Rate, std_phiMixtureMu1);
+		adjust(s1Rate, std_phiMixtureSigma1);
+		adjust(s2Rate, std_phiMixtureSigma2);
+	}
+
+	numAcceptForPhiMixtureP      = 0u;
+	numAcceptForPhiMixtureMu1    = 0u;
+	numAcceptForPhiMixtureSigma1 = 0u;
+	numAcceptForPhiMixtureSigma2 = 0u;
+}
+
+
 
 
 

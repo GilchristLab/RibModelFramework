@@ -184,12 +184,20 @@ class Parameter {
 		void updatePhiMixtureHyperparameters(Genome& genome);
 
 		// Accept counters for the four mixture hyperparams. Reset each
-		// adaptive-width window in 12c.2; in 12c.1 they grow monotonically
-		// and are exposed only for testing.
+		// adaptive-width window (task #12c.2).
 		unsigned getNumAcceptForPhiMixtureP();
 		unsigned getNumAcceptForPhiMixtureMu1();
 		unsigned getNumAcceptForPhiMixtureSigma1();
 		unsigned getNumAcceptForPhiMixtureSigma2();
+
+		// Write the current (p, mu1, sigma1, sigma2) per mixture category into
+		// the trace at this sample index. No-op for SINGLE_LN (task #12c.2).
+		void updatePhiMixtureTrace(unsigned sample);
+
+		// Adapt the four proposal widths toward target acceptance ~0.25, mirror
+		// of adaptStdDevSynthesisRateProposalWidth. Pushes one acceptance-rate
+		// trace point per param and resets accept counters (task #12c.2).
+		void adaptPhiMixtureProposalWidths(unsigned adaptationWidth, bool adapt);
 
 
 		//Synthesis Rate Functions: Mostly tested, see comments

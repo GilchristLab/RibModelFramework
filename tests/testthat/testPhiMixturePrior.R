@@ -301,12 +301,19 @@ test_that("mixture hyperparams move during MCMC under phi.prior = 'mixture-logno
             divergence.iteration = 0)
     sink()
 
-    # Counters: at least one of the 4 hyperparams should have accepted.
-    totalAccepts <- parameter$getNumAcceptForPhiMixtureP() +
-                    parameter$getNumAcceptForPhiMixtureMu1() +
-                    parameter$getNumAcceptForPhiMixtureSigma1() +
-                    parameter$getNumAcceptForPhiMixtureSigma2()
-    expect_gt(totalAccepts, 0)
+    # Traces: at least one trace should show a value different from init,
+    # i.e. at least one accept across the run. (The live accept counters
+    # reset every adaptation window in 12c.2, so we check the trace instead.)
+    trace <- parameter$getTraceObject()
+    pTrace  <- trace$getPhiMixturePTrace()[[1]]
+    m1Trace <- trace$getPhiMixtureMu1Trace()[[1]]
+    s1Trace <- trace$getPhiMixtureSigma1Trace()[[1]]
+    s2Trace <- trace$getPhiMixtureSigma2Trace()[[1]]
+    movedAny <- length(unique(pTrace[-1]))  > 1 ||
+                length(unique(m1Trace[-1])) > 1 ||
+                length(unique(s1Trace[-1])) > 1 ||
+                length(unique(s2Trace[-1])) > 1
+    expect_true(movedAny)
 
     # Current values: at least one should have moved from init.
     moved <- (parameter$getPhiMixtureP(0L, FALSE)       != init_p)  ||
@@ -318,6 +325,89 @@ test_that("mixture hyperparams move during MCMC under phi.prior = 'mixture-logno
     # The derived mu2 should still satisfy mu2 >= mu1 (label-switching guard).
     expect_gte(parameter$getPhiMixtureMu2Derived(0L),
                 parameter$getPhiMixtureMu1(0L, FALSE))
+})
+
+
+test_that("mixture hyperparam traces populate during MCMC (task #12c.2)", {
+    fasta <- file.path("UnitTestingData", "testMCMCROCFiles", "simulatedAllUniqueR.fasta")
+    skip_if_not(file.exists(fasta), "test fixture FASTA missing")
+
+    set.seed(2024)
+    genome_local <- initializeGenomeObject(file = fasta)
+    geneAssignment_local <- rep(1, length(genome_local))
+
+    parameter <- initializeParameterObject(
+        genome = genome_local, sphi = 1, num.mixtures = 1,
+        gene.assignment = geneAssignment_local,
+        model = "ROC",
+        phi.prior = "mixture-lognormal",
+        phi.prior.init = list(p = 0.85, mu1 = -0.4, sigma1 = 0.4, sigma2 = 0.25)
+    )
+    n_samples <- 20
+    mcmc <- initializeMCMCObject(samples = n_samples, thinning = 1,
+                                  adaptive.width = 5,
+                                  est.expression = TRUE, est.csp = TRUE,
+                                  est.hyper = TRUE)
+    model <- initializeModelObject(parameter, "ROC", with.phi = FALSE)
+    sink(tempfile())
+    runMCMC(mcmc = mcmc, genome = genome_local, model = model, ncores = 1,
+            divergence.iteration = 0)
+    sink()
+
+    trace <- parameter$getTraceObject()
+    pTrace  <- trace$getPhiMixturePTrace()
+    m1Trace <- trace$getPhiMixtureMu1Trace()
+    s1Trace <- trace$getPhiMixtureSigma1Trace()
+    s2Trace <- trace$getPhiMixtureSigma2Trace()
+
+    # All 4 traces should have one row per mixture category, n_samples+1 entries.
+    expect_equal(length(pTrace), 1)
+    expect_equal(length(pTrace[[1]]), n_samples + 1)
+
+    # At least some entries should differ from the init value (chain moved).
+    expect_true(any(pTrace[[1]][-1] != 0.85) ||
+                any(m1Trace[[1]][-1] != -0.4) ||
+                any(s1Trace[[1]][-1] != 0.4) ||
+                any(s2Trace[[1]][-1] != 0.25))
+
+    # All trace values within sane ranges (no NaN/Inf).
+    expect_true(all(is.finite(pTrace[[1]])))
+    expect_true(all(is.finite(m1Trace[[1]])))
+    expect_true(all(is.finite(s1Trace[[1]])))
+    expect_true(all(is.finite(s2Trace[[1]])))
+})
+
+
+test_that("acceptance-rate trace pushes one value per adaptation window", {
+    fasta <- file.path("UnitTestingData", "testMCMCROCFiles", "simulatedAllUniqueR.fasta")
+    skip_if_not(file.exists(fasta), "test fixture FASTA missing")
+
+    set.seed(7)
+    genome_local <- initializeGenomeObject(file = fasta)
+    geneAssignment_local <- rep(1, length(genome_local))
+
+    parameter <- initializeParameterObject(
+        genome = genome_local, sphi = 1, num.mixtures = 1,
+        gene.assignment = geneAssignment_local,
+        model = "ROC",
+        phi.prior = "mixture-lognormal"
+    )
+    # 30 iters with adaptive.width=10 -> expect ~3 acceptance rate entries.
+    mcmc <- initializeMCMCObject(samples = 30, thinning = 1,
+                                  adaptive.width = 10,
+                                  est.expression = TRUE, est.csp = TRUE,
+                                  est.hyper = TRUE)
+    model <- initializeModelObject(parameter, "ROC", with.phi = FALSE)
+    sink(tempfile())
+    runMCMC(mcmc = mcmc, genome = genome_local, model = model, ncores = 1,
+            divergence.iteration = 0)
+    sink()
+
+    trace <- parameter$getTraceObject()
+    pRates <- trace$getPhiMixturePAcceptanceRateTrace()
+    expect_gte(length(pRates), 2)
+    expect_true(all(is.finite(pRates)))
+    expect_true(all(pRates >= 0 & pRates <= 1))
 })
 
 
