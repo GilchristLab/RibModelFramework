@@ -305,8 +305,98 @@ as.mcmc.Rcpp_MCMCAlgorithm <- function(x, what = c("LogPosterior", "LogLikelihoo
   coda::mcmc(data = trace, thin = thin)
 }
 
+#' Gelman-Rubin Convergence Test across Independent MCMC Runs
+#'
+#' Compute the Gelman-Rubin potential scale reduction factor (R-hat) from a list
+#' of independent chains. Wraps \code{coda::gelman.diag} after extracting matching
+#' traces via \code{\link{as.mcmc}}.
+#'
+#' @param chains a list of length >= 2 containing either all \code{Rcpp_MCMCAlgorithm}
+#'   objects or all \code{Rcpp_Trace} objects. Each element must come from an
+#'   independent run with the same model structure (so trace dimensionalities match).
+#' @param samples optional integer. If supplied, restrict the test to the last
+#'   \code{samples} samples of each chain (clamped to the chain length).
+#' @param what which trace to test. For MCMC chains: \code{"LogPosterior"} (default)
+#'   or \code{"LogLikelihood"}. For Trace chains: \code{"Mutation"} (default),
+#'   \code{"Selection"}, \code{"Sphi"}, etc. -- any value accepted by
+#'   \code{\link{as.mcmc}} for the corresponding type.
+#' @param mixture mixture index for mixture-specific Trace parameters.
+#' @param thin thinning interval recorded as metadata on the coda objects.
+#' @param autoburnin passed to \code{coda::gelman.diag}; \code{FALSE} by default
+#'   (the caller is assumed to have already discarded burn-in or to be using
+#'   the \code{samples} window for that purpose).
+#' @param multivariate passed to \code{coda::gelman.diag}; \code{FALSE} by default
+#'   because multivariate PSRF requires the within-chain covariance to be invertible,
+#'   which fails for high-dimensional codon traces with short chains.
+#' @param ... unused.
+#'
+#' @return a \code{gelman.diag} object. \code{$psrf} is a matrix with point
+#'   estimates and upper confidence limits per variable; values near 1.0 (commonly
+#'   < 1.1) indicate the chains have mixed.
+#'
+#' @seealso \code{\link{convergence.test}} for the within-chain (Geweke) test,
+#'   \code{\link[coda]{gelman.diag}}.
+#'
+#' @examples
+#' \dontrun{
+#' # Run two independent chains with different seeds, same model:
+#' chains <- lapply(c(1, 2), function(seed) {
+#'     set.seed(seed)
+#'     mcmc <- initializeMCMCObject(samples = 2000, thinning = 10,
+#'                                   adaptive.width = 50, est.expression = TRUE,
+#'                                   est.csp = TRUE, est.hyper = TRUE)
+#'     runMCMC(mcmc, genome, model, ncores = 1)
+#'     mcmc
+#' })
+#' gelman.test(chains)                                  # on logPosterior
+#' gelman.test(lapply(parameters, getTrace), what = "Mutation")  # on codon traces
+#' }
+#'
+#' @export
+gelman.test <- function(chains, samples = NULL, what = NULL, mixture = 1,
+                        thin = 1, autoburnin = FALSE, multivariate = FALSE, ...)
+{
+  if (!is.list(chains) || length(chains) < 2)
+    stop("gelman.test requires a list of at least 2 chain objects")
 
-#' Write MCMC Object 
+  types <- vapply(chains, function(o) {
+    if (inherits(o, "Rcpp_MCMCAlgorithm")) "MCMC"
+    else if (inherits(o, "Rcpp_Trace")) "Trace"
+    else "other"
+  }, character(1))
+
+  if (any(types == "other"))
+    stop("gelman.test: list elements must be Rcpp_MCMCAlgorithm or Rcpp_Trace")
+  if (length(unique(types)) > 1)
+    stop("gelman.test: all chains must be the same type (all MCMC or all Trace)")
+
+  chain_type <- types[1]
+  if (is.null(what))
+    what <- if (chain_type == "MCMC") "LogPosterior" else "Mutation"
+
+  mcmcs <- lapply(chains, function(obj) {
+    if (chain_type == "MCMC") {
+      as.mcmc(obj, what = what, thin = thin)
+    } else {
+      as.mcmc(obj, what = what, mixture = mixture, thin = thin)
+    }
+  })
+
+  if (!is.null(samples)) {
+    mcmcs <- lapply(mcmcs, function(m) {
+      n <- NROW(m)
+      win <- min(samples, n)
+      coda::mcmc(utils::tail(m, n = win), thin = thin)
+    })
+  }
+
+  coda::gelman.diag(coda::mcmc.list(mcmcs),
+                    autoburnin = autoburnin,
+                    multivariate = multivariate)
+}
+
+
+#' Write MCMC Object
 #' 
 #' @param mcmc MCMC object that has run the model fitting algorithm.
 #' 

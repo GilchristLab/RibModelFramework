@@ -156,3 +156,62 @@ test_that("coda::effectiveSize on Mutation trace returns one ESS per codon", {
   expect_gt(length(ess), 30)
   expect_true(all(is.finite(ess[ess > 0])))
 })
+
+
+## ---- gelman.test (between-chain) -------------------------------------------
+
+# A second independent chain with the same model structure but a different RNG
+# stream. Required for Gelman-Rubin (needs >=2 chains). Kept small for speed --
+# PSRF estimates won't be meaningful at this length, but the structural and
+# error-handling contract is what these tests assert.
+
+set.seed(20260514)
+mcmc2 <- initializeMCMCObject(samples = samples, thinning = thinning,
+                              adaptive.width = adaptiveWidth,
+                              est.expression = TRUE, est.csp = TRUE, est.hyper = TRUE)
+geneAssignment2 <- sample(c(1, 2), size = length(genome), replace = TRUE,
+                          prob = c(0.3, 0.7))
+parameter2 <- initializeParameterObject(genome, sphi_init, numMixtures,
+                                        geneAssignment2, split.serine = TRUE,
+                                        mixture.definition = "allUnique")
+model2 <- initializeModelObject(parameter2, "ROC", with.phi = FALSE)
+
+sink(file.path("UnitTestingOut", "testConvergenceLog2.txt"))
+runMCMC(mcmc = mcmc2, genome = genome, model = model2, ncores = 1)
+sink()
+
+trace2 <- parameter2$getTraceObject()
+
+
+test_that("gelman.test on two MCMC chains returns gelman.diag", {
+  g <- gelman.test(list(mcmc, mcmc2))
+  expect_s3_class(g, "gelman.diag")
+  expect_true(is.matrix(g$psrf))
+  expect_equal(nrow(g$psrf), 1) # logPosterior is a single series
+  expect_true(all(is.finite(g$psrf[, "Point est."])))
+})
+
+test_that("gelman.test on two Trace, what='Sphi' returns PSRF per mixture", {
+  g <- gelman.test(list(trace, trace2), what = "Sphi")
+  expect_s3_class(g, "gelman.diag")
+  expect_equal(nrow(g$psrf), numMixtures)
+})
+
+test_that("gelman.test windowing reduces chain length symmetrically", {
+  expect_silent(gelman.test(list(mcmc, mcmc2), samples = 20))
+})
+
+test_that("gelman.test errors on a single chain", {
+  expect_error(gelman.test(list(mcmc)),
+               "at least 2 chain objects")
+})
+
+test_that("gelman.test errors on mixed MCMC + Trace types", {
+  expect_error(gelman.test(list(mcmc, trace)),
+               "same type")
+})
+
+test_that("gelman.test errors on a non-chain element", {
+  expect_error(gelman.test(list(mcmc, "not a chain")),
+               "Rcpp_MCMCAlgorithm or Rcpp_Trace")
+})
