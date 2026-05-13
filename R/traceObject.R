@@ -132,6 +132,8 @@ as.mcmc.Rcpp_Trace <- function(x, what = "Mutation", mixture = 1, thin = 1, ...)
 convergence.test.Rcpp_Trace <- function(object, samples = NULL, frac1 = 0.1,
                                         frac2 = 0.5, thin = 1, plot = FALSE, what = "Mutation", mixture = 1)
 {
+  if (!is.null(samples) && samples < 1)
+    stop("`samples` must be a positive integer or NULL")
   trace <- .extract_trace_matrix(object, what, mixture)
   trace.length <- NROW(trace)
   window <- if (is.null(samples)) trace.length else min(samples, trace.length)

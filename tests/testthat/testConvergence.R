@@ -215,3 +215,74 @@ test_that("gelman.test errors on a non-chain element", {
   expect_error(gelman.test(list(mcmc, "not a chain")),
                "Rcpp_MCMCAlgorithm or Rcpp_Trace")
 })
+
+test_that("gelman.test on Trace, what='Mutation' returns per-codon PSRF", {
+  g <- gelman.test(list(trace, trace2), what = "Mutation")
+  expect_s3_class(g, "gelman.diag")
+  expect_gt(nrow(g$psrf), 30) # ~40 non-stop, non-M/W codons
+})
+
+
+## ---- MixtureProbability path ------------------------------------------------
+
+test_that("as.mcmc(trace, what='MixtureProbability') has one column per mixture", {
+  m <- as.mcmc(trace, what = "MixtureProbability")
+  expect_s3_class(m, "mcmc")
+  expect_equal(nrow(m), trace_len)
+  expect_equal(ncol(m), numMixtures)
+})
+
+test_that("convergence.test(trace, what='MixtureProbability') returns one z per mixture", {
+  g <- convergence.test(trace, what = "MixtureProbability")
+  expect_s3_class(g, "geweke.diag")
+  expect_equal(length(g$z), numMixtures)
+})
+
+
+## ---- windowing actually trims -----------------------------------------------
+
+test_that("convergence.test(samples=N) matches manually-windowed coda::geweke.diag", {
+  # Regression guard: if the windowing path silently passes the full trace,
+  # these z-scores would differ from the hand-rolled equivalent below.
+  raw <- mcmc$getLogPosteriorTrace()
+  n <- max(15, trace_len %/% 2)
+  expected <- coda::geweke.diag(coda::mcmc(utils::tail(raw, n)))
+  actual   <- convergence.test(mcmc, samples = n)
+  expect_equal(as.numeric(actual$z), as.numeric(expected$z))
+})
+
+test_that("convergence.test(samples=N) for Trace matches manually-windowed result", {
+  # Note: cast to plain matrix before tail()+coda::mcmc() so coda doesn't carry
+  # over the original mcpar metadata, which would change geweke.diag's window
+  # boundaries.
+  raw <- as.matrix(as.mcmc(trace, what = "Sphi"))
+  n <- max(15, trace_len %/% 2)
+  expected <- coda::geweke.diag(coda::mcmc(utils::tail(raw, n)))
+  actual   <- convergence.test(trace, what = "Sphi", samples = n)
+  expect_equal(as.numeric(actual$z), as.numeric(expected$z))
+})
+
+
+## ---- plot = TRUE branch -----------------------------------------------------
+
+test_that("convergence.test(plot=TRUE) draws without error", {
+  pdf(NULL)
+  on.exit(dev.off(), add = TRUE)
+  expect_silent(convergence.test(mcmc, plot = TRUE))
+  expect_silent(convergence.test(trace, plot = TRUE, what = "Sphi"))
+})
+
+
+## ---- input validation ------------------------------------------------------
+
+test_that("convergence.test rejects samples <= 0", {
+  expect_error(convergence.test(mcmc, samples = 0),  "positive integer")
+  expect_error(convergence.test(mcmc, samples = -5), "positive integer")
+  expect_error(convergence.test(trace, samples = 0,  what = "Sphi"), "positive integer")
+  expect_error(convergence.test(trace, samples = -5, what = "Sphi"), "positive integer")
+})
+
+test_that("gelman.test rejects samples <= 0", {
+  expect_error(gelman.test(list(mcmc, mcmc2), samples = 0),  "positive integer")
+  expect_error(gelman.test(list(mcmc, mcmc2), samples = -5), "positive integer")
+})

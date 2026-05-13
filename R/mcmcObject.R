@@ -270,6 +270,8 @@ convergence.test <- function(object, samples = NULL, frac1 = 0.1, frac2 = 0.5,
 convergence.test.Rcpp_MCMCAlgorithm <- function(object, samples = NULL, frac1 = 0.1,
                                        frac2 = 0.5, thin = 1, plot = FALSE, what = "Mutation", mixture = 1){
   # TODO: extend to work with multiple chains once we have that capability.
+  if (!is.null(samples) && samples < 1)
+    stop("`samples` must be a positive integer or NULL")
   trace <- object$getLogPosteriorTrace()
   trace.length <- length(trace)
   window <- if (is.null(samples)) trace.length else min(samples, trace.length)
@@ -358,6 +360,8 @@ gelman.test <- function(chains, samples = NULL, what = NULL, mixture = 1,
 {
   if (!is.list(chains) || length(chains) < 2)
     stop("gelman.test requires a list of at least 2 chain objects")
+  if (!is.null(samples) && samples < 1)
+    stop("`samples` must be a positive integer or NULL")
 
   types <- vapply(chains, function(o) {
     if (inherits(o, "Rcpp_MCMCAlgorithm")) "MCMC"
