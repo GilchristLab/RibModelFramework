@@ -54,6 +54,13 @@ class Parameter {
 		static const unsigned lmPri;
 		static const unsigned nse;
 
+		// Phi prior selection codes (task #12: mixture phi prior).
+		// Defaults map to existing behavior (SINGLE_LN + MEAN).
+		static const unsigned PHI_PRIOR_SINGLE_LN;   // = 0; legacy single LogNormal (default)
+		static const unsigned PHI_PRIOR_MIXTURE_LN;  // = 1; mixture of two LogNormals
+		static const unsigned PHI_CONSTRAINT_MEAN;    // = 0; anchors E[phi]   = 1 (default)
+		static const unsigned PHI_CONSTRAINT_MEDIAN;  // = 1; anchors median[phi] = 1
+
 #ifdef STANDALONE
 		static std::default_random_engine generator; // static to make sure that the same generator is used during the runtime.
 #endif
@@ -119,6 +126,44 @@ class Parameter {
 		unsigned getNumAcceptForStdDevSynthesisRate(); //Only for unit testing.
 		void updateStdDevSynthesisRate(); //TODO: test
 		double getStdCspForIndex(unsigned i); //Only for unit testing.
+
+
+		// Phi prior type / mixture-LN storage (task #12a). Defaults preserve
+		// legacy behavior (single LogNormal anchored at E[phi]=1).
+		unsigned getPhiPriorType();
+		void setPhiPriorType(unsigned type);
+		unsigned getPhiPriorConstraint();
+		void setPhiPriorConstraint(unsigned constraint);
+
+		// Per-mixture-category mixture-LN parameters.
+		double getPhiMixtureP(unsigned mixtureCategory, bool proposed = false);
+		void setPhiMixtureP(double p, unsigned mixtureCategory);
+		double getPhiMixtureMu1(unsigned mixtureCategory, bool proposed = false);
+		void setPhiMixtureMu1(double mu1, unsigned mixtureCategory);
+		double getPhiMixtureSigma1(unsigned mixtureCategory, bool proposed = false);
+		void setPhiMixtureSigma1(double sigma1, unsigned mixtureCategory);
+		double getPhiMixtureSigma2(unsigned mixtureCategory, bool proposed = false);
+		void setPhiMixtureSigma2(double sigma2, unsigned mixtureCategory);
+		// mu2 is not stored; derived from the constraint at evaluation time.
+		double getPhiMixtureMu2Derived(unsigned mixtureCategory);
+
+		// Hyperparameter accessors.
+		double getPhiMixtureHyperPAlpha();
+		void setPhiMixtureHyperPAlpha(double v);
+		double getPhiMixtureHyperPBeta();
+		void setPhiMixtureHyperPBeta(double v);
+		double getPhiMixtureHyperMu1Mean();
+		void setPhiMixtureHyperMu1Mean(double v);
+		double getPhiMixtureHyperMu1Sd();
+		void setPhiMixtureHyperMu1Sd(double v);
+		double getPhiMixtureHyperSigma1Scale();
+		void setPhiMixtureHyperSigma1Scale(double v);
+		double getPhiMixtureHyperSigma2Scale();
+		void setPhiMixtureHyperSigma2Scale(double v);
+
+		// Resize storage to numSynthesisRateCategories and seed defaults.
+		// Called from initParameterSet; safe to call again to re-seed.
+		void initPhiMixtureStorage();
 
 
 		//Synthesis Rate Functions: Mostly tested, see comments
@@ -224,6 +269,22 @@ class Parameter {
 		static unsigned randMultinom(std::vector <double> &probabilities, unsigned mixtureElements);
 		static double densityNorm(double x, double mean, double sd, bool log = false);
 		static double densityLogNorm(double x, double mean, double sd, bool log = false);
+
+		// Closed-form derivation of mu2 for the mixture phi prior under either
+		// the mean=1 or median=1 constraint. See prototypes/phi_mixture.R for
+		// the math derivation. Returns NaN if the constraint is infeasible
+		// (the lower component alone already overshoots the anchor target).
+		// constraint: PHI_CONSTRAINT_MEAN or PHI_CONSTRAINT_MEDIAN.
+		static double deriveMu2(double p, double mu1, double sigma1, double sigma2,
+		                        unsigned constraint);
+
+		// Log-density of the constrained mixture-LN at x. Returns -DBL_MAX
+		// (the "impossible" sentinel used by densityLogNorm) when the
+		// derived mu2 is infeasible or violates the label-switching guard
+		// mu2 >= mu1. M-H ratios using this sentinel auto-reject the move.
+		static double densityLogNormMixture(double x, double p, double mu1,
+		                                    double sigma1, double sigma2,
+		                                    unsigned constraint, bool log = false);
 		//double getMixtureAssignmentPosteriorMean(unsigned samples, unsigned geneIndex);
 		// TODO: implement variance function, fix Mean function (won't work with 3 groups)
 
@@ -324,6 +385,43 @@ class Parameter {
 		double std_stdDevSynthesisRate;
 		unsigned numAcceptForStdDevSynthesisRate;
 		std::vector<double> std_csp;
+
+		// Phi prior selection (task #12). Default values map to legacy behavior:
+		// SINGLE_LN + MEAN constraint == LogNormal(-sigma^2/2, sigma).
+		unsigned phiPriorType;
+		unsigned phiPriorConstraint;
+
+		// Mixture-LN phi prior, per-mixture-category storage. Empty unless
+		// phiPriorType == PHI_PRIOR_MIXTURE_LN; resized in initPhiMixtureStorage().
+		// mu2 is NOT stored: it is derived from (p, mu1, sigma1, sigma2, constraint)
+		// at evaluation time.
+		std::vector<double> phiMixtureP;
+		std::vector<double> phiMixtureP_proposed;
+		std::vector<double> phiMixtureMu1;
+		std::vector<double> phiMixtureMu1_proposed;
+		std::vector<double> phiMixtureSigma1;
+		std::vector<double> phiMixtureSigma1_proposed;
+		std::vector<double> phiMixtureSigma2;
+		std::vector<double> phiMixtureSigma2_proposed;
+
+		// Per-param proposal widths and accept counters (used in 12c).
+		double std_phiMixtureP;
+		double std_phiMixtureMu1;
+		double std_phiMixtureSigma1;
+		double std_phiMixtureSigma2;
+		unsigned numAcceptForPhiMixtureP;
+		unsigned numAcceptForPhiMixtureMu1;
+		unsigned numAcceptForPhiMixtureSigma1;
+		unsigned numAcceptForPhiMixtureSigma2;
+
+		// Hyperparameters (scalar; settable from R). Defaults match the
+		// validated R prototype (Beta(8,2), Normal(0,10), half-Normal(1)).
+		double phiMixtureHyper_p_alpha;
+		double phiMixtureHyper_p_beta;
+		double phiMixtureHyper_mu1_mean;
+		double phiMixtureHyper_mu1_sd;
+		double phiMixtureHyper_sigma1_scale;
+		double phiMixtureHyper_sigma2_scale;
 
 
 		std::vector <double> observedSynthesisNoise;

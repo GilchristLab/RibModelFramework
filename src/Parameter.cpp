@@ -1,5 +1,7 @@
 #include "include/base/Parameter.h"
 #include <cfloat>
+#include <cmath>
+#include <limits>
 
 //R runs only
 #ifndef STANDALONE
@@ -29,6 +31,12 @@ const unsigned Parameter::alp = 0;
 const unsigned Parameter::lmPri = 1;
 const unsigned Parameter::nse = 2;
 
+// Phi prior selection codes (task #12: mixture phi prior).
+const unsigned Parameter::PHI_PRIOR_SINGLE_LN   = 0;
+const unsigned Parameter::PHI_PRIOR_MIXTURE_LN  = 1;
+const unsigned Parameter::PHI_CONSTRAINT_MEAN   = 0;
+const unsigned Parameter::PHI_CONSTRAINT_MEDIAN = 1;
+
 
 
 //-------------------------------------------------//
@@ -55,6 +63,24 @@ Parameter::Parameter()
 	numElongationMixtures = numMixtures;
 	std_stdDevSynthesisRate = 0.1;
 	maxGrouping = 22;
+
+	// Phi prior defaults: legacy single LogNormal, mean=1 anchor.
+	phiPriorType = PHI_PRIOR_SINGLE_LN;
+	phiPriorConstraint = PHI_CONSTRAINT_MEAN;
+	std_phiMixtureP = 0.05;
+	std_phiMixtureMu1 = 0.1;
+	std_phiMixtureSigma1 = 0.05;
+	std_phiMixtureSigma2 = 0.05;
+	numAcceptForPhiMixtureP = 0u;
+	numAcceptForPhiMixtureMu1 = 0u;
+	numAcceptForPhiMixtureSigma1 = 0u;
+	numAcceptForPhiMixtureSigma2 = 0u;
+	phiMixtureHyper_p_alpha = 8.0;
+	phiMixtureHyper_p_beta = 2.0;
+	phiMixtureHyper_mu1_mean = 0.0;
+	phiMixtureHyper_mu1_sd = 10.0;
+	phiMixtureHyper_sigma1_scale = 1.0;
+	phiMixtureHyper_sigma2_scale = 1.0;
 }
 
 
@@ -78,6 +104,24 @@ Parameter::Parameter(unsigned _maxGrouping)
 	std_stdDevSynthesisRate = 0.1;
 	maxGrouping = _maxGrouping;
 	numAcceptForCodonSpecificParameters.resize(maxGrouping, 0u);
+
+	// Phi prior defaults: legacy single LogNormal, mean=1 anchor.
+	phiPriorType = PHI_PRIOR_SINGLE_LN;
+	phiPriorConstraint = PHI_CONSTRAINT_MEAN;
+	std_phiMixtureP = 0.05;
+	std_phiMixtureMu1 = 0.1;
+	std_phiMixtureSigma1 = 0.05;
+	std_phiMixtureSigma2 = 0.05;
+	numAcceptForPhiMixtureP = 0u;
+	numAcceptForPhiMixtureMu1 = 0u;
+	numAcceptForPhiMixtureSigma1 = 0u;
+	numAcceptForPhiMixtureSigma2 = 0u;
+	phiMixtureHyper_p_alpha = 8.0;
+	phiMixtureHyper_p_beta = 2.0;
+	phiMixtureHyper_mu1_mean = 0.0;
+	phiMixtureHyper_mu1_sd = 10.0;
+	phiMixtureHyper_sigma1_scale = 1.0;
+	phiMixtureHyper_sigma2_scale = 1.0;
 }
 
 
@@ -134,6 +178,33 @@ Parameter& Parameter::operator=(const Parameter& rhs)
 	noiseOffset_proposed = rhs.noiseOffset_proposed;
 	std_NoiseOffset = rhs.std_NoiseOffset;
 	numAcceptForNoiseOffset = rhs.numAcceptForNoiseOffset;
+
+	// Phi prior selection + mixture storage (task #12a).
+	phiPriorType = rhs.phiPriorType;
+	phiPriorConstraint = rhs.phiPriorConstraint;
+	phiMixtureP = rhs.phiMixtureP;
+	phiMixtureP_proposed = rhs.phiMixtureP_proposed;
+	phiMixtureMu1 = rhs.phiMixtureMu1;
+	phiMixtureMu1_proposed = rhs.phiMixtureMu1_proposed;
+	phiMixtureSigma1 = rhs.phiMixtureSigma1;
+	phiMixtureSigma1_proposed = rhs.phiMixtureSigma1_proposed;
+	phiMixtureSigma2 = rhs.phiMixtureSigma2;
+	phiMixtureSigma2_proposed = rhs.phiMixtureSigma2_proposed;
+	std_phiMixtureP = rhs.std_phiMixtureP;
+	std_phiMixtureMu1 = rhs.std_phiMixtureMu1;
+	std_phiMixtureSigma1 = rhs.std_phiMixtureSigma1;
+	std_phiMixtureSigma2 = rhs.std_phiMixtureSigma2;
+	numAcceptForPhiMixtureP = rhs.numAcceptForPhiMixtureP;
+	numAcceptForPhiMixtureMu1 = rhs.numAcceptForPhiMixtureMu1;
+	numAcceptForPhiMixtureSigma1 = rhs.numAcceptForPhiMixtureSigma1;
+	numAcceptForPhiMixtureSigma2 = rhs.numAcceptForPhiMixtureSigma2;
+	phiMixtureHyper_p_alpha = rhs.phiMixtureHyper_p_alpha;
+	phiMixtureHyper_p_beta = rhs.phiMixtureHyper_p_beta;
+	phiMixtureHyper_mu1_mean = rhs.phiMixtureHyper_mu1_mean;
+	phiMixtureHyper_mu1_sd = rhs.phiMixtureHyper_mu1_sd;
+	phiMixtureHyper_sigma1_scale = rhs.phiMixtureHyper_sigma1_scale;
+	phiMixtureHyper_sigma2_scale = rhs.phiMixtureHyper_sigma2_scale;
+
 	return *this;
 }
 
@@ -237,6 +308,12 @@ void Parameter::initParameterSet(std::vector<double> _stdDevSynthesisRate, unsig
 		std::vector<double> tempStdPhi(numGenes, 5);
 		std_phi[i] = tempStdPhi;
 	}
+
+	// Phi mixture prior storage: per-mixture-category, seeded with defaults
+	// from the validated R prototype (well-identified regime A from the
+	// identifiability sweep). Unused unless phiPriorType is switched to
+	// PHI_PRIOR_MIXTURE_LN via setPhiPriorType().
+	initPhiMixtureStorage();
 }
 
 
@@ -2532,6 +2609,177 @@ double Parameter::densityLogNorm(double x, double mean, double sd, bool log)
 		returnValue = log ? (-std::log(x * sd) - log_sqrt_2pi - (0.5 * a * a)) : ((inv_sqrt_2pi / (x * sd)) * std::exp(-0.5 * a * a));
 	}
 	return returnValue;
+}
+
+
+// Closed-form derivation of mu2 from the mixture-LN constraint. See
+// prototypes/phi_mixture.R::derive_mu2 for the math. Returns NaN if the
+// constraint is infeasible (lower component alone already overshoots the
+// anchor target). Callers should treat NaN as "infinite-cost proposal."
+double Parameter::deriveMu2(double p, double mu1, double sigma1, double sigma2,
+                            unsigned constraint)
+{
+	if (constraint == PHI_CONSTRAINT_MEAN)
+	{
+		// mean=1: p*exp(mu1 + s1^2/2) + (1-p)*exp(mu2 + s2^2/2) = 1
+		double e1 = std::exp(mu1 + 0.5 * sigma1 * sigma1);
+		double numer = 1.0 - p * e1;
+		if (numer <= 0.0 || p >= 1.0) return std::numeric_limits<double>::quiet_NaN();
+		return std::log(numer / (1.0 - p)) - 0.5 * sigma2 * sigma2;
+	}
+	else // PHI_CONSTRAINT_MEDIAN
+	{
+		// median=1: p*Phi(-mu1/s1) + (1-p)*Phi(-mu2/s2) = 0.5
+		// Closed form via qnorm.
+		double Phi1 = 0.5 * std::erfc(mu1 / (sigma1 * std::sqrt(2.0))); // Phi(-mu1/s1)
+		double rhs = (0.5 - p * Phi1) / (1.0 - p);
+		if (p >= 1.0 || rhs <= 0.0 || rhs >= 1.0) return std::numeric_limits<double>::quiet_NaN();
+#ifndef STANDALONE
+		double q = R::qnorm5(rhs, 0.0, 1.0, 1, 0);
+#else
+		// STANDALONE fallback: Beasley-Springer-Moro inverse normal CDF.
+		// Adequate precision for sampler use; not used in the R-package path.
+		double t = std::sqrt(-2.0 * std::log(rhs < 0.5 ? rhs : 1.0 - rhs));
+		double q = t - ((0.010328 * t + 0.802853) * t + 2.515517) /
+			(((0.001308 * t + 0.189269) * t + 1.432788) * t + 1.0);
+		if (rhs > 0.5) q = -q;
+#endif
+		return -sigma2 * q;
+	}
+}
+
+
+// Mixture-LN density with the constraint-implied mu2. Returns -DBL_MAX
+// (the "impossible" sentinel matching densityLogNorm's convention) when
+// mu2 is infeasible (NaN) or violates the label-switching guard mu2 >= mu1.
+double Parameter::densityLogNormMixture(double x, double p, double mu1,
+                                        double sigma1, double sigma2,
+                                        unsigned constraint, bool log)
+{
+	double impossible = log ? -DBL_MAX : 0.0;
+	if (x <= 0.0) return impossible;
+	if (p < 0.0 || p > 1.0 || sigma1 <= 0.0 || sigma2 <= 0.0) return impossible;
+
+	double mu2 = deriveMu2(p, mu1, sigma1, sigma2, constraint);
+	if (std::isnan(mu2) || mu2 < mu1) return impossible;
+
+	// Mixture density on the linear scale: p * dlnorm(x;mu1,s1) + (1-p) * dlnorm(x;mu2,s2)
+	double d1 = densityLogNorm(x, mu1, sigma1, false);
+	double d2 = densityLogNorm(x, mu2, sigma2, false);
+	double dens = p * d1 + (1.0 - p) * d2;
+	if (dens <= 0.0) return impossible;
+	return log ? std::log(dens) : dens;
+}
+
+
+// ---------------------------------------------------------------------
+// Phi prior selection / mixture-LN storage accessors (task #12a)
+// ---------------------------------------------------------------------
+
+unsigned Parameter::getPhiPriorType() { return phiPriorType; }
+
+void Parameter::setPhiPriorType(unsigned type)
+{
+	if (type != PHI_PRIOR_SINGLE_LN && type != PHI_PRIOR_MIXTURE_LN) return;
+	phiPriorType = type;
+}
+
+unsigned Parameter::getPhiPriorConstraint() { return phiPriorConstraint; }
+
+void Parameter::setPhiPriorConstraint(unsigned constraint)
+{
+	if (constraint != PHI_CONSTRAINT_MEAN && constraint != PHI_CONSTRAINT_MEDIAN) return;
+	phiPriorConstraint = constraint;
+}
+
+double Parameter::getPhiMixtureP(unsigned mixtureCategory, bool proposed)
+{
+	if (mixtureCategory >= phiMixtureP.size()) return std::numeric_limits<double>::quiet_NaN();
+	return proposed ? phiMixtureP_proposed[mixtureCategory] : phiMixtureP[mixtureCategory];
+}
+
+void Parameter::setPhiMixtureP(double p, unsigned mixtureCategory)
+{
+	if (mixtureCategory >= phiMixtureP.size()) return;
+	phiMixtureP[mixtureCategory] = p;
+	phiMixtureP_proposed[mixtureCategory] = p;
+}
+
+double Parameter::getPhiMixtureMu1(unsigned mixtureCategory, bool proposed)
+{
+	if (mixtureCategory >= phiMixtureMu1.size()) return std::numeric_limits<double>::quiet_NaN();
+	return proposed ? phiMixtureMu1_proposed[mixtureCategory] : phiMixtureMu1[mixtureCategory];
+}
+
+void Parameter::setPhiMixtureMu1(double mu1, unsigned mixtureCategory)
+{
+	if (mixtureCategory >= phiMixtureMu1.size()) return;
+	phiMixtureMu1[mixtureCategory] = mu1;
+	phiMixtureMu1_proposed[mixtureCategory] = mu1;
+}
+
+double Parameter::getPhiMixtureSigma1(unsigned mixtureCategory, bool proposed)
+{
+	if (mixtureCategory >= phiMixtureSigma1.size()) return std::numeric_limits<double>::quiet_NaN();
+	return proposed ? phiMixtureSigma1_proposed[mixtureCategory] : phiMixtureSigma1[mixtureCategory];
+}
+
+void Parameter::setPhiMixtureSigma1(double sigma1, unsigned mixtureCategory)
+{
+	if (mixtureCategory >= phiMixtureSigma1.size()) return;
+	phiMixtureSigma1[mixtureCategory] = sigma1;
+	phiMixtureSigma1_proposed[mixtureCategory] = sigma1;
+}
+
+double Parameter::getPhiMixtureSigma2(unsigned mixtureCategory, bool proposed)
+{
+	if (mixtureCategory >= phiMixtureSigma2.size()) return std::numeric_limits<double>::quiet_NaN();
+	return proposed ? phiMixtureSigma2_proposed[mixtureCategory] : phiMixtureSigma2[mixtureCategory];
+}
+
+void Parameter::setPhiMixtureSigma2(double sigma2, unsigned mixtureCategory)
+{
+	if (mixtureCategory >= phiMixtureSigma2.size()) return;
+	phiMixtureSigma2[mixtureCategory] = sigma2;
+	phiMixtureSigma2_proposed[mixtureCategory] = sigma2;
+}
+
+double Parameter::getPhiMixtureMu2Derived(unsigned mixtureCategory)
+{
+	if (mixtureCategory >= phiMixtureP.size()) return std::numeric_limits<double>::quiet_NaN();
+	return deriveMu2(phiMixtureP[mixtureCategory],
+	                 phiMixtureMu1[mixtureCategory],
+	                 phiMixtureSigma1[mixtureCategory],
+	                 phiMixtureSigma2[mixtureCategory],
+	                 phiPriorConstraint);
+}
+
+double Parameter::getPhiMixtureHyperPAlpha()        { return phiMixtureHyper_p_alpha; }
+void   Parameter::setPhiMixtureHyperPAlpha(double v){ if (v > 0.0) phiMixtureHyper_p_alpha = v; }
+double Parameter::getPhiMixtureHyperPBeta()         { return phiMixtureHyper_p_beta; }
+void   Parameter::setPhiMixtureHyperPBeta(double v) { if (v > 0.0) phiMixtureHyper_p_beta = v; }
+double Parameter::getPhiMixtureHyperMu1Mean()       { return phiMixtureHyper_mu1_mean; }
+void   Parameter::setPhiMixtureHyperMu1Mean(double v){ phiMixtureHyper_mu1_mean = v; }
+double Parameter::getPhiMixtureHyperMu1Sd()         { return phiMixtureHyper_mu1_sd; }
+void   Parameter::setPhiMixtureHyperMu1Sd(double v) { if (v > 0.0) phiMixtureHyper_mu1_sd = v; }
+double Parameter::getPhiMixtureHyperSigma1Scale()         { return phiMixtureHyper_sigma1_scale; }
+void   Parameter::setPhiMixtureHyperSigma1Scale(double v) { if (v > 0.0) phiMixtureHyper_sigma1_scale = v; }
+double Parameter::getPhiMixtureHyperSigma2Scale()         { return phiMixtureHyper_sigma2_scale; }
+void   Parameter::setPhiMixtureHyperSigma2Scale(double v) { if (v > 0.0) phiMixtureHyper_sigma2_scale = v; }
+
+void Parameter::initPhiMixtureStorage()
+{
+	unsigned n = numSynthesisRateCategories;
+	// Defaults: well-identified regime A from prototypes/phi_mixture_identifiability.R.
+	// (p=0.9, mu1=-0.4, sigma1=0.4, sigma2=0.25 -> derived mu2 ~ 0.91 under mean=1)
+	phiMixtureP.assign(n, 0.9);
+	phiMixtureP_proposed.assign(n, 0.9);
+	phiMixtureMu1.assign(n, -0.4);
+	phiMixtureMu1_proposed.assign(n, -0.4);
+	phiMixtureSigma1.assign(n, 0.4);
+	phiMixtureSigma1_proposed.assign(n, 0.4);
+	phiMixtureSigma2.assign(n, 0.25);
+	phiMixtureSigma2_proposed.assign(n, 0.25);
 }
 
 

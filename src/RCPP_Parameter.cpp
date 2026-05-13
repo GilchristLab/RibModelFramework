@@ -287,6 +287,32 @@ RCPP_MODULE(Parameter_mod)
 		.method("fixSphi",&Parameter::fixStdDevSynthesis)
 		.method("setStdDevSynthesisRate",&Parameter::setStdDevSynthesisRate)
 
+		// Phi prior selection + mixture-LN parameters (task #12a).
+		.method("getPhiPriorType", &Parameter::getPhiPriorType)
+		.method("setPhiPriorType", &Parameter::setPhiPriorType)
+		.method("getPhiPriorConstraint", &Parameter::getPhiPriorConstraint)
+		.method("setPhiPriorConstraint", &Parameter::setPhiPriorConstraint)
+		.method("getPhiMixtureP", &Parameter::getPhiMixtureP)
+		.method("setPhiMixtureP", &Parameter::setPhiMixtureP)
+		.method("getPhiMixtureMu1", &Parameter::getPhiMixtureMu1)
+		.method("setPhiMixtureMu1", &Parameter::setPhiMixtureMu1)
+		.method("getPhiMixtureSigma1", &Parameter::getPhiMixtureSigma1)
+		.method("setPhiMixtureSigma1", &Parameter::setPhiMixtureSigma1)
+		.method("getPhiMixtureSigma2", &Parameter::getPhiMixtureSigma2)
+		.method("setPhiMixtureSigma2", &Parameter::setPhiMixtureSigma2)
+		.method("getPhiMixtureMu2Derived", &Parameter::getPhiMixtureMu2Derived)
+		.method("getPhiMixtureHyperPAlpha", &Parameter::getPhiMixtureHyperPAlpha)
+		.method("setPhiMixtureHyperPAlpha", &Parameter::setPhiMixtureHyperPAlpha)
+		.method("getPhiMixtureHyperPBeta", &Parameter::getPhiMixtureHyperPBeta)
+		.method("setPhiMixtureHyperPBeta", &Parameter::setPhiMixtureHyperPBeta)
+		.method("getPhiMixtureHyperMu1Mean", &Parameter::getPhiMixtureHyperMu1Mean)
+		.method("setPhiMixtureHyperMu1Mean", &Parameter::setPhiMixtureHyperMu1Mean)
+		.method("getPhiMixtureHyperMu1Sd", &Parameter::getPhiMixtureHyperMu1Sd)
+		.method("setPhiMixtureHyperMu1Sd", &Parameter::setPhiMixtureHyperMu1Sd)
+		.method("getPhiMixtureHyperSigma1Scale", &Parameter::getPhiMixtureHyperSigma1Scale)
+		.method("setPhiMixtureHyperSigma1Scale", &Parameter::setPhiMixtureHyperSigma1Scale)
+		.method("getPhiMixtureHyperSigma2Scale", &Parameter::getPhiMixtureHyperSigma2Scale)
+		.method("setPhiMixtureHyperSigma2Scale", &Parameter::setPhiMixtureHyperSigma2Scale)
 
 		//Used for getters and setters
 		.property("numMutationCategories", &Parameter::getNumMutationCategories, &Parameter::setNumMutationCategories)
@@ -304,6 +330,9 @@ RCPP_MODULE(Parameter_mod)
 		function("randUnif", &Parameter::randUnif);
 		function("densityNorm", &Parameter::densityNorm);
 		function("densityLogNorm", &Parameter::densityLogNorm);
+		// Phi mixture prior helpers (task #12a).
+		function("derivePhiMixtureMu2", &Parameter::deriveMu2);
+		function("densityLogNormMixture", &Parameter::densityLogNormMixture);
 
 
 	class_<ROCParameter>( "ROCParameter" )

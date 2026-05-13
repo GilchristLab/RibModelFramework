@@ -89,6 +89,30 @@
 #'
 #' @param numElongationMixtures FOR PANSE ONLY. Number of elongation mixture components. Default is 1.
 #'
+#' @param phi.prior Specifies the prior on the synthesis rate phi. Valid values
+#' are \code{"lognormal"} (default, legacy single-LogNormal behavior) and
+#' \code{"mixture-lognormal"} (mixture of two LogNormals, with one component's
+#' log-location derived from the constraint below). Currently only the ROC
+#' model uses this argument; ignored otherwise.
+#'
+#' @param phi.prior.constraint Anchor for the mixture-LN prior. Valid values are
+#' \code{"mean"} (default; anchors E[phi] = 1) and \code{"median"} (anchors
+#' median[phi] = 1). For \code{phi.prior = "lognormal"} the default constraint
+#' (\code{"mean"}) reproduces existing behavior exactly. The \code{"median"}
+#' option for the single-LN case is not yet wired into MCMC (task #12).
+#'
+#' @param phi.prior.init Optional list with initial values for the mixture-LN
+#' parameters. Named elements \code{p}, \code{mu1}, \code{sigma1}, \code{sigma2}
+#' each numeric (scalar recycled to num.mixtures, or vector of length
+#' num.mixtures). NULL uses defaults from the validated R prototype.
+#'
+#' @param phi.prior.hyperparams Optional named list overriding mixture prior
+#' hyperparameters. Sub-blocks: \code{p = list(alpha=, beta=)} (Beta prior),
+#' \code{mu1 = list(mean=, sd=)} (Normal prior), \code{sigma1 = list(scale=)}
+#' and \code{sigma2 = list(scale=)} (half-Normal scales). Any field omitted
+#' keeps its default. Defaults match the R prototype: Beta(8,2), Normal(0,10),
+#' half-Normal(1), half-Normal(1) truncated above by sigma1.
+#'
 #' @return parameter Returns an initialized Parameter object.
 #' 
 #' @description \code{initializeParameterObject} initializes a new parameter object or reconstructs one from a restart file
@@ -136,18 +160,22 @@
 #'                                        mixture.definition.matrix = def.matrix)
 #' 
 
-initializeParameterObject <- function(genome = NULL, sphi = NULL, num.mixtures = 1, 
+initializeParameterObject <- function(genome = NULL, sphi = NULL, num.mixtures = 1,
                                       gene.assignment = NULL, initial.expression.values = NULL,
-                                      model = "ROC", split.serine = TRUE, 
-                                      mixture.definition = "allUnique", 
+                                      model = "ROC", split.serine = TRUE,
+                                      mixture.definition = "allUnique",
                                       mixture.definition.matrix = NULL,
                                       init.with.restart.file = NULL,
                                       mutation.prior.mean = 0.0, mutation.prior.sd = 0.35, propose.by.prior=FALSE,
                                       selection.prior.mean = 0.0,
                                       selection.prior.sd = 100,
-                                      init.csp.variance = 0.0025, init.sepsilon = 0.1, 
+                                      init.csp.variance = 0.0025, init.sepsilon = 0.1,
                                       init.w.obs.phi=FALSE, init.by.random = FALSE ,init.initiation.cost = 4,init.partition.function=1,
-                                      numElongationMixtures = 1){
+                                      numElongationMixtures = 1,
+                                      phi.prior = "lognormal",
+                                      phi.prior.constraint = "mean",
+                                      phi.prior.init = NULL,
+                                      phi.prior.hyperparams = NULL){
   # check input integrity
   if(is.null(init.with.restart.file)){
     if(length(sphi) != num.mixtures){
@@ -188,9 +216,17 @@ initializeParameterObject <- function(genome = NULL, sphi = NULL, num.mixtures =
 
     if (init.csp.variance < 0) {
       stop("init.csp.variance should be positive\n")
-    } 
+    }
     if (any(init.sepsilon < 0)) {
       stop("init.sepsilon should be positive\n")
+    }
+
+    # Phi prior validation (task #12a). Defaults preserve legacy behavior.
+    if (!phi.prior %in% c("lognormal", "mixture-lognormal")) {
+      stop("phi.prior must be 'lognormal' or 'mixture-lognormal'\n")
+    }
+    if (!phi.prior.constraint %in% c("mean", "median")) {
+      stop("phi.prior.constraint must be 'mean' or 'median'\n")
     }
   } else {
     if (!file.exists(init.with.restart.file)) {
@@ -240,8 +276,106 @@ initializeParameterObject <- function(genome = NULL, sphi = NULL, num.mixtures =
   }else{
     stop("Unknown model.")
   }
-  
+
+  # Apply phi prior settings (task #12a). Defaults are a no-op: when
+  # phi.prior = "lognormal" and phi.prior.constraint = "mean", this resolves
+  # to the legacy single-LN parameterization and no mixture storage is read
+  # during MCMC.
+  if (is.null(init.with.restart.file)) {
+    applyPhiPriorSettings(parameter, num.mixtures, phi.prior,
+                          phi.prior.constraint, phi.prior.init,
+                          phi.prior.hyperparams)
+  }
+
   return(parameter)
+}
+
+
+# Internal helper: validate phi.prior.* args and apply them to a freshly
+# constructed Parameter object via the C++ setters. No-op for the default
+# (single LN, mean=1) configuration.
+applyPhiPriorSettings <- function(parameter, num.mixtures, phi.prior,
+                                  phi.prior.constraint, phi.prior.init,
+                                  phi.prior.hyperparams) {
+  PRIOR_CODES <- c("lognormal" = 0L, "mixture-lognormal" = 1L)
+  CONSTRAINT_CODES <- c("mean" = 0L, "median" = 1L)
+
+  parameter$setPhiPriorType(PRIOR_CODES[[phi.prior]])
+  parameter$setPhiPriorConstraint(CONSTRAINT_CODES[[phi.prior.constraint]])
+
+  # Per-mixture initial values (only meaningful for "mixture-lognormal").
+  if (!is.null(phi.prior.init)) {
+    valid <- c("p", "mu1", "sigma1", "sigma2")
+    extras <- setdiff(names(phi.prior.init), valid)
+    if (length(extras) > 0) {
+      stop("phi.prior.init has unknown elements: ",
+           paste(extras, collapse = ", "),
+           ". Valid: p, mu1, sigma1, sigma2.\n")
+    }
+    recycle <- function(x) {
+      if (length(x) == 1L) rep(x, num.mixtures) else x
+    }
+    if (!is.null(phi.prior.init$p)) {
+      vals <- recycle(phi.prior.init$p)
+      if (length(vals) != num.mixtures)
+        stop("phi.prior.init$p length must be 1 or num.mixtures\n")
+      if (any(vals <= 0 | vals >= 1))
+        stop("phi.prior.init$p must be in (0, 1)\n")
+      for (k in seq_len(num.mixtures))
+        parameter$setPhiMixtureP(vals[k], k - 1L)
+    }
+    if (!is.null(phi.prior.init$mu1)) {
+      vals <- recycle(phi.prior.init$mu1)
+      if (length(vals) != num.mixtures)
+        stop("phi.prior.init$mu1 length must be 1 or num.mixtures\n")
+      for (k in seq_len(num.mixtures))
+        parameter$setPhiMixtureMu1(vals[k], k - 1L)
+    }
+    if (!is.null(phi.prior.init$sigma1)) {
+      vals <- recycle(phi.prior.init$sigma1)
+      if (length(vals) != num.mixtures)
+        stop("phi.prior.init$sigma1 length must be 1 or num.mixtures\n")
+      if (any(vals <= 0))
+        stop("phi.prior.init$sigma1 must be positive\n")
+      for (k in seq_len(num.mixtures))
+        parameter$setPhiMixtureSigma1(vals[k], k - 1L)
+    }
+    if (!is.null(phi.prior.init$sigma2)) {
+      vals <- recycle(phi.prior.init$sigma2)
+      if (length(vals) != num.mixtures)
+        stop("phi.prior.init$sigma2 length must be 1 or num.mixtures\n")
+      if (any(vals <= 0))
+        stop("phi.prior.init$sigma2 must be positive\n")
+      for (k in seq_len(num.mixtures))
+        parameter$setPhiMixtureSigma2(vals[k], k - 1L)
+    }
+  }
+
+  # Hyperparameters: nested list, each sub-block optional.
+  if (!is.null(phi.prior.hyperparams)) {
+    valid <- c("p", "mu1", "sigma1", "sigma2")
+    extras <- setdiff(names(phi.prior.hyperparams), valid)
+    if (length(extras) > 0) {
+      stop("phi.prior.hyperparams has unknown sub-blocks: ",
+           paste(extras, collapse = ", "),
+           ". Valid: p, mu1, sigma1, sigma2.\n")
+    }
+    h <- phi.prior.hyperparams
+    if (!is.null(h$p)) {
+      if (!is.null(h$p$alpha)) parameter$setPhiMixtureHyperPAlpha(h$p$alpha)
+      if (!is.null(h$p$beta))  parameter$setPhiMixtureHyperPBeta(h$p$beta)
+    }
+    if (!is.null(h$mu1)) {
+      if (!is.null(h$mu1$mean)) parameter$setPhiMixtureHyperMu1Mean(h$mu1$mean)
+      if (!is.null(h$mu1$sd))   parameter$setPhiMixtureHyperMu1Sd(h$mu1$sd)
+    }
+    if (!is.null(h$sigma1) && !is.null(h$sigma1$scale))
+      parameter$setPhiMixtureHyperSigma1Scale(h$sigma1$scale)
+    if (!is.null(h$sigma2) && !is.null(h$sigma2$scale))
+      parameter$setPhiMixtureHyperSigma2Scale(h$sigma2$scale)
+  }
+
+  invisible(NULL)
 }
 
 
