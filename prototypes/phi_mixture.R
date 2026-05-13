@@ -184,3 +184,132 @@ log_posterior <- function(p, mu1, sigma1, sigma2, phi,
     if (!is.finite(ll)) return(-Inf) # label-switch or infeasibility
     lp + ll
 }
+
+
+# ---------------- 7. Metropolis-Hastings sampler -----------------------------
+#
+# Free parameters (p, mu1, sigma1, sigma2). mu2 is derived from the constraint
+# every time any of them changes. We update each parameter in turn via
+# single-site random walk:
+#   p      : random walk on logit(p) (handles (0,1) constraint, symmetric in
+#            logit space; Jacobian p*(1-p) added to the M-H ratio)
+#   mu1    : plain Gaussian random walk in mu1 space
+#   sigma1 : random walk on log(sigma1) (handles s > 0, symmetric in log space;
+#            Jacobian sigma added to the M-H ratio)
+#   sigma2 : random walk on log(sigma2) (same as sigma1; sigma2 > sigma1 is
+#            handled by log_prior returning -Inf, which rejects automatically)
+#
+# Proposal widths in `proposal` are on the *transformed* scale:
+#   proposal$p       -> SD of the random walk on logit(p)
+#   proposal$mu1     -> SD on mu1 directly
+#   proposal$sigma1  -> SD on log(sigma1)
+#   proposal$sigma2  -> SD on log(sigma2)
+
+mh_phi_mixture <- function(phi,
+                           constraint = c("mean", "median"),
+                           hyperparams = default_hyperparams(),
+                           init = list(p = 0.85, mu1 = -0.05,
+                                       sigma1 = 0.5, sigma2 = 0.3),
+                           proposal = list(p = 0.3, mu1 = 0.1,
+                                           sigma1 = 0.15, sigma2 = 0.15),
+                           n_iter = 5000,
+                           n_burnin = 1000,
+                           thin = 1,
+                           seed = NULL,
+                           verbose = TRUE) {
+    constraint <- match.arg(constraint)
+    if (!is.null(seed)) set.seed(seed)
+
+    # State holds (p, mu1, sigma1, sigma2, mu2). mu2 is derived but cached so
+    # the sampler outputs it alongside the free params.
+    state <- list(p = init$p, mu1 = init$mu1,
+                  sigma1 = init$sigma1, sigma2 = init$sigma2)
+    state$mu2 <- derive_mu2(state$p, state$mu1, state$sigma1, state$sigma2,
+                             constraint)
+    if (is.na(state$mu2) || state$mu2 < state$mu1) {
+        stop("Initial state is infeasible or violates ordering: ",
+             "mu2 = ", state$mu2, ", mu1 = ", state$mu1)
+    }
+    lp <- log_posterior(state$p, state$mu1, state$sigma1, state$sigma2,
+                         phi, constraint, hyperparams)
+    if (!is.finite(lp)) {
+        stop("Initial log-posterior is -Inf; check init values and hyperparams")
+    }
+
+    # Storage for post-burnin samples
+    keep   <- (n_iter - n_burnin) %/% thin
+    out    <- data.frame(
+        iter    = integer(keep),
+        p       = numeric(keep),
+        mu1     = numeric(keep),
+        sigma1  = numeric(keep),
+        sigma2  = numeric(keep),
+        mu2     = numeric(keep),
+        logpost = numeric(keep)
+    )
+    accept_count <- c(p = 0L, mu1 = 0L, sigma1 = 0L, sigma2 = 0L)
+
+    # M-H step for one parameter. Proposes on the appropriate transformed
+    # scale and applies the corresponding Jacobian to the log-ratio.
+    propose_one <- function(param, sd, state, lp) {
+        proposed <- state
+        log_jac <- 0
+        if (param == "p") {
+            logit_p_new <- log(state$p / (1 - state$p)) + rnorm(1, 0, sd)
+            proposed$p <- 1 / (1 + exp(-logit_p_new))
+            log_jac <- log(proposed$p * (1 - proposed$p)) -
+                       log(state$p   * (1 - state$p))
+        } else if (param == "mu1") {
+            proposed$mu1 <- state$mu1 + rnorm(1, 0, sd)
+        } else if (param == "sigma1") {
+            proposed$sigma1 <- state$sigma1 * exp(rnorm(1, 0, sd))
+            log_jac <- log(proposed$sigma1) - log(state$sigma1)
+        } else if (param == "sigma2") {
+            proposed$sigma2 <- state$sigma2 * exp(rnorm(1, 0, sd))
+            log_jac <- log(proposed$sigma2) - log(state$sigma2)
+        }
+        proposed$mu2 <- derive_mu2(proposed$p, proposed$mu1,
+                                    proposed$sigma1, proposed$sigma2,
+                                    constraint)
+        new_lp <- log_posterior(proposed$p, proposed$mu1,
+                                 proposed$sigma1, proposed$sigma2,
+                                 phi, constraint, hyperparams)
+        log_ratio <- new_lp - lp + log_jac
+        if (is.finite(log_ratio) && log(runif(1)) < log_ratio) {
+            list(state = proposed, lp = new_lp, accepted = TRUE)
+        } else {
+            list(state = state, lp = lp, accepted = FALSE)
+        }
+    }
+
+    # Main loop
+    kept <- 0L
+    for (i in seq_len(n_iter)) {
+        for (param in c("p", "mu1", "sigma1", "sigma2")) {
+            r  <- propose_one(param, proposal[[param]], state, lp)
+            state <- r$state
+            lp    <- r$lp
+            if (r$accepted) accept_count[[param]] <- accept_count[[param]] + 1L
+        }
+        if (i > n_burnin && ((i - n_burnin) %% thin == 0L)) {
+            kept <- kept + 1L
+            out[kept, ] <- list(
+                iter = i, p = state$p, mu1 = state$mu1,
+                sigma1 = state$sigma1, sigma2 = state$sigma2,
+                mu2 = state$mu2, logpost = lp
+            )
+        }
+    }
+
+    accept_rate <- accept_count / n_iter
+    if (verbose) {
+        cat("Acceptance rates:\n")
+        for (param in names(accept_rate)) {
+            cat(sprintf("  %-7s: %.3f\n", param, accept_rate[[param]]))
+        }
+    }
+    list(samples = out[seq_len(kept), ],
+         accept_rate = accept_rate,
+         final_state = state,
+         constraint = constraint)
+}
