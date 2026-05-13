@@ -1351,6 +1351,12 @@ unsigned Parameter::getNumMixtureElements()
 }
 
 
+unsigned Parameter::getNumElongationMixtures()
+{
+	return numElongationMixtures;
+}
+
+
 /* getNumObservedPhiSets (NOT EXPOSED)
  * Arguments: None
  * Returns the observed number of phi sets.
@@ -3208,6 +3214,12 @@ void Parameter::setMixtureAssignmentForGene(unsigned geneIndex, unsigned value)
 void Parameter::setNumMixtureElements(unsigned _numMixtures)
 {
     numMixtures = _numMixtures;
+}
+
+
+void Parameter::setNumElongationMixtures(unsigned _numElongationMixtures)
+{
+    numElongationMixtures = _numElongationMixtures;
 }
 
 

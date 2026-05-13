@@ -318,6 +318,7 @@ RCPP_MODULE(Parameter_mod)
 		.property("numMutationCategories", &Parameter::getNumMutationCategories, &Parameter::setNumMutationCategories)
 		.property("numSelectionCategories", &Parameter::getNumSelectionCategories, &Parameter::setNumSelectionCategories)
 		.property("numMixtures", &Parameter::getNumMixtureElements, &Parameter::setNumMixtureElements)
+		.property("numElongationMixtures", &Parameter::getNumElongationMixtures, &Parameter::setNumElongationMixtures)
 ;
 
 

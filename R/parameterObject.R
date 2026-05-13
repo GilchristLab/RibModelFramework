@@ -1719,6 +1719,7 @@ extractBaseInfo <- function(parameter){
   mixProbTrace <- trace$getMixtureProbabilitiesTrace()
   codonSpecificAcceptRatTrace <- trace$getCodonSpecificAcceptanceRateTrace()
   numMix <- parameter$numMixtures
+  numElongMix <- parameter$numElongationMixtures
   numMut <- parameter$numMutationCategories
   numSel <- parameter$numSelectionCategories
   categories <- parameter$getCategories()
@@ -1743,6 +1744,7 @@ extractBaseInfo <- function(parameter){
                   mixProbTrace = mixProbTrace,
                   codonSpecificAcceptRatTrace = codonSpecificAcceptRatTrace,
                   numMix = numMix,
+                  numElongMix = numElongMix,
                   numMut = numMut,
                   numSel = numSel,
                   categories = categories,
@@ -1924,6 +1926,13 @@ setBaseInfo <- function(parameter, files)
       categories <- tempEnv$paramBase$categories
       categories.matrix <- do.call("rbind", tempEnv$paramBase$categories)
       numMixtures <- tempEnv$paramBase$numMix
+      # numElongMix was added in 2026-05 to fix a load-old-Rdata crash in
+      # the codon-specific posterior accessors (which now gate on
+      # numElongationMixtures). For .Rdata files written before this change
+      # the field is absent; fall back to numMixtures (correct for ROC and
+      # FONSE; PANSE may diverge once PANSE writes the field consistently).
+      numElongationMixtures <- tempEnv$paramBase$numElongMix
+      if (is.null(numElongationMixtures)) numElongationMixtures <- numMixtures
       numMutationCategories <- tempEnv$paramBase$numMut
       numSelectionCategories <- tempEnv$paramBase$numSel
       mixtureAssignment <- tempEnv$paramBase$curMixAssignment
@@ -2052,8 +2061,9 @@ setBaseInfo <- function(parameter, files)
   }
   
   parameter$setCategories(categories)
-  parameter$setCategoriesForTrace()  
+  parameter$setCategoriesForTrace()
   parameter$numMixtures <- numMixtures
+  parameter$numElongationMixtures <- numElongationMixtures
   parameter$numMutationCategories <- numMutationCategories
   parameter$numSelectionCategories <- numSelectionCategories
   parameter$setMixtureAssignment(tempEnv$paramBase$curMixAssignment) #want the last in the file sequence

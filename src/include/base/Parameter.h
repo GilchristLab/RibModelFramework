@@ -254,6 +254,7 @@ class Parameter {
 		//Other Functions: Mostly tested, see comments
 		unsigned getNumParam();
 		unsigned getNumMixtureElements();
+		unsigned getNumElongationMixtures();
 		unsigned getNumObservedPhiSets();
 		void setMixtureAssignment(unsigned gene, unsigned value);
 		unsigned getMixtureAssignment(unsigned gene);
@@ -354,6 +355,7 @@ class Parameter {
 		unsigned getMixtureAssignmentForGeneR(unsigned geneIndex);
 		void setMixtureAssignmentForGene(unsigned geneIndex, unsigned value);
 		void setNumMixtureElements(unsigned _numMixtures);
+		void setNumElongationMixtures(unsigned _numElongationMixtures);
 
 #endif
 
