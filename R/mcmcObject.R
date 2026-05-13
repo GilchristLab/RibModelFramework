@@ -204,9 +204,9 @@ setRestartSettings <- function(mcmc, filename, samples, write.multiple=TRUE){
 #' 
 #' @param object an object of either class Trace or MCMC
 #' 
-#' @param samples number of samples at the end of the trace used to determine convergence (< length of trace). 
-#' Will use as starting point of convergence test. If the MCMC trace
-#' is of length x, then starting point for convergence test will be x - samples.
+#' @param samples number of samples at the end of the trace to use for the convergence test. If \code{NULL} (the default),
+#' the full trace is used. If \code{samples} exceeds the trace length, it is clamped. Pass an integer to restrict
+#' the test to the last \code{samples} samples (useful for ignoring early burn-in without re-extracting the trace).
 #' 
 #' @param frac1 fraction to use from beginning of samples
 #' 
@@ -259,21 +259,19 @@ setRestartSettings <- function(mcmc, filename, samples, write.multiple=TRUE){
 #' # check if ExpectedPhi trace has converged
 #' convergence.test(object = trace, samples = 500, plot = TRUE, what = "ExpectedPhi")
 #' }
-convergence.test <- function(object, samples = 10, frac1 = 0.1, frac2 = 0.5, 
+convergence.test <- function(object, samples = NULL, frac1 = 0.1, frac2 = 0.5,
                     thin = 1, plot = FALSE, what = "Mutation", mixture = 1){
   UseMethod("convergence.test", object)
 }
 
-convergence.test.Rcpp_MCMCAlgorithm <- function(object, samples = 10, frac1 = 0.1, 
+convergence.test.Rcpp_MCMCAlgorithm <- function(object, samples = NULL, frac1 = 0.1,
                                        frac2 = 0.5, thin = 1, plot = FALSE, what = "Mutation", mixture = 1){
   # TODO: extend to work with multiple chains once we have that capability.
-  trace <- object$getLogPosteriorTrace()
   loglik.trace <- object$getLogPosteriorTrace()
   trace.length <- length(loglik.trace)
-  start <- max(1, trace.length - samples)
-  
-  # the start and end parameter do NOT work, using subsetting to achieve goal
-  mcmcobj <- coda::mcmc(data=loglik.trace[start:trace.length], thin = thin)
+  window <- if (is.null(samples)) trace.length else min(samples, trace.length)
+  windowed <- utils::tail(loglik.trace, n = window)
+  mcmcobj <- coda::mcmc(data = windowed, thin = thin)
   diag <- coda::geweke.diag(mcmcobj, frac1=frac1, frac2=frac2)
   if(plot){ 
     coda::geweke.plot(mcmcobj, frac1=frac1, frac2=frac2)

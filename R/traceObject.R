@@ -1,7 +1,7 @@
 #### TODO, lets move it into parameterObject.R and use a parameter instead of trace. thats how it is done for the acf function
 
 # see mcmc Object.R convergence.test function for documentation
-convergence.test.Rcpp_Trace <- function(object, samples = 10, frac1 = 0.1,
+convergence.test.Rcpp_Trace <- function(object, samples = NULL, frac1 = 0.1,
                                         frac2 = 0.5, thin = 1, plot = FALSE, what = "Mutation", mixture = 1)
 {
   current.trace <- 0
@@ -115,9 +115,10 @@ convergence.test.Rcpp_Trace <- function(object, samples = 10, frac1 = 0.1,
     current.trace <- do.call("rbind", cur.trace)
     current.trace <- t(current.trace)
   }
-  trace.length <- length(current.trace)
-  start <- max(0, trace.length - samples)
-  mcmcobj <- coda::mcmc(data=current.trace, start=start, thin=thin)
+  trace.length <- NROW(current.trace)
+  window <- if (is.null(samples)) trace.length else min(samples, trace.length)
+  windowed <- utils::tail(current.trace, n = window)
+  mcmcobj <- coda::mcmc(data = windowed, thin = thin)
   if(plot){
     coda::geweke.plot(mcmcobj, frac1=frac1, frac2=frac2)
   } else{
