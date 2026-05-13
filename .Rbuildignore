@@ -24,3 +24,6 @@
 
 # Local git hooks
 ^\.githooks$
+
+# R prototypes (exploratory, not part of the package)
+^prototypes$
