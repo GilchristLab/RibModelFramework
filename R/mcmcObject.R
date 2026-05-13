@@ -270,13 +270,7 @@ convergence.test <- function(object, samples = NULL, frac1 = 0.1, frac2 = 0.5,
 convergence.test.Rcpp_MCMCAlgorithm <- function(object, samples = NULL, frac1 = 0.1,
                                        frac2 = 0.5, thin = 1, plot = FALSE, what = "Mutation", mixture = 1){
   # TODO: extend to work with multiple chains once we have that capability.
-  if (!is.null(samples) && samples < 1)
-    stop("`samples` must be a positive integer or NULL")
-  trace <- object$getLogPosteriorTrace()
-  trace.length <- length(trace)
-  window <- if (is.null(samples)) trace.length else min(samples, trace.length)
-  windowed <- utils::tail(trace, n = window)
-  mcmcobj <- coda::mcmc(data = windowed, thin = thin)
+  mcmcobj <- as.mcmc(object, samples = samples, thin = thin)
   if(plot){
     coda::geweke.plot(mcmcobj, frac1=frac1, frac2=frac2)
   } else {
@@ -290,20 +284,35 @@ convergence.test.Rcpp_MCMCAlgorithm <- function(object, samples = NULL, frac1 = 
 #'   and populated by \code{runMCMC}.
 #' @param what which trace to extract: \code{"LogPosterior"} (default) or
 #'   \code{"LogLikelihood"}.
+#' @param samples optional positive integer. If supplied, return only the last
+#'   \code{samples} samples (clamped to the chain length). \code{NULL} (the default)
+#'   returns the full trace.
 #' @param thin thinning interval recorded as metadata on the returned mcmc object;
 #'   does not subsample.
 #' @param ... unused; present for S3 generic compatibility.
 #'
 #' @return a length-1 \code{coda::mcmc} object containing the selected trace.
 #'
+#' @note Prefer the \code{samples} argument over post-hoc windowing with
+#'   \code{utils::tail()}. \code{tail()} on an \code{mcmc} object dispatches to
+#'   \code{coda::tail.mcmc}, which preserves the original iteration index in the
+#'   \code{mcpar} attribute. Downstream diagnostics that read \code{start}/\code{end}
+#'   metadata (e.g. \code{coda::geweke.diag}) then use different window boundaries
+#'   than they would for a fresh-iteration matrix. Using \code{samples} here trims
+#'   the raw trace before wrapping, so \code{mcpar} starts at iteration 1 either way.
+#'
 #' @export
 as.mcmc.Rcpp_MCMCAlgorithm <- function(x, what = c("LogPosterior", "LogLikelihood"),
-                                       thin = 1, ...)
+                                       samples = NULL, thin = 1, ...)
 {
+  if (!is.null(samples) && samples < 1)
+    stop("`samples` must be a positive integer or NULL")
   what <- match.arg(what)
   trace <- switch(what,
                   LogPosterior  = x$getLogPosteriorTrace(),
                   LogLikelihood = x$getLogLikelihoodTrace())
+  if (!is.null(samples))
+    trace <- utils::tail(trace, n = min(samples, length(trace)))
   coda::mcmc(data = trace, thin = thin)
 }
 
@@ -360,8 +369,7 @@ gelman.test <- function(chains, samples = NULL, what = NULL, mixture = 1,
 {
   if (!is.list(chains) || length(chains) < 2)
     stop("gelman.test requires a list of at least 2 chain objects")
-  if (!is.null(samples) && samples < 1)
-    stop("`samples` must be a positive integer or NULL")
+  # samples is validated inside as.mcmc; no need to repeat here
 
   types <- vapply(chains, function(o) {
     if (inherits(o, "Rcpp_MCMCAlgorithm")) "MCMC"
@@ -380,19 +388,11 @@ gelman.test <- function(chains, samples = NULL, what = NULL, mixture = 1,
 
   mcmcs <- lapply(chains, function(obj) {
     if (chain_type == "MCMC") {
-      as.mcmc(obj, what = what, thin = thin)
+      as.mcmc(obj, what = what, samples = samples, thin = thin)
     } else {
-      as.mcmc(obj, what = what, mixture = mixture, thin = thin)
+      as.mcmc(obj, what = what, mixture = mixture, samples = samples, thin = thin)
     }
   })
-
-  if (!is.null(samples)) {
-    mcmcs <- lapply(mcmcs, function(m) {
-      n <- NROW(m)
-      win <- min(samples, n)
-      coda::mcmc(utils::tail(m, n = win), thin = thin)
-    })
-  }
 
   coda::gelman.diag(coda::mcmc.list(mcmcs),
                     autoburnin = autoburnin,

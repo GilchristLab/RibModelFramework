@@ -114,6 +114,9 @@
 #'   \code{"ExpectedPhi"}, \code{"InitiationCost"}, or \code{"AcceptanceCSP"}.
 #' @param mixture mixture index for traces that are mixture-specific
 #'   (Mutation/Selection/Alpha/Lambda/NSERate). Defaults to 1.
+#' @param samples optional positive integer. If supplied, return only the last
+#'   \code{samples} rows of the trace (clamped to the trace length). \code{NULL}
+#'   (the default) returns the full trace.
 #' @param thin thinning interval recorded as metadata on the returned mcmc object;
 #'   does not subsample.
 #' @param ... unused; present for S3 generic compatibility.
@@ -122,23 +125,32 @@
 #'   (ExpectedPhi, InitiationCost), matrix with one column per codon/mixture for
 #'   the others.
 #'
+#' @note Prefer the \code{samples} argument over post-hoc windowing with
+#'   \code{utils::tail()}. \code{tail()} on an \code{mcmc} object dispatches to
+#'   \code{coda::tail.mcmc}, which preserves the original iteration index in the
+#'   \code{mcpar} attribute. Downstream diagnostics that read \code{start}/\code{end}
+#'   metadata (e.g. \code{coda::geweke.diag}) then use different window boundaries
+#'   than they would for a fresh-iteration matrix. Using \code{samples} here trims
+#'   the raw trace before wrapping, so \code{mcpar} starts at iteration 1 either way.
+#'
 #' @export
-as.mcmc.Rcpp_Trace <- function(x, what = "Mutation", mixture = 1, thin = 1, ...)
+as.mcmc.Rcpp_Trace <- function(x, what = "Mutation", mixture = 1, samples = NULL,
+                               thin = 1, ...)
 {
-  coda::mcmc(data = .extract_trace_matrix(x, what, mixture), thin = thin)
+  if (!is.null(samples) && samples < 1)
+    stop("`samples` must be a positive integer or NULL")
+  trace <- .extract_trace_matrix(x, what, mixture)
+  if (!is.null(samples))
+    trace <- utils::tail(trace, n = min(samples, NROW(trace)))
+  coda::mcmc(data = trace, thin = thin)
 }
 
 # see mcmc Object.R convergence.test function for documentation
 convergence.test.Rcpp_Trace <- function(object, samples = NULL, frac1 = 0.1,
                                         frac2 = 0.5, thin = 1, plot = FALSE, what = "Mutation", mixture = 1)
 {
-  if (!is.null(samples) && samples < 1)
-    stop("`samples` must be a positive integer or NULL")
-  trace <- .extract_trace_matrix(object, what, mixture)
-  trace.length <- NROW(trace)
-  window <- if (is.null(samples)) trace.length else min(samples, trace.length)
-  windowed <- utils::tail(trace, n = window)
-  mcmcobj <- coda::mcmc(data = windowed, thin = thin)
+  mcmcobj <- as.mcmc(object, what = what, mixture = mixture,
+                     samples = samples, thin = thin)
   if(plot){
     coda::geweke.plot(mcmcobj, frac1=frac1, frac2=frac2)
   } else{

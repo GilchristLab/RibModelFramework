@@ -286,3 +286,47 @@ test_that("gelman.test rejects samples <= 0", {
   expect_error(gelman.test(list(mcmc, mcmc2), samples = 0),  "positive integer")
   expect_error(gelman.test(list(mcmc, mcmc2), samples = -5), "positive integer")
 })
+
+
+## ---- as.mcmc samples= argument ---------------------------------------------
+
+test_that("as.mcmc(mcmc, samples=N) returns last N samples with fresh mcpar", {
+  full <- as.mcmc(mcmc)
+  win  <- as.mcmc(mcmc, samples = 15)
+  expect_length(win, 15)
+  expect_equal(as.numeric(win), as.numeric(utils::tail(as.numeric(full), 15)))
+  # mcpar starts at iteration 1 (avoids the tail.mcmc start/end shift)
+  expect_equal(attr(win, "mcpar")[1], 1)
+})
+
+test_that("as.mcmc(trace, samples=N) trims to N rows with fresh mcpar", {
+  win <- as.mcmc(trace, what = "Sphi", samples = 15)
+  expect_equal(nrow(win), 15)
+  expect_equal(ncol(win), numMixtures)
+  expect_equal(attr(win, "mcpar")[1], 1)
+})
+
+test_that("as.mcmc(x, samples > length) is clamped to full", {
+  full     <- as.mcmc(mcmc)
+  clamped  <- as.mcmc(mcmc, samples = 1e6)
+  expect_equal(as.numeric(full), as.numeric(clamped))
+})
+
+test_that("as.mcmc rejects samples <= 0", {
+  expect_error(as.mcmc(mcmc,  samples = 0),  "positive integer")
+  expect_error(as.mcmc(mcmc,  samples = -5), "positive integer")
+  expect_error(as.mcmc(trace, samples = 0,  what = "Sphi"), "positive integer")
+  expect_error(as.mcmc(trace, samples = -5, what = "Sphi"), "positive integer")
+})
+
+test_that("as.mcmc(x, samples=N) avoids the tail.mcmc mcpar shift", {
+  # Direct demonstration of the gotcha the @note describes: tail(as.mcmc(x), N)
+  # carries the original iteration index forward, while as.mcmc(x, samples=N)
+  # produces a fresh-iteration mcmc. Asserting on mcpar makes the contract explicit.
+  full <- as.mcmc(trace, what = "Sphi")
+  bad  <- utils::tail(full, 15)            # dispatches to tail.mcmc
+  good <- as.mcmc(trace, what = "Sphi", samples = 15)
+  expect_false(identical(attr(bad, "mcpar"), attr(good, "mcpar")))
+  expect_equal(attr(good, "mcpar")[1], 1)
+})
+
