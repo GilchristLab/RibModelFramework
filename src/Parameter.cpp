@@ -397,8 +397,16 @@ void Parameter::initBaseValuesFromFile(std::string filename)
 					mixtureDefinition K;
 					iss >> K.delM;
 					iss >> K.delEta;
-					iss >> K.nse; // should be -1 if ROC, FONSE, or PA
-					iss >> K.phi;
+					// Backward compat: legacy restart files wrote only delM and
+					// delEta. nse/phi were added later. If the read fails, fall
+					// back to sane defaults: nse = -1 (no NSE category, correct
+					// for ROC/FONSE/PA) and phi = delEta (matches how
+					// initCategoryDefinitions sets it for ROC/FONSE). Without
+					// this, K.phi keeps its mixtureDefinition default of -1,
+					// which getSynthesisRateCategory() returns as UINT_MAX,
+					// producing an out-of-bounds index on currentSynthesisRateLevel.
+					if (!(iss >> K.nse)) K.nse = -1;
+					if (!(iss >> K.phi)) K.phi = K.delEta;
 					categories.push_back(K);
 				}
 				else if (variableName == "categoryProbabilities")
@@ -556,6 +564,11 @@ void Parameter::initBaseValuesFromFile(std::string filename)
 			std::vector <unsigned> tmp2(currentSynthesisRateLevel[i].size(), 0u);
 			numAcceptForSynthesisRate[i] = tmp2;
 		}
+		// Phi mixture prior storage: the fresh-init path allocates these in
+		// initParameterSet(); the restart path bypasses it, so do it here.
+		// Without this, phiMixture* vectors stay size-0 and any access (even
+		// from defensively-guarded code paths) is undefined.
+		initPhiMixtureStorage();
 	}
 }
 
