@@ -147,6 +147,11 @@ class PANSEModel: public Model
 		PANSEParameter* getParameter();
 
 		void setParameter(PANSEParameter &_parameter);
+
+		// Override: delegate to the typed parameter pointer (shadows Model::parameter).
+		virtual unsigned getNumGenesFromState() const {
+			return parameter ? parameter->getNumGenesFromState() : 0u;
+		}
 		bool checkValues(bool proposed=false);
 		void setNSERatePriorDistribution(std::string distributionName = "Natural-Uniform", double lower = 1e-100, double upper=1e-10, double mean = 25000);
 		virtual double calculateAllPriors(bool proposed=false);

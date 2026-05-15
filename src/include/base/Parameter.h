@@ -199,6 +199,19 @@ class Parameter {
 		// trace point per param and resets accept counters (task #12c.2).
 		void adaptPhiMixtureProposalWidths(unsigned adaptationWidth, bool adapt);
 
+		// Returns the gene count implied by the parameter object's internal
+		// state (the inner size of currentSynthesisRateLevel).  Used by
+		// MCMCAlgorithm::run to validate that the genome it is about to
+		// iterate over has the same number of genes the parameter object
+		// was sized for; mismatch was previously a silent OOB segfault.
+		// Returns 0 for parameter objects that have not been sized yet
+		// (e.g. fresh-constructed by the default ctor before initParameterSet).
+		unsigned getNumGenesFromState() const {
+			return currentSynthesisRateLevel.empty()
+				? 0u
+				: (unsigned) currentSynthesisRateLevel[0].size();
+		}
+
 		// Restart-file build-info accessors.  Captures provenance of the
 		// .rst that produced this parameter object (version, commit SHA,
 		// configure-time build date, and the timestamp the .rst was

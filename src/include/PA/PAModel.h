@@ -117,6 +117,11 @@ class PAModel: public Model
 		//virtual void printCodonSpecificParameters();
 		PAParameter* getParameter();
 		void setParameter(PAParameter &_parameter);
+
+		// Override: delegate to the typed parameter pointer (shadows Model::parameter).
+		virtual unsigned getNumGenesFromState() const {
+			return parameter ? parameter->getNumGenesFromState() : 0u;
+		}
 		virtual double calculateAllPriors(bool proposed=false);
 		virtual double calculateAlphaPrior(std::string grouping,bool proposed=false);
 		virtual double calculateLambdaPrior(std::string grouping,bool proposed=false);

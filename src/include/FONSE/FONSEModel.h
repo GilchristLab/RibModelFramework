@@ -120,6 +120,11 @@ class FONSEModel : public Model
 		virtual void printHyperParameters();
 		FONSEParameter* getParameter();
 		void setParameter(FONSEParameter &_parameter);
+
+		// Override: delegate to the typed parameter pointer (shadows Model::parameter).
+		virtual unsigned getNumGenesFromState() const {
+			return parameter ? parameter->getNumGenesFromState() : 0u;
+		}
 		virtual double calculateAllPriors(bool proposed=false);
 		void calculateLogCodonProbabilityVector(unsigned numCodons, unsigned position, unsigned minIndexValue,
 					double* mutation, double* selection, double phi, double a1_value, std::vector <double> &codonProb);

@@ -84,6 +84,17 @@ class Model
 		virtual unsigned getLastIteration() = 0;
 		virtual void setLastIteration(unsigned iteration) = 0;
 
+		// Gene count implied by the held Parameter object's internal
+		// state.  Each derived model (ROCModel / FONSEModel / PAModel /
+		// PANSEModel) keeps its own typed Parameter* pointer that
+		// shadows Model::parameter, so the override has to live in the
+		// derived class.  Used by MCMCAlgorithm::run for the load-time
+		// gene-count sanity check.  Returns 0 when no parameter is
+		// attached (or the override is not implemented).
+		virtual unsigned getNumGenesFromState() const {
+			return parameter ? parameter->getNumGenesFromState() : 0u;
+		}
+
 
 		//Trace Functions:
 		virtual void updateStdDevSynthesisRateTrace(unsigned sample) = 0;

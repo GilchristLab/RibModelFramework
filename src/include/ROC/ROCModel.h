@@ -115,6 +115,12 @@ class ROCModel : public Model
 		virtual void printHyperParameters();
 		ROCParameter getParameter();
 		void setParameter(ROCParameter &_parameter);
+
+		// Override: delegate to the typed parameter pointer (which shadows
+		// Model::parameter).  See base class docs for rationale.
+		virtual unsigned getNumGenesFromState() const {
+			return parameter ? parameter->getNumGenesFromState() : 0u;
+		}
 		virtual double calculateAllPriors(bool proposed=false);
 		void calculateCodonProbabilityVector(unsigned numCodons, double mutation[], double selection[], double phi, double codonProb[]);
 		void calculateLogCodonProbabilityVector(unsigned numCodons, double mutation[], double selection[], double phi, double codonProb[]);

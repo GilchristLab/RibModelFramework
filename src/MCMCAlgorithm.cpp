@@ -568,6 +568,36 @@ void MCMCAlgorithm::acceptRejectHyperParameter(Genome &genome, Model& model, uns
 */
 void MCMCAlgorithm::run(Genome& genome, Model& model, unsigned numCores, unsigned divergenceIterations)
 {
+	// Gene-count sanity check.  When the Parameter object was loaded
+	// from a restart file, its internal vectors are sized for the gene
+	// count of the genome the .rst was written against.  Iterating with
+	// a different genome size walks off the end of those vectors at the
+	// first MCMC step and segfaults silently.  Catch that here with a
+	// clear error pointing at the cure (re-create the same filtered
+	// genome subset the .rst was written for).  paramN == 0 means the
+	// parameter object was never sized -- legitimate for some test paths
+	// -- so we skip the check in that case.
+	unsigned paramN  = model.getNumGenesFromState();
+	unsigned genomeN = genome.getGenomeSize();
+	if (paramN > 0 && paramN != genomeN) {
+#ifndef STANDALONE
+		Rcpp::stop("Gene-count mismatch: parameter object holds %u genes "
+		           "(loaded from a restart file written against a %u-gene genome) "
+		           "but the genome you passed to runMCMC has %u genes.  This "
+		           "usually means the genome was not pre-filtered the same way "
+		           "the .rst was: reproduce the filterAndSampleGenome / "
+		           "genome$getGenomeForGeneIndices(...) call that the original "
+		           "run used, or pass a Genome whose getGenomeSize() matches.",
+		           paramN, paramN, genomeN);
+#else
+		fprintf(stderr,
+		        "FATAL: gene-count mismatch (parameter has %u, genome has %u). "
+		        "Pre-filter the genome to match the restart file.\n",
+		        paramN, genomeN);
+		std::exit(1);
+#endif
+	}
+
 #ifdef _OPENMP
 //#ifndef __APPLE__
 	omp_set_num_threads(numCores);
