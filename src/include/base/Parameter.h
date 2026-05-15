@@ -199,6 +199,25 @@ class Parameter {
 		// trace point per param and resets accept counters (task #12c.2).
 		void adaptPhiMixtureProposalWidths(unsigned adaptationWidth, bool adapt);
 
+		// Restart-file build-info accessors.  Captures provenance of the
+		// .rst that produced this parameter object (version, commit SHA,
+		// configure-time build date, and the timestamp the .rst was
+		// written).  Empty strings (and generation LEGACY_2022_RELEASE /
+		// MODERN_NO_BUILDINFO / UNKNOWN) when the .rst lacked a
+		// >buildInfo: block.  See docs/VERSIONING.md for the schema.
+		enum RestartFileGeneration {
+			REST_GEN_UNKNOWN              = 0,
+			REST_GEN_LEGACY_2022_RELEASE  = 1,
+			REST_GEN_MODERN_NO_BUILDINFO  = 2,
+			REST_GEN_MODERN_WITH_BUILDINFO = 3
+		};
+		std::string getRestartFileVersion()    const { return restartFileVersion; }
+		std::string getRestartFileCommitSha()  const { return restartFileCommitSha; }
+		std::string getRestartFileBuildDate()  const { return restartFileBuildDate; }
+		std::string getRestartFileWrittenAt()  const { return restartFileWrittenAt; }
+		unsigned    getRestartFileGeneration() const { return (unsigned) restartFileGeneration; }
+		std::string getRestartFileGenerationName() const;
+
 
 		//Synthesis Rate Functions: Mostly tested, see comments
 		double getSynthesisRate(unsigned geneIndex, unsigned mixtureElement, bool proposed = false);
@@ -481,6 +500,16 @@ class Parameter {
 
 		double bias_phi; //NOTE: Currently, this value is always set to 0.0
 		std::vector<std::vector<double>> std_phi;
+
+		// Restart-file build-info read from the >buildInfo: block at the
+		// top of the file.  Empty when the file lacked the block (e.g.
+		// the official 2022 release, which writes neither >buildInfo:
+		// nor >numSynthesisRateCategories:).  See Parameter::detectRestartFileGeneration().
+		std::string restartFileVersion;
+		std::string restartFileCommitSha;
+		std::string restartFileBuildDate;
+		std::string restartFileWrittenAt;
+		RestartFileGeneration restartFileGeneration;
 
 };
 

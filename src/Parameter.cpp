@@ -1,6 +1,9 @@
 #include "include/base/Parameter.h"
+#include "include/base/AnaCoDa-config.h"
 #include <cfloat>
 #include <cmath>
+#include <ctime>
+#include <iomanip>
 #include <limits>
 
 //R runs only
@@ -83,6 +86,17 @@ Parameter::Parameter()
 	phiMixtureHyper_mu1_sd = 10.0;
 	phiMixtureHyper_sigma1_scale = 1.0;
 	phiMixtureHyper_sigma2_scale = 1.0;
+
+	// Restart-file build-info: empty until/unless initBaseValuesFromFile
+	// loads a >buildInfo: block.  Generation defaults to UNKNOWN; a fresh
+	// (non-restart) parameter object never had a restart file in its
+	// past, so any consumer that reads these fields should also check
+	// whether the object was constructed from a file.
+	restartFileVersion.clear();
+	restartFileCommitSha.clear();
+	restartFileBuildDate.clear();
+	restartFileWrittenAt.clear();
+	restartFileGeneration = REST_GEN_UNKNOWN;
 }
 
 
@@ -126,6 +140,17 @@ Parameter::Parameter(unsigned _maxGrouping)
 	phiMixtureHyper_mu1_sd = 10.0;
 	phiMixtureHyper_sigma1_scale = 1.0;
 	phiMixtureHyper_sigma2_scale = 1.0;
+
+	// Restart-file build-info: empty until/unless initBaseValuesFromFile
+	// loads a >buildInfo: block.  Generation defaults to UNKNOWN; a fresh
+	// (non-restart) parameter object never had a restart file in its
+	// past, so any consumer that reads these fields should also check
+	// whether the object was constructed from a file.
+	restartFileVersion.clear();
+	restartFileCommitSha.clear();
+	restartFileBuildDate.clear();
+	restartFileWrittenAt.clear();
+	restartFileGeneration = REST_GEN_UNKNOWN;
 }
 
 
@@ -332,6 +357,12 @@ void Parameter::initBaseValuesFromFile(std::string filename)
 		int cat = 0;
 		std::vector<double> mat;
 		std::string tmp, variableName;
+		// Structural-format flags used to identify the restart-file
+		// generation post-loop (independent of >buildInfo: presence).
+		// See docs/VERSIONING.md "Restart-file format generations".
+		bool sawBuildInfo = false;
+		bool sawNumSynthesisRateCategories = false;
+		bool sawLegacy2FieldCategories = false;
 		while (getline(input, tmp))
 		{
 			int flag;
@@ -377,10 +408,29 @@ void Parameter::initBaseValuesFromFile(std::string filename)
 						stdDevSynthesisRate.push_back(val);
 					}
 				}
+				else if (variableName == "buildInfo")
+				{
+					// Each line: "key value" (space-separated).  Unknown
+					// keys are tolerated for forward-compat.
+					sawBuildInfo = true;
+					iss.str(tmp);
+					std::string key;
+					if (iss >> key) {
+						std::string val;
+						std::getline(iss, val);
+						size_t startPos = val.find_first_not_of(" \t");
+						if (startPos != std::string::npos) val = val.substr(startPos);
+						else val.clear();
+						if      (key == "version")    restartFileVersion   = val;
+						else if (key == "commitSha")  restartFileCommitSha = val;
+						else if (key == "buildDate")  restartFileBuildDate = val;
+						else if (key == "writtenAt") restartFileWrittenAt = val;
+					}
+				}
 				else if (variableName == "numParam") {iss.str(tmp); iss >> numParam;}
 				else if (variableName == "numMutationCategories") {iss.str(tmp); iss >> numMutationCategories;}
 				else if (variableName == "numSelectionCategories") {iss.str(tmp); iss >> numSelectionCategories;}
-				else if (variableName == "numSynthesisRateCategories") {iss.str(tmp); iss >> numSynthesisRateCategories;}
+				else if (variableName == "numSynthesisRateCategories") {sawNumSynthesisRateCategories = true; iss.str(tmp); iss >> numSynthesisRateCategories;}
 				else if (variableName == "numMixtures") {iss.str(tmp); iss >> numMixtures;}
 				else if (variableName == "mixtureAssignment")
 				{
@@ -405,8 +455,8 @@ void Parameter::initBaseValuesFromFile(std::string filename)
 					// this, K.phi keeps its mixtureDefinition default of -1,
 					// which getSynthesisRateCategory() returns as UINT_MAX,
 					// producing an out-of-bounds index on currentSynthesisRateLevel.
-					if (!(iss >> K.nse)) K.nse = -1;
-					if (!(iss >> K.phi)) K.phi = K.delEta;
+					if (!(iss >> K.nse)) { K.nse = -1;        sawLegacy2FieldCategories = true; }
+					if (!(iss >> K.phi)) { K.phi = K.delEta;  sawLegacy2FieldCategories = true; }
 					categories.push_back(K);
 				}
 				else if (variableName == "categoryProbabilities")
@@ -569,7 +619,41 @@ void Parameter::initBaseValuesFromFile(std::string filename)
 		// Without this, phiMixture* vectors stay size-0 and any access (even
 		// from defensively-guarded code paths) is undefined.
 		initPhiMixtureStorage();
+
+		// Format-generation identification from structural signals.  Keys
+		// off three flags set during parsing: whether the file had a
+		// >buildInfo: block, whether it had a >numSynthesisRateCategories:
+		// section, and whether the >categories: rows had only 2 fields
+		// (legacy delM+delEta) or 4 (modern delM+delEta+nse+phi).
+		// See docs/VERSIONING.md.
+		if (sawBuildInfo) {
+			restartFileGeneration = REST_GEN_MODERN_WITH_BUILDINFO;
+		} else if (sawNumSynthesisRateCategories && !sawLegacy2FieldCategories) {
+			restartFileGeneration = REST_GEN_MODERN_NO_BUILDINFO;
+		} else if (!sawNumSynthesisRateCategories && sawLegacy2FieldCategories) {
+			restartFileGeneration = REST_GEN_LEGACY_2022_RELEASE;
+		} else {
+			restartFileGeneration = REST_GEN_UNKNOWN;
+			my_print("WARNING: restart file has unusual structural signals "
+			         "(sawBuildInfo=%, sawNumSyn=%, sawLegacy2FieldCategories=%); "
+			         "treating as UNKNOWN generation.\n",
+			         (unsigned)sawBuildInfo,
+			         (unsigned)sawNumSynthesisRateCategories,
+			         (unsigned)sawLegacy2FieldCategories);
+		}
 	}
+}
+
+
+std::string Parameter::getRestartFileGenerationName() const
+{
+	switch (restartFileGeneration) {
+		case REST_GEN_MODERN_WITH_BUILDINFO: return "MODERN_WITH_BUILDINFO";
+		case REST_GEN_MODERN_NO_BUILDINFO:   return "MODERN_NO_BUILDINFO";
+		case REST_GEN_LEGACY_2022_RELEASE:   return "LEGACY_2022_RELEASE";
+		case REST_GEN_UNKNOWN:               return "UNKNOWN";
+	}
+	return "UNKNOWN";
 }
 
 
@@ -587,6 +671,19 @@ void Parameter::writeBasicRestartFile(std::string filename)
 		my_printError("Error: Could not open restart file % for writing\n", filename.c_str());
 	else
 	{
+		// Build-info block at top of file.  ANACODA_VERSION/COMMIT_SHA/
+		// BUILD_DATE come from AnaCoDa-config.h (substituted by configure).
+		// writtenAt is current UTC; ISO 8601, second precision.  Older AnaCoDa
+		// builds will silently skip this block (unknown variableName == no-op
+		// in the parser switch).  See docs/VERSIONING.md.
+		std::time_t now = std::time(nullptr);
+		char writtenAtBuf[32];
+		std::strftime(writtenAtBuf, sizeof(writtenAtBuf), "%Y-%m-%dT%H:%M:%SZ", std::gmtime(&now));
+		oss << ">buildInfo:\n";
+		oss << "version " << ANACODA_VERSION << "\n";
+		oss << "commitSha " << ANACODA_COMMIT_SHA << "\n";
+		oss << "buildDate " << ANACODA_BUILD_DATE << "\n";
+		oss << "writtenAt " << writtenAtBuf << "\n";
 		oss << ">groupList:\n";
 		for (i = 0; i < groupList.size(); i++)
 		{

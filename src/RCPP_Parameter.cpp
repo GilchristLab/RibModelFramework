@@ -248,6 +248,16 @@ RCPP_MODULE(Parameter_mod)
 		.method("getLastIteration", &Parameter::getLastIteration) //Not a R wrapper
 		.method("setLastIteration", &Parameter::setLastIteration) //Not a R wrapper
 
+		//Restart-file build-info accessors.  Empty / UNKNOWN unless the
+		//parameter object was loaded from a .rst that contained a
+		//>buildInfo: block.  See docs/VERSIONING.md.
+		.method("getRestartFileVersion",       &Parameter::getRestartFileVersion)
+		.method("getRestartFileCommitSha",     &Parameter::getRestartFileCommitSha)
+		.method("getRestartFileBuildDate",     &Parameter::getRestartFileBuildDate)
+		.method("getRestartFileWrittenAt",     &Parameter::getRestartFileWrittenAt)
+		.method("getRestartFileGeneration",    &Parameter::getRestartFileGeneration)
+		.method("getRestartFileGenerationName",&Parameter::getRestartFileGenerationName)
+
 		//Posterior, Variance, and Estimates Functions:
 		.method("getSynthesisRatePosteriorMeanForGene",
 		        &Parameter::getSynthesisRatePosteriorMeanForGene)
