@@ -73,6 +73,19 @@ AC_TYPE_SIZE_T
 AC_CHECK_FUNCS([sqrt])
 
 AC_SUBST(OPENMP_CXXFLAGS)
-AC_CONFIG_FILES([src/Makevars])
+
+# Build-info substitution.  Captures the AnaCoDa Version (from DESCRIPTION),
+# the current git commit (or "unknown" outside a working tree), and the
+# configure-time UTC timestamp.  These flow into src/include/base/AnaCoDa-config.h
+# (compile-time macros used by writeBasicRestartFile) and inst/BUILD_INFO
+# (text file readable from R via system.file()).
+ANACODA_VERSION=`awk '/^Version:/ {print $2}' "$srcdir/DESCRIPTION"`
+ANACODA_COMMIT_SHA=`(cd "$srcdir" && git rev-parse HEAD 2>/dev/null) || echo unknown`
+ANACODA_BUILD_DATE=`date -u +%Y-%m-%dT%H:%M:%SZ`
+AC_SUBST(ANACODA_VERSION)
+AC_SUBST(ANACODA_COMMIT_SHA)
+AC_SUBST(ANACODA_BUILD_DATE)
+
+AC_CONFIG_FILES([src/Makevars src/include/base/AnaCoDa-config.h inst/BUILD_INFO])
 
 AC_OUTPUT

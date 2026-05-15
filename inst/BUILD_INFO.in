@@ -1,0 +1,3 @@
+version: @ANACODA_VERSION@
+commitSha: @ANACODA_COMMIT_SHA@
+buildDate: @ANACODA_BUILD_DATE@

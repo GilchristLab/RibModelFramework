@@ -649,6 +649,9 @@ ac_includes_default="\
 ac_header_cxx_list=
 ac_subst_vars='LTLIBOBJS
 LIBOBJS
+ANACODA_BUILD_DATE
+ANACODA_COMMIT_SHA
+ANACODA_VERSION
 OPENMP_CXXFLAGS
 ac_ct_CC
 CFLAGS
@@ -4845,7 +4848,20 @@ fi
 
 
 
-ac_config_files="$ac_config_files src/Makevars"
+
+# Build-info substitution.  Captures the AnaCoDa Version (from DESCRIPTION),
+# the current git commit (or "unknown" outside a working tree), and the
+# configure-time UTC timestamp.  These flow into src/include/base/AnaCoDa-config.h
+# (compile-time macros used by writeBasicRestartFile) and inst/BUILD_INFO
+# (text file readable from R via system.file()).
+ANACODA_VERSION=`awk '/^Version:/ {print $2}' "$srcdir/DESCRIPTION"`
+ANACODA_COMMIT_SHA=`(cd "$srcdir" && git rev-parse HEAD 2>/dev/null) || echo unknown`
+ANACODA_BUILD_DATE=`date -u +%Y-%m-%dT%H:%M:%SZ`
+
+
+
+
+ac_config_files="$ac_config_files src/Makevars src/include/base/AnaCoDa-config.h inst/BUILD_INFO"
 
 
 cat >confcache <<\_ACEOF
@@ -5549,6 +5565,8 @@ for ac_config_target in $ac_config_targets
 do
   case $ac_config_target in
     "src/Makevars") CONFIG_FILES="$CONFIG_FILES src/Makevars" ;;
+    "src/include/base/AnaCoDa-config.h") CONFIG_FILES="$CONFIG_FILES src/include/base/AnaCoDa-config.h" ;;
+    "inst/BUILD_INFO") CONFIG_FILES="$CONFIG_FILES inst/BUILD_INFO" ;;
 
   *) as_fn_error $? "invalid argument: \`$ac_config_target'" "$LINENO" 5;;
   esac

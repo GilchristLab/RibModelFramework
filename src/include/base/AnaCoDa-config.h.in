@@ -1,0 +1,16 @@
+#ifndef ANACODA_CONFIG_H
+#define ANACODA_CONFIG_H
+
+/*
+ * Build-time identification macros, populated by `./configure` from
+ * AC_SUBST() variables in configure.ac.  Used by Parameter::writeBasicRestartFile
+ * (and parsed by Parameter::initBaseValuesFromFile) to stamp restart files
+ * with the AnaCoDa version, commit SHA, and build timestamp.  ANACODA_COMMIT_SHA
+ * is "unknown" when the source tree is not a git working copy (e.g. CRAN
+ * tarball, distributed source archive).
+ */
+#define ANACODA_VERSION    "@ANACODA_VERSION@"
+#define ANACODA_COMMIT_SHA "@ANACODA_COMMIT_SHA@"
+#define ANACODA_BUILD_DATE "@ANACODA_BUILD_DATE@"
+
+#endif
