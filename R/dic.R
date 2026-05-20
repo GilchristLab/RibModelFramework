@@ -89,24 +89,134 @@ dic.var <- function(mcmc, burn.in = 0.5, min.tail = 100L) {
 }
 
 
+#' Set a live Parameter's current state to its posterior mean.
+#'
+#' Pulls per-gene phi posterior means from the saved trace via
+#' \code{parameter$getSynthesisRatePosteriorMeanForGene()} and applies
+#' them to the C++ \code{currentSynthesisRateLevel} via the new
+#' \code{setCurrentSynthesisRateLevel} bulk setter.  CSP values
+#' (currentMutationParameter, currentSelectionParameter) are also
+#' replaced with per-codon posterior means via
+#' \code{parameter$getCodonSpecificPosteriorMean()} when
+#' \code{set.csp = TRUE} (default).
+#'
+#' This works for a Parameter loaded post-hoc from .Rdata as long as
+#' the .Rdata was written by a build that preserves
+#' currentSynthesisRateLevel (see \link{writeParameterObject}); the
+#' trace data needed by the posterior-mean accessors is already
+#' preserved by all builds.
+#'
+#' Single-mixture only in v1 (\code{numMixtures == 1}).
+#'
+#' @param parameter   Live Parameter object.
+#' @param samples     Number of trailing samples to average for the
+#'                    posterior mean (i.e., the post-burn-in tail).
+#' @param set.csp     Also replace currentMutationParameter and
+#'                    currentSelectionParameter with per-codon posterior
+#'                    means (default TRUE).  When FALSE, the loaded
+#'                    last-iteration CSP values are kept (a posterior
+#'                    draw, but not necessarily the posterior mean).
+#' @param mixture     Mixture element to query (1-based; default 1).
+#'
+#' @return Invisibly returns the modified parameter.
+#'
+#' @export
+setParameterToPosteriorMean <- function(parameter, samples,
+                                        set.csp = TRUE, mixture = 1L) {
+    stopifnot(is.numeric(samples), length(samples) == 1L,
+              samples >= 1L, is.finite(samples))
+    samples <- as.integer(samples)
+
+    if (parameter$numMixtures != 1L) {
+        stop("setParameterToPosteriorMean: v1 supports numMixtures == 1 only; ",
+             "got numMixtures = ", parameter$numMixtures)
+    }
+
+    ## --- per-gene phi -----------------------------------------------------
+    levels <- parameter$getSynthesisRate()  # vector<vector<double>>
+    n.cats <- length(levels)
+    if (n.cats == 0L)
+        stop("parameter has no currentSynthesisRateLevel categories; ",
+             "was it loaded from .Rdata written by an older build?")
+    n.genes <- length(levels[[1L]])
+
+    for (cat.i in seq_len(n.cats)) {
+        means <- vapply(seq_len(n.genes),
+                        function(g) parameter$getSynthesisRatePosteriorMeanForGene(
+                                       samples, g, FALSE),
+                        FUN.VALUE = double(1L))
+        levels[[cat.i]] <- means
+    }
+    parameter$setCurrentSynthesisRateLevel(levels)
+
+    ## --- per-codon mutation / selection ---------------------------------
+    if (set.csp && inherits(parameter, "Rcpp_ROCParameter")) {
+        model.conditions <- checkModel(parameter)
+        model.uses.ref.codon <- model.conditions$model.uses.ref.codon
+        codons <- model.conditions$codons
+        if (model.uses.ref.codon) {
+            ref.codons <- unlist(lapply(model.conditions$aa, AAToCodon, TRUE))
+            codons.nonref <- codons[codons %in% ref.codons]
+        } else {
+            codons.nonref <- codons
+        }
+
+        cur.mut <- parameter$currentMutationParameter
+        cur.sel <- parameter$currentSelectionParameter
+        for (cat.i in seq_along(cur.mut)) {
+            mean.vec.mut <- vapply(codons.nonref, function(co)
+                parameter$getCodonSpecificPosteriorMean(
+                    mixtureElement = mixture, samples = samples,
+                    codon = co, paramType = 0L,
+                    withoutReference = model.uses.ref.codon,
+                    log_scale = FALSE),
+                FUN.VALUE = double(1L))
+            mean.vec.sel <- vapply(codons.nonref, function(co)
+                parameter$getCodonSpecificPosteriorMean(
+                    mixtureElement = mixture, samples = samples,
+                    codon = co, paramType = 1L,
+                    withoutReference = model.uses.ref.codon,
+                    log_scale = FALSE),
+                FUN.VALUE = double(1L))
+            if (length(mean.vec.mut) == length(cur.mut[[cat.i]]))
+                cur.mut[[cat.i]] <- as.numeric(mean.vec.mut)
+            if (length(mean.vec.sel) == length(cur.sel[[cat.i]]))
+                cur.sel[[cat.i]] <- as.numeric(mean.vec.sel)
+        }
+        parameter$currentMutationParameter <- cur.mut
+        parameter$currentSelectionParameter <- cur.sel
+    }
+
+    invisible(parameter)
+}
+
+
 #' Classic DIC (Spiegelhalter et al 2002).
 #'
 #' Requires evaluating L(data | theta_bar) at the posterior-mean
-#' parameter state.  This needs a LIVE Parameter + Model + Genome
-#' (the C++ side's calculateLogLikelihood does not work on a Parameter
-#' loaded from .Rdata; see the method's documentation for why).
+#' parameter state.  Works on a Parameter loaded post-hoc from
+#' .Rdata when the .Rdata was written by a build that preserves
+#' currentSynthesisRateLevel (added 2026-05; see
+#' \link{writeParameterObject}).  Older .Rdata files require
+#' calling this from the R session that ran the MCMC.
 #'
-#' Typical workflow: call this from the R session that ran the MCMC,
-#' immediately after the fit completes, before R is restarted.
+#' Two-call workflow:
+#' \enumerate{
+#'   \item \code{setParameterToPosteriorMean(parameter, samples)} --
+#'         replaces current{SynthesisRate,Mutation,Selection} with
+#'         posterior means from the trace.
+#'   \item \code{dic.classic(parameter, model, genome, mcmc, ...)} --
+#'         calls \code{model$calculateLogLikelihood(genome)} at the
+#'         posterior-mean state and returns the full DIC list.
+#' }
 #'
-#' Caller is responsible for setting the bound Parameter's
-#' current{Mutation,Selection,SynthesisRate,...} values to posterior
-#' means before invocation.  v1 of this function provides only the
-#' arithmetic + the L eval; computing posterior means + restoring
-#' them on the Parameter is left to the caller (use
-#' parameter$getCSPEstimates() and the matching setters).
+#' This function does NOT call setParameterToPosteriorMean itself
+#' because callers may want to evaluate L at points other than the
+#' posterior mean (e.g., posterior median, MAP) using the same
+#' arithmetic shell.
 #'
-#' @param parameter   Live Parameter object (in current R session).
+#' @param parameter   Live Parameter object (with state already set to
+#'                    posterior mean by the caller).
 #' @param model       Live Model object (parameter must be bound to it).
 #' @param genome      Live Genome object (same genes the MCMC saw).
 #' @param mcmc        MCMCAlgorithm object with the likelihoodTrace.

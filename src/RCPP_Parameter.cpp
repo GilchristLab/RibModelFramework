@@ -215,6 +215,8 @@ RCPP_MODULE(Parameter_mod)
 		.method("initializeSynthesisRateByGenome", &Parameter::initializeSynthesisRateByGenome)
 		.method("initializeSynthesisRateByList", &Parameter::initializeSynthesisRateByList)
 		.method("initializeSynthesisRateByRandom", &Parameter::initializeSynthesisRateByRandom)
+		.method("setCurrentSynthesisRateLevel", &Parameter::setCurrentSynthesisRateLevel,
+		        "Bulk setter for per-category current synthesis rates; used by loadParameterObject")
 		//checkIndex is not listed/exposed since it is only called from the other R functions
 		.method("readPhiValues", &Parameter::readPhiValues) //Not a R wrapper
 

@@ -108,3 +108,4 @@ export(
 # DIC helpers (added 2026-05-20)
 export(dic.var)
 export(dic.classic)
+export(setParameterToPosteriorMean)
