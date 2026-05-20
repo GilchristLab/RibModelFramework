@@ -1,6 +1,7 @@
 #include "include/MCMCAlgorithm.h"
 #include <vector>
 #include <random>
+#include <climits>
 
 //R runs only
 #ifndef STANDALONE
@@ -39,9 +40,16 @@ MCMCAlgorithm::MCMCAlgorithm() : samples(1000), thinning(1), adaptiveWidth(100 *
 	posteriorTrace.resize(samples + 1); // +1 for storing initial evaluation
 	likelihoodTrace.resize(samples + 1);
 
-    writeRestartFile = false;
+    // Default: write an end-of-run restart file so every chain can be
+    // continued without requiring the caller to remember to invoke
+    // setRestartFileSettings().  fileWriteInterval is set to UINT_MAX so
+    // no in-run checkpoints are written by default; callers who want
+    // periodic checkpoints during the run must still call
+    // setRestartFileSettings() with an interval.
+    writeRestartFile = true;
 	multipleFiles = false;
-	fileWriteInterval = 1u;
+	fileWriteInterval = UINT_MAX;
+	file = "restart.rst";
 	lastConvergenceTest = 0u;
 
 	estimateMixtureAssignment = true;
@@ -64,9 +72,11 @@ MCMCAlgorithm::MCMCAlgorithm(unsigned _samples, unsigned _thinning, unsigned _ad
 {
 	posteriorTrace.resize(samples + 1);// +1 for storing initial evaluation
 	likelihoodTrace.resize(samples + 1);
-	writeRestartFile = false;
+    // Default: write end-of-run restart file (see default ctor for rationale).
+	writeRestartFile = true;
 	multipleFiles = false;
-	fileWriteInterval = 1u;
+	fileWriteInterval = UINT_MAX;
+	file = "restart.rst";
 	lastConvergenceTest = 0u;
 	estimateMixtureAssignment = true;
 	stepsToAdapt = -1;
