@@ -42,6 +42,7 @@ MCMCAlgorithm::MCMCAlgorithm() : samples(1000), thinning(1), adaptiveWidth(100 *
     writeRestartFile = false;
 	multipleFiles = false;
 	fileWriteInterval = 1u;
+	sampleAfterExt = true;  // legacy default: matches pre-fix behaviour
 	lastConvergenceTest = 0u;
 
 	estimateMixtureAssignment = true;
@@ -67,6 +68,7 @@ MCMCAlgorithm::MCMCAlgorithm(unsigned _samples, unsigned _thinning, unsigned _ad
 	writeRestartFile = false;
 	multipleFiles = false;
 	fileWriteInterval = 1u;
+	sampleAfterExt = true;  // legacy default: matches pre-fix behaviour
 	lastConvergenceTest = 0u;
 	estimateMixtureAssignment = true;
 	stepsToAdapt = -1;
@@ -641,7 +643,10 @@ void MCMCAlgorithm::run(Genome& genome, Model& model, unsigned numCores, unsigne
 				if (multipleFiles)
 				{
 					std::ostringstream oss;
-					oss << file << "_" << (iteration) / thinning;
+					if (sampleAfterExt)
+						oss << file << "_" << (iteration) / thinning;          // <base>.rst_<sample>
+					else
+						oss << file << "_" << (iteration) / thinning << ".rst"; // <base>_<sample>.rst
 					std::string tmp = oss.str();
 					model.writeRestartFile(tmp);
 				}
@@ -750,7 +755,10 @@ void MCMCAlgorithm::run(Genome& genome, Model& model, unsigned numCores, unsigne
 	if (writeRestartFile)
 	{
 		std::ostringstream oss;
-		oss << file << "_final";
+		if (sampleAfterExt)
+			oss << file << "_final";        // <base>.rst_final  (legacy)
+		else
+			oss << file << "_final.rst";    // <base>_final.rst  (new, natural)
 		std::string tmp = oss.str();
 		model.writeRestartFile(tmp);
 	}
@@ -998,8 +1006,37 @@ void MCMCAlgorithm::setEstimateMixtureAssignment(bool in)
 
 void MCMCAlgorithm::setRestartFileSettings(std::string filename, unsigned interval, bool multiple)
 {
-	file = filename.substr(0,  filename.find_last_of("."));
-	file = file + ".rst";
+	// Decide whether the caller's filename leaf already has an extension.
+	// Only the LEAF (post-slash portion) of the path is examined, so
+	// directory components that contain dots (e.g. "s.cerevisiae" in an
+	// absolute path) do not trigger the strip-and-reappend logic below.
+	//
+	// If the leaf has a dot:
+	//   - Treat it as the extension; strip it and canonicalise to ".rst".
+	//   - Subsequent per-sample writes append "_<sample>" AFTER the
+	//     extension ("<base>.rst_<sample>"), preserving the 2016-era
+	//     naming convention used by downstream tooling.
+	// If the leaf has no dot:
+	//   - Use the filename as-is as the base prefix.
+	//   - Per-sample writes insert "_<sample>" BEFORE the ".rst"
+	//     extension ("<base>_<sample>.rst"), which is what callers who
+	//     pass a bare prefix typically expect.
+	auto slash = filename.find_last_of("/\\");
+	std::string::size_type leafStart = (slash == std::string::npos) ? 0 : slash + 1;
+	auto dot = filename.find_last_of(".");
+	bool leafHasExt = (dot != std::string::npos && dot >= leafStart);
+
+	if (leafHasExt)
+	{
+		file = filename.substr(0, dot) + ".rst";
+		sampleAfterExt = true;
+	}
+	else
+	{
+		file = filename;
+		sampleAfterExt = false;
+	}
+
 	fileWriteInterval = interval * thinning;
 	multipleFiles = multiple;
 	writeRestartFile = true;
