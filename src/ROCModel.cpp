@@ -97,6 +97,57 @@ void ROCModel::obtainCodonCount(SequenceSummary *sequenceSummary, std::string cu
 //------------------------------------------------//
 
 
+// Evaluate the full log-likelihood at the bound Parameter's current
+// state, summing per-AA per-gene contributions across the entire genome.
+// Designed for post-hoc analyses (DIC, bridge sampling, model
+// comparison) that need L(data | theta) at theta != the MCMC's
+// current iterate.  Mirrors PA/PANSE Model::calculateLogLikelihood.
+//
+// Single-mixture: each gene uses its assigned mixture's mutation /
+// selection / phi.  Numerically identical to the increment that
+// MCMCAlgorithm::acceptRejectSynthesisRateLevelForAllGenes writes
+// into likelihoodTrace[t] for a single accepted iteration -- the
+// only difference is that this method does not modify any state.
+double ROCModel::calculateLogLikelihood(Genome& genome)
+{
+	double logLikelihood = 0.0;
+	int numGenes = genome.getGenomeSize();
+
+	double mutation[5];
+	double selection[5];
+	int codonCount[6];
+
+	for (int geneIndex = 0; geneIndex < numGenes; geneIndex++) {
+		Gene& gene = genome.getGene(geneIndex);
+		SequenceSummary* sequenceSummary = gene.getSequenceSummary();
+
+		// Each gene belongs to one mixture (its assignment); look up
+		// the parameter categories that drives this gene's likelihood.
+		unsigned k = parameter->getMixtureAssignment(geneIndex);
+		unsigned mutationCategory   = parameter->getMutationCategory(k);
+		unsigned selectionCategory  = parameter->getSelectionCategory(k);
+		unsigned expressionCategory = parameter->getSynthesisRateCategory(k);
+
+		double phiValue = parameter->getSynthesisRate(geneIndex, expressionCategory, false);
+
+		for (unsigned i = 0u; i < getGroupListSize(); i++) {
+			std::string curAA = getGrouping(i);
+			// Skip AAs absent in this gene (matches the MCMC's optimization)
+			if (sequenceSummary->getAACountForAA(i) == 0) continue;
+
+			unsigned numCodons = sequenceSummary->GetNumCodonsForAA(curAA);
+			parameter->getParameterForCategory(mutationCategory,  ROCParameter::dM,   curAA, false, mutation);
+			parameter->getParameterForCategory(selectionCategory, ROCParameter::dEta, curAA, false, selection);
+			obtainCodonCount(sequenceSummary, curAA, codonCount);
+
+			logLikelihood += calculateLogLikelihoodPerAAPerGene(
+				numCodons, codonCount, mutation, selection, phiValue);
+		}
+	}
+	return logLikelihood;
+}
+
+
 void ROCModel::calculateLogLikelihoodRatioPerGene(Gene& gene, unsigned geneIndex, unsigned k, double* logProbabilityRatio)
 {
 	double logLikelihood = 0.0;
