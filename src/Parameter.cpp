@@ -54,8 +54,8 @@ Parameter::Parameter()
 	lastIteration = 0u;
 	numParam = 0u;
 	obsPhiSets = 0u;
-	adaptiveStepPrev = 0;
-	adaptiveStepCurr = 0;
+	adaptiveSamplePrev = 0;
+	adaptiveSampleCurr = 0;
 	stdDevSynthesisRate.resize(1);
 	stdDevSynthesisRate_proposed.resize(1);
 	numAcceptForStdDevSynthesisRate = 0u;
@@ -111,8 +111,8 @@ Parameter::Parameter(unsigned _maxGrouping)
 	lastIteration = 0u;
 	numParam = 0u;
 	obsPhiSets = 0u;
-	adaptiveStepPrev = 0;
-	adaptiveStepCurr = 0;
+	adaptiveSamplePrev = 0;
+	adaptiveSampleCurr = 0;
 	stdDevSynthesisRate.resize(1);
 	stdDevSynthesisRate_proposed.resize(1);
 	numAcceptForStdDevSynthesisRate = 0u;
@@ -206,8 +206,8 @@ Parameter& Parameter::operator=(const Parameter& rhs)
 	obsPhiSets = rhs.obsPhiSets;
 	categories = rhs.categories;
 
-	adaptiveStepPrev = rhs.adaptiveStepPrev;
-	adaptiveStepCurr = rhs.adaptiveStepCurr;
+	adaptiveSamplePrev = rhs.adaptiveSamplePrev;
+	adaptiveSampleCurr = rhs.adaptiveSampleCurr;
 
   	// proposal bias and std for phi values
   	bias_stdDevSynthesisRate = rhs.bias_stdDevSynthesisRate;
@@ -1810,7 +1810,7 @@ void Parameter::adaptSynthesisRateProposalWidth(unsigned adaptationWidth, bool a
 }
 
 
-void Parameter::adaptCodonSpecificParameterProposalWidth(unsigned adaptationWidth, unsigned lastIteration, bool adapt)
+void Parameter::adaptCodonSpecificParameterProposalWidth(unsigned adaptationWidth, unsigned lastSample, bool adapt)
 {
   // Outer-loop bookkeeping that is common to ALL CSP adaptive schemes:
   // - measure per-AA acceptance rate over the past adaptationWidth raw iters
@@ -1824,6 +1824,16 @@ void Parameter::adaptCodonSpecificParameterProposalWidth(unsigned adaptationWidt
   // adaptive.ratio).  See docs/csp-adaptation-api.md and the
   // adaptive-fit-flag-is-ignored memory for the iteration <= stepsToAdapt
   // mechanic.
+  //
+  // Naming convention (renamed 2026-05-20):
+  //   adaptationWidth     -- window in RAW MCMC iterations between adapt fires
+  //   lastSample          -- thinned-sample index at this fire (= iteration / thinning)
+  //   adaptiveSamplePrev  -- lastSample at the previous fire
+  //   adaptiveSampleCurr  -- lastSample at this fire
+  //   samplesSinceLastAdapt -- thinned-sample count between fires (small;
+  //                            equals adaptationWidth / thinning under
+  //                            typical configs where the outer loop fires
+  //                            every adaptationWidth raw iters)
 
   unsigned acceptanceUnder = 0u;
   unsigned acceptanceOver = 0u;
@@ -1837,9 +1847,9 @@ void Parameter::adaptCodonSpecificParameterProposalWidth(unsigned adaptationWidt
   const double factorCriteriaLow    = acceptanceTargetLow  - diffFactorAdjust;
   const double factorCriteriaHigh   = acceptanceTargetHigh + diffFactorAdjust;
 
-  adaptiveStepPrev = adaptiveStepCurr;
-  adaptiveStepCurr = lastIteration;
-  unsigned samples = adaptiveStepCurr - adaptiveStepPrev;
+  adaptiveSamplePrev = adaptiveSampleCurr;
+  adaptiveSampleCurr = lastSample;
+  unsigned samplesSinceLastAdapt = adaptiveSampleCurr - adaptiveSamplePrev;
 
   my_print("Acceptance rates for Codon Specific Parameters\n");
   my_print("Target range: %-% \n", factorCriteriaLow, factorCriteriaHigh );
@@ -1867,7 +1877,7 @@ void Parameter::adaptCodonSpecificParameterProposalWidth(unsigned adaptationWidt
     {
       CSPAdaptContext ctx{
         aaIndex, aa, aaStart, aaEnd,
-        acceptanceLevel, adaptationWidth, lastIteration, samples,
+        acceptanceLevel, adaptationWidth, lastSample, samplesSinceLastAdapt,
         std_csp, covarianceMatrix[aaIndex], traces
       };
       cspAdapter->update(ctx);

@@ -32,7 +32,7 @@ void NativeCSPAdapter::update(const CSPAdaptContext& ctx) {
         CovarianceMatrix covcurr(ctx.covarianceMatrix.getNumVariates());
         covcurr.calculateSampleCovariance(
             *ctx.traces.getCodonSpecificParameterTrace(),
-            ctx.aa, ctx.samples, ctx.lastIteration);
+            ctx.aa, ctx.samplesSinceLastAdapt, ctx.lastSample);
         CovarianceMatrix covprev = ctx.covarianceMatrix;
         covprev = (covprev * 0.6);
         covcurr = (covcurr * 0.4);

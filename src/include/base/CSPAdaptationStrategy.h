@@ -36,9 +36,19 @@ struct CSPAdaptContext {
     unsigned aaStart;
     unsigned aaEnd;
     double acceptanceLevel;
+    // adaptationWidth is in RAW MCMC iterations (= user adaptive_width *
+    // thinning); it is the denominator of the per-AA acceptance count
+    // and the window between adapt fires in the outer MCMC loop.
     unsigned adaptationWidth;
-    unsigned lastIteration;
-    unsigned samples;
+    // lastSample is the THINNED-sample index at this fire, computed as
+    // iteration / thinning in MCMCAlgorithm.cpp.  Was misleadingly named
+    // `lastIteration` -- renamed 2026-05-20.
+    unsigned lastSample;
+    // samplesSinceLastAdapt is the count of thinned samples between the
+    // previous adapt fire and this one (= adaptationWidth / thinning
+    // under typical configs).  Was misleadingly named `samples` -- the
+    // unqualified name shadowed the MCMC `samples` config concept.
+    unsigned samplesSinceLastAdapt;
     std::vector<double>& std_csp;
     CovarianceMatrix& covarianceMatrix;
     Trace& traces;

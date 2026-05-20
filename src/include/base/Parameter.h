@@ -290,7 +290,13 @@ class Parameter {
 		//Adaptive Width Functions: TODO: test
 		void adaptStdDevSynthesisRateProposalWidth(unsigned adaptationWidth, bool adapt);
 		void adaptSynthesisRateProposalWidth(unsigned adaptationWidth, bool adapt);
-		virtual void adaptCodonSpecificParameterProposalWidth(unsigned adaptationWidth, unsigned lastIteration, bool adapt);
+		// Per Note about `lastSample`: this parameter is the THINNED-sample
+		// index, not a raw MCMC iteration count.  Computed in
+		// MCMCAlgorithm.cpp:678 as `iteration / thinning`.  Was historically
+		// named `lastIteration`, which is misleading -- renamed 2026-05-20.
+		// Likewise `adaptationWidth` is the user-facing adaptive_width in
+		// RAW iterations (= thinned-sample-count * thinning).
+		virtual void adaptCodonSpecificParameterProposalWidth(unsigned adaptationWidth, unsigned lastSample, bool adapt);
 
 		// CSP adaptive proposal-width scheme.  Default = NativeCSPAdapter
 		// (the in-house scheme, bit-identical to pre-refactor behavior).
@@ -449,8 +455,13 @@ class Parameter {
 		// to NativeCSPAdapter; runtime override via setCSPAdapter() from R.
 		std::unique_ptr<CSPAdaptationStrategy> cspAdapter;
 
-		unsigned adaptiveStepPrev;
-		unsigned adaptiveStepCurr;
+		// Thinned-sample indices used by the CSP proposal-width adaptation
+		// path to compute samplesSinceLastAdapt = adaptiveSampleCurr -
+		// adaptiveSamplePrev.  Was historically `adaptiveStepPrev/Curr`,
+		// renamed 2026-05-20 to reflect that the units are thinned samples
+		// (received as the `lastSample` parameter), not raw MCMC steps.
+		unsigned adaptiveSamplePrev;
+		unsigned adaptiveSampleCurr;
 		
 		std::vector<CovarianceMatrix> covarianceMatrix;
 		std::vector<mixtureDefinition> categories;
