@@ -1816,29 +1816,30 @@ void Parameter::adaptCodonSpecificParameterProposalWidth(unsigned adaptationWidt
 	  	{
 	  	 
 	      // define adjustFactor
-	      if (acceptanceLevel < factorCriteriaLow)
+	      // Cov-matrix shape update (symmetric, 2026-05-20).  Originally
+	      // (Cedric) the shape blend ran every adapt window.  Mike gated it
+	      // to the way-too-low branch after Alex observed it could push
+	      // some AAs toward 0.4-0.5 acceptance.  That asymmetry left
+	      // way-too-high AAs with stale cov shapes, contributing to low
+	      // Selection ESS in rare-codon-rich AAs.  Fix: blend on EITHER
+	      // way-off side; keep asymmetric scale factors (0.8 vs 1.2) so
+	      // any runaway-to-high gets damped by scaling as before.
+	      if ( (acceptanceLevel < factorCriteriaLow) ||
+	           (acceptanceLevel > factorCriteriaHigh) )
 	      {
-		  	adjustFactor = adjustFactorLow;
-		  	
-		  	//Update cov matrix based on previous window to improve efficiency of sampling
-		  	//In original code, Cedric only did this when the acceptance level was too low.
-		  	//Mike updated the code to do this every time.
-		  	//Alex noticed this tended to lead to high acceptance ratios for some amino acids in ROC (e.g. 0.4 -- 0.5 range)
-		  	//Most likely effect is would decrease sampling efficiency. Parameter estimates should be reliable if MCMC run long enough.
-		  	//Can check effective sample sizes if concerned.
-		  	//Note that in Cedric's original code, he adjusted the covariance matrix prior to this chunk of code.
-		  	//This implementation seems to work, as well. 
-		  	CovarianceMatrix covcurr(covarianceMatrix[aaIndex].getNumVariates());
+	      	CovarianceMatrix covcurr(covarianceMatrix[aaIndex].getNumVariates());
 	      	covcurr.calculateSampleCovariance(*traces.getCodonSpecificParameterTrace(), aa, samples, adaptiveStepCurr);
 	      	CovarianceMatrix covprev = covarianceMatrix[aaIndex];
 	      	covprev = (covprev*0.6);
 	      	covcurr = (covcurr*0.4);
 	      	covarianceMatrix[aaIndex] = covprev + covcurr;
-	      	//replace cov matrix based on previous window
-	      //The is approach was commented out and above code uncommented to replace it in commit ec63bb21a1e9 (2016).  Should remove
-	      //covarianceMatrix[aaIndex].calculateSampleCovariance(*traces.getCodonSpecificParameterTrace(), aa, samples, adaptiveStepCurr);
-
-		  }
+	      }
+	      
+	      // scale-only branches below; shape was handled above
+	      if (acceptanceLevel < factorCriteriaLow)
+	      {
+	      	adjustFactor = adjustFactorLow;
+	      }
 	      else if(acceptanceLevel > factorCriteriaHigh)
 	      {
 		  	adjustFactor = adjustFactorHigh;
