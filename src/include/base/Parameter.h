@@ -298,6 +298,21 @@ class Parameter {
 		void setCSPAdapter(std::unique_ptr<CSPAdaptationStrategy> adapter);
 		const CSPAdaptationStrategy& getCSPAdapter() const { return *cspAdapter; }
 
+		// R-side Rcpp entry point.  Name + named list of double params;
+		// see docs/csp-adaptation-api.md for the contract.  Validation
+		// happens inside makeCSPAdapter (layer 3 + layer 4) and is
+		// translated to R errors by Rcpp::stop at this seam.
+#ifndef STANDALONE
+		void setCSPAdaptationScheme(std::string name, Rcpp::List params);
+#endif
+
+		// Convenience accessor for R-side diagnostics: returns the
+		// canonical lowercase snake_case name of the scheme currently
+		// in effect (e.g. "native", "andrieu_thoms").
+		std::string getCSPAdaptationSchemeName() const {
+		    return cspAdapter ? cspAdapter->name() : std::string("native");
+		}
+
 
 		//Posterior, Variance, and Estimates Functions: TODO: test
 		double getStdDevSynthesisRatePosteriorMean(unsigned samples, unsigned mixture);

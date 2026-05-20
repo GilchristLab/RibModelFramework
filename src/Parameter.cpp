@@ -1,6 +1,7 @@
 #include "include/base/Parameter.h"
 #include "include/base/AnaCoDa-config.h"
 #include "include/base/NativeCSPAdapter.h"
+#include "include/base/CSPAdaptationFactory.h"
 #include <cfloat>
 #include <cmath>
 #include <ctime>
@@ -163,12 +164,17 @@ Parameter::Parameter(unsigned _maxGrouping)
 }
 
 
-Parameter::Parameter(const Parameter& rhs)
+Parameter::Parameter(const Parameter& rhs) : Parameter()
 {
-	// Default-construct cspAdapter to NativeCSPAdapter so the object has
-	// a valid strategy before operator= runs; the assignment below replaces
-	// it with a clone of rhs's strategy.
-	cspAdapter = std::unique_ptr<CSPAdaptationStrategy>(new NativeCSPAdapter());
+	// Delegate to the default ctor to initialize ALL primitives (lastIteration,
+	// numParam, etc.) to safe values, then operator= copies the data over.
+	// Field-by-field reliance on operator= alone is unsafe: operator= was
+	// historically incomplete (e.g. did not copy lastIteration; the implicit
+	// copy ctor that pre-existed this refactor handled those fields via the
+	// per-member implicit copy).  Once unique_ptr<CSPAdaptationStrategy>
+	// made the implicit copy ctor ill-formed, we had to provide one, and a
+	// safe initialization pre-pass is the easiest way to avoid surfacing the
+	// pre-existing gaps in operator=.
 	*this = rhs;
 }
 
@@ -176,6 +182,21 @@ Parameter::Parameter(const Parameter& rhs)
 Parameter& Parameter::operator=(const Parameter& rhs)
 {
 	if (this == &rhs) return *this; // handle self assignment
+
+	// Iteration counter: read by every trace-aware accessor as
+	// traceLength = lastIteration + 1.  Was historically missing from
+	// operator=, masked by the implicit copy ctor that pre-existed the
+	// cspAdapter unique_ptr.  See 2026-05-20 diagnosis.
+	lastIteration = rhs.lastIteration;
+
+	// Restart-file build-info: provenance only; not load-bearing for
+	// MCMC, but copied so a Parameter copy reports the same origin.
+	restartFileVersion    = rhs.restartFileVersion;
+	restartFileCommitSha  = rhs.restartFileCommitSha;
+	restartFileBuildDate  = rhs.restartFileBuildDate;
+	restartFileWrittenAt  = rhs.restartFileWrittenAt;
+	restartFileGeneration = rhs.restartFileGeneration;
+
 	numParam = rhs.numParam;
 
 	stdDevSynthesisRate = rhs.stdDevSynthesisRate;
@@ -1867,6 +1888,34 @@ void Parameter::setCSPAdapter(std::unique_ptr<CSPAdaptationStrategy> adapter)
   }
   cspAdapter = std::move(adapter);
 }
+
+
+#ifndef STANDALONE
+void Parameter::setCSPAdaptationScheme(std::string name, Rcpp::List params)
+{
+  // Convert the Rcpp::List of named doubles into the typed map that the
+  // factory expects.  Non-numeric entries are caught here via Rcpp::as
+  // throwing.  Unknown scheme names or out-of-range param values are
+  // caught inside makeCSPAdapter (layer 3 + layer 4); we translate
+  // those std::invalid_argument throws into R errors via Rcpp::stop.
+  std::map<std::string, double> m;
+  if (params.size() > 0) {
+    Rcpp::CharacterVector keys = params.names();
+    for (R_xlen_t i = 0; i < params.size(); ++i) {
+      std::string k = Rcpp::as<std::string>(keys[i]);
+      m[k] = Rcpp::as<double>(params[i]);
+    }
+  }
+
+  try {
+    setCSPAdapter(makeCSPAdapter(name, m));
+  } catch (const std::invalid_argument& e) {
+    Rcpp::stop(std::string("setCSPAdaptationScheme: ") + e.what());
+  } catch (const std::exception& e) {
+    Rcpp::stop(std::string("setCSPAdaptationScheme: ") + e.what());
+  }
+}
+#endif
 
 
 

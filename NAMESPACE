@@ -104,3 +104,13 @@ export(
 
 
 
+
+# CSP adaptive proposal-width scheme API (added 2026-05-20).  See
+# docs/csp-adaptation-api.md and R/adaptiveScheme.R.
+export(AdaptiveScheme.Native)
+export(AdaptiveScheme.AndrieuThoms)
+export(schemes.available)
+export(is.AdaptiveScheme)
+export(adaptive.scheme.diagnostics)
+S3method(print,  AdaptiveScheme)
+S3method(format, AdaptiveScheme)
