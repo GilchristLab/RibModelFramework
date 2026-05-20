@@ -5,6 +5,7 @@
 #include "../Genome.h"
 #include "../CovarianceMatrix.h"
 #include "Trace.h"
+#include "CSPAdaptationStrategy.h"
 
 
 #include <vector>
@@ -14,6 +15,7 @@
 #include <fstream>
 #include <ctime>
 #include <sstream>
+#include <memory>
 
 #ifndef STANDALONE
 #include <Rcpp.h>
@@ -69,6 +71,7 @@ class Parameter {
 		//Constructors & Destructors:
 		Parameter();
 		Parameter(unsigned maxGrouping);
+		Parameter(const Parameter& rhs);            // explicit: unique_ptr<CSPAdaptationStrategy> is non-copyable
 		Parameter& operator=(const Parameter& rhs);
 		virtual ~Parameter();
 
@@ -289,6 +292,12 @@ class Parameter {
 		void adaptSynthesisRateProposalWidth(unsigned adaptationWidth, bool adapt);
 		virtual void adaptCodonSpecificParameterProposalWidth(unsigned adaptationWidth, unsigned lastIteration, bool adapt);
 
+		// CSP adaptive proposal-width scheme.  Default = NativeCSPAdapter
+		// (the in-house scheme, bit-identical to pre-refactor behavior).
+		// See docs/csp-adaptation-api.md.
+		void setCSPAdapter(std::unique_ptr<CSPAdaptationStrategy> adapter);
+		const CSPAdaptationStrategy& getCSPAdapter() const { return *cspAdapter; }
+
 
 		//Posterior, Variance, and Estimates Functions: TODO: test
 		double getStdDevSynthesisRatePosteriorMean(unsigned samples, unsigned mixture);
@@ -420,6 +429,10 @@ class Parameter {
 
 	protected:
 		Trace traces;
+
+		// CSP adaptive proposal-width strategy.  Constructors default this
+		// to NativeCSPAdapter; runtime override via setCSPAdapter() from R.
+		std::unique_ptr<CSPAdaptationStrategy> cspAdapter;
 
 		unsigned adaptiveStepPrev;
 		unsigned adaptiveStepCurr;
