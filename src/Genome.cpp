@@ -159,37 +159,102 @@ void Genome::readFasta(std::string filename, bool append)
 }
 
 
-/* writeFasta (RCPP EXPOSED)
- * Arguments: filename to write to,
- * boolean specifying if the genome is simulated or not (default non-simulated).
- * Writes a genome in Fasta format to given file
+/* Internal writer used by both writeFasta and writeFastaWithDescription.
+ * When `withDescription` is true and `simulated` is true, each header is
+ * written as ">ID <descriptionTag> <description-after-id>" so the
+ * simulated fasta retains the source gene's annotation plus a tag marking
+ * it as simulated.  In all other cases the bare-ID / full-description
+ * behaviour matches the original writeFasta. */
+static void writeFastaImpl(std::vector<Gene> &genesRef,
+                           std::vector<Gene> &simulatedGenesRef,
+                           const std::string &filename,
+                           bool simulated,
+                           bool withDescription,
+                           const std::string &descriptionTag)
+{
+	std::ofstream Fout;
+	Fout.open(filename.c_str());
+	if (Fout.fail())
+	{
+		my_printError("Error in Genome::writeFasta: Can not open output Fasta file %\n", filename);
+		return;
+	}
+
+	unsigned sized = simulated ? (unsigned)simulatedGenesRef.size()
+	                           : (unsigned)genesRef.size();
+
+	for (unsigned i = 0u; i < sized; i++)
+	{
+		Gene *currentGene = simulated ? &simulatedGenesRef[i] : &genesRef[i];
+
+		if (simulated && withDescription)
+		{
+			std::string desc = currentGene->getDescription();
+			std::string id   = currentGene->getId();
+			std::string body;
+			if (desc.length() > id.length() &&
+			    desc.compare(0, id.length(), id) == 0 &&
+			    desc[id.length()] == ' ')
+			{
+				body = desc.substr(id.length() + 1);
+			}
+			Fout << ">" << id;
+			if (!descriptionTag.empty()) Fout << " " << descriptionTag;
+			if (!body.empty()) Fout << " " << body;
+			Fout << "\n";
+		}
+		else if (simulated)
+		{
+			Fout << ">" << currentGene->getId() << "\n";
+		}
+		else
+		{
+			Fout << ">" << currentGene->getDescription() << "\n";
+		}
+		for (unsigned j = 0u; j < currentGene->length(); j++)
+		{
+			Fout << currentGene->getNucleotideAt(j);
+			if ((j + 1) % 60 == 0) Fout << std::endl;
+		}
+		Fout << std::endl;
+	}
+	Fout.close();
+}
+
+
+/* writeFasta (RCPP EXPOSED) -- historical signature, backward-compatible.
+ * Simulated output writes bare ">ID" headers; non-simulated writes the
+ * full description (the entire header line stored by readFasta).
 */
 void Genome::writeFasta (std::string filename, bool simulated)
 {
 	try {
-		std::ofstream Fout;
-		Fout.open(filename.c_str());
-		if (Fout.fail())
-			my_printError("Error in Genome::writeFasta: Can not open output Fasta file %\n", filename);
-		else
-		{
-			unsigned sized = simulated ? (unsigned)simulatedGenes.size() : (unsigned)genes.size();
+		writeFastaImpl(genes, simulatedGenes, filename, simulated,
+		               false, "");
+	}
+	catch(char* pMsg)
+	{
+		my_printError("\nException: %\n", pMsg);
+	}
+}
 
-			for (unsigned i = 0u; i < sized; i++)
-			{
-				Gene *currentGene = simulated ? &simulatedGenes[i] : &genes[i];
 
-				Fout << ">" << currentGene->getDescription() << "\n";
-				for (unsigned j = 0u; j < currentGene->length(); j++)
-				{
-					Fout << currentGene->getNucleotideAt(j);
-					if ((j + 1) % 60 == 0) Fout << std::endl;
-				}
-				Fout << std::endl;
-			}
-		} // end else
-		Fout.close();
-	} // end try
+/* writeFastaWithDescription (RCPP EXPOSED) -- writes simulated headers as
+ *   ">ID <descriptionTag> <description-after-id>"
+ * so simulated fastas retain the source gene's original annotation plus
+ * a marker (default "[simulated]" set at the R wrapper layer; pass any
+ * tag here, including an empty string to write the description with no
+ * marker).  For non-simulated genes the behaviour is identical to
+ * writeFasta (the description was already the full header line).
+*/
+void Genome::writeFastaWithDescription(std::string filename,
+                                       bool simulated,
+                                       std::string descriptionTag)
+{
+	try {
+		writeFastaImpl(genes, simulatedGenes, filename, simulated,
+		               true, descriptionTag);
+	}
 	catch(char* pMsg)
 	{
 		my_printError("\nException: %\n", pMsg);
@@ -1093,6 +1158,7 @@ RCPP_MODULE(Genome_mod)
 		//File I/O Functions:
 		.method("readFasta", &Genome::readFasta, "reads a genome into the object")
 		.method("writeFasta", &Genome::writeFasta, "writes the genome to a fasta file")
+		.method("writeFastaWithDescription", &Genome::writeFastaWithDescription, "writes the genome to a fasta file, preserving source descriptions and splicing a tag marker between the gene ID and the rest of the description for simulated genes")
 		.method("readRFPData", &Genome::readRFPData, "reads RFPData to be used in PA(NSE) models")
 		.method("readSimRFPData", &Genome::readSimulatedGenomeFromPAModel, "reads already simulated RFPData to be used in PA(NSE) models")
 		.method("writeRFPData", &Genome::writeRFPData, "writes RFPData used in PA(NSE) models")
