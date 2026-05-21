@@ -811,8 +811,6 @@ void FONSEModel::simulateGenome(Genome & genome)
 	unsigned codonIndex;
 	std::string curAA;
 
-	std::string tmpDesc = "Simulated Gene";
-
 	for (unsigned geneIndex = 0; geneIndex < genome.getGenomeSize(); geneIndex++) //loop over all genes in the genome
 	{
 		Gene gene = genome.getGene(geneIndex);
@@ -866,7 +864,9 @@ void FONSEModel::simulateGenome(Genome & genome)
 		}
 		std::string codon = sequenceSummary.indexToCodon((unsigned)Parameter::randUnif(61.0, 64.0)); //randomly choose a stop codon, from range 61-63
 		tmpSeq += codon;
-		Gene simulatedGene(tmpSeq, tmpDesc, gene.getId());
+		// Preserve the source gene's ID + full original description (see
+		// matching comment in ROCModel::simulateGenome).
+		Gene simulatedGene(tmpSeq, gene.getId(), gene.getDescription());
 		genome.addGene(simulatedGene, true);
 	}
 }

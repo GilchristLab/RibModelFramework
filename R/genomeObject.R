@@ -513,3 +513,48 @@ getNcAA <- function(genome)
   rownames(f.mat) <- getNames(genome, FALSE)
   return(f.mat)
 }
+
+
+#' Write a genome to a fasta file, optionally including source descriptions
+#'
+#' R-level wrapper around \code{genome$writeFasta()} and
+#' \code{genome$writeFastaWithDescription()} that handles default arguments
+#' (Rcpp Modules dispatch on strict arity, so the underlying methods must
+#' be called with their full argument lists; this wrapper lets callers
+#' pass only the arguments they care about).
+#'
+#' @param genome  An initialized \code{Rcpp_Genome} object.
+#' @param filename Destination fasta path.
+#' @param simulated Logical; write the simulated-genes vector instead of
+#'   the original genes. Default \code{FALSE}.
+#' @param includeDescription Logical; when \code{TRUE}, simulated headers
+#'   are written as \code{>ID <descriptionTag> <description-after-id>}
+#'   (preserving the source gene's original annotation plus a tag marker).
+#'   When \code{FALSE} (default), the historical bare-\code{">ID"} format
+#'   is used for simulated output. Ignored when \code{simulated = FALSE}.
+#' @param descriptionTag Character string spliced between the gene ID and
+#'   the rest of the description when \code{includeDescription = TRUE}.
+#'   Default \code{"[simulated]"}. Pass \code{""} to write descriptions
+#'   without a tag marker.
+#' @return Invisibly \code{NULL}.
+#'
+#' @examples
+#' \dontrun{
+#' writeFasta(genome, "out.fasta")
+#' writeFasta(genome, "sim.fasta", simulated = TRUE)
+#' writeFasta(genome, "sim.fasta", simulated = TRUE,
+#'            includeDescription = TRUE)
+#' writeFasta(genome, "sim.fasta", simulated = TRUE,
+#'            includeDescription = TRUE,
+#'            descriptionTag = "[simulated from r2-mixture]")
+#' }
+writeFasta <- function(genome, filename, simulated = FALSE,
+                       includeDescription = FALSE,
+                       descriptionTag = "[simulated]") {
+    if (isTRUE(simulated) && isTRUE(includeDescription)) {
+        genome$writeFastaWithDescription(filename, simulated, descriptionTag)
+    } else {
+        genome$writeFasta(filename, simulated)
+    }
+    invisible(NULL)
+}
