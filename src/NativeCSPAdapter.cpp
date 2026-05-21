@@ -24,6 +24,20 @@
  * ============================================================================ */
 
 #include "include/base/NativeCSPAdapter.h"
+#include <stdexcept>
+#include <sstream>
+
+NativeCSPAdapter::NativeCSPAdapter(double a)
+    : aggressiveness(a),
+      adjustFactorLow(1.0 - a),
+      adjustFactorHigh(1.0 + a)
+{
+    if (!(a > 0.0 && a < 1.0)) {
+        std::ostringstream o;
+        o << "NativeCSPAdapter: aggressiveness must be in (0, 1); got " << a;
+        throw std::invalid_argument(o.str());
+    }
+}
 
 void NativeCSPAdapter::update(const CSPAdaptContext& ctx) {
     // Per-AA target band keyed off the joint proposal dimension.  d here

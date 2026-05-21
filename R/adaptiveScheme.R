@@ -43,21 +43,37 @@
 #' Construct the native (in-house) CSP adaptive proposal-width scheme.
 #'
 #' @description The default scheme that has shipped with RibModelFramework
-#'   since the early days.  Per-AA, on each adapt fire: if acceptance rate
-#'   is below 0.225, multiply per-codon `std_csp` by 0.8 and blend the
-#'   proposal covariance toward the sample covariance; if above 0.325,
-#'   multiply by 1.2; otherwise no change.  Constants are not user-tunable
-#'   in this scheme.
+#'   since the early days.  Per-AA, on each adapt fire, if the running
+#'   acceptance rate is outside a dimensionality-dependent target band
+#'   (Roberts-Gelman-Gilks 1997 / Roberts & Rosenthal 2001 optimal-AR
+#'   scaling), the proposal scale is multiplied by `1 - aggressiveness`
+#'   (when AR is too low) or `1 + aggressiveness` (when too high), and
+#'   the proposal covariance is blended toward the recent sample
+#'   covariance.  Target band is theory-driven and not user-tunable.
+#'
+#' @param aggressiveness  Single scalar in (0, 1) controlling the scale
+#'   factors: `adjustFactorLow = 1 - aggressiveness`, `adjustFactorHigh
+#'   = 1 + aggressiveness`.  Larger values converge faster but with more
+#'   thrash; smaller values are steadier but slower.  Default 0.2
+#'   (preserves the legacy 0.8 / 1.2 behavior).
+#'   Recommended: 0.1 (gentle), 0.2 (default), 0.3 (aggressive).
 #'
 #' @return An object of S3 class `c("AdaptiveScheme.Native", "AdaptiveScheme")`.
 #' @seealso [AdaptiveScheme.AndrieuThoms()], [schemes.available()].
 #' @examples
-#' s <- AdaptiveScheme.Native()
-#' print(s)
+#' s <- AdaptiveScheme.Native()                     # default 0.2
+#' s2 <- AdaptiveScheme.Native(aggressiveness = 0.3) # 0.7 / 1.3
+#' print(s2)
 #' @export
-AdaptiveScheme.Native <- function() {
+AdaptiveScheme.Native <- function(aggressiveness = 0.2) {
+    stopifnot(
+        is.numeric(aggressiveness), length(aggressiveness) == 1L,
+        is.finite(aggressiveness),
+        aggressiveness > 0, aggressiveness < 1
+    )
     structure(
-        list(scheme = "native", params = list()),
+        list(scheme = "native",
+             params = list(aggressiveness = aggressiveness)),
         class = c("AdaptiveScheme.Native", "AdaptiveScheme")
     )
 }

@@ -44,8 +44,14 @@
  * empirically 2026-05-21 on the 02v.5-chunked sweep where 2-codon AAs
  * sat at AR 0.50-0.57 in the post-fix-cov frozen R2.
  *
- * Scale factors (0.8 / 1.2) are NOT user-tunable in this branch -- see
- * feat/csp-adapter-aggressiveness for that extension.
+ * The scale factors are user-tunable via a single `aggressiveness`
+ * scalar a in (0, 1):
+ *   adjustFactorLow  = 1 - a
+ *   adjustFactorHigh = 1 + a
+ * Recommended values: 0.1 (gentle), 0.2 (default, == legacy 0.8/1.2),
+ * 0.3 (aggressive).  Larger a converges faster but with more thrash;
+ * smaller a is steadier but slower.  Target band is NOT user-tunable
+ * (theory-driven from optimal-AR scaling).
  * ============================================================================ */
 
 #include "CSPAdaptationStrategy.h"
@@ -53,17 +59,18 @@
 
 class NativeCSPAdapter : public CSPAdaptationStrategy {
 public:
-    NativeCSPAdapter() = default;
+    // aggressiveness in (0, 1); default 0.2 preserves legacy 0.8/1.2 behavior.
+    explicit NativeCSPAdapter(double aggressiveness = 0.2);
     ~NativeCSPAdapter() override = default;
 
     void update(const CSPAdaptContext& ctx) override;
     std::string name() const override { return "native"; }
 
+    double getAggressiveness() const { return aggressiveness; }
+
     std::unique_ptr<CSPAdaptationStrategy> clone() const override {
-        // NativeCSPAdapter has no per-instance mutable state (only static
-        // constexpr thresholds); a fresh instance is equivalent to a deep
-        // copy of any other instance.
-        return std::unique_ptr<CSPAdaptationStrategy>(new NativeCSPAdapter());
+        return std::unique_ptr<CSPAdaptationStrategy>(
+            new NativeCSPAdapter(aggressiveness));
     }
 
 private:
@@ -81,8 +88,9 @@ private:
         return        std::make_pair(0.19, 0.28);        // d>=7  target ~0.234
     }
 
-    static constexpr double adjustFactorLow      = 0.8;
-    static constexpr double adjustFactorHigh     = 1.2;
+    double aggressiveness;       // a in (0, 1)
+    double adjustFactorLow;      // 1 - a
+    double adjustFactorHigh;     // 1 + a
 };
 
 #endif // NATIVE_CSP_ADAPTER_H

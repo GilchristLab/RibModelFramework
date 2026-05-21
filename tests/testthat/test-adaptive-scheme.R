@@ -19,12 +19,32 @@ test_that("schemes.available() returns native + andrieu_thoms", {
 })
 
 
-test_that("AdaptiveScheme.Native() returns correct class + empty params", {
+test_that("AdaptiveScheme.Native() default has aggressiveness = 0.2", {
     s <- AdaptiveScheme.Native()
     expect_s3_class(s, c("AdaptiveScheme.Native", "AdaptiveScheme"))
     expect_equal(s$scheme, "native")
-    expect_equal(length(s$params), 0L)
+    expect_equal(s$params$aggressiveness, 0.2)
     expect_true(is.AdaptiveScheme(s))
+})
+
+
+test_that("AdaptiveScheme.Native() accepts numeric aggressiveness", {
+    expect_equal(AdaptiveScheme.Native(0.1)$params$aggressiveness, 0.1)
+    expect_equal(AdaptiveScheme.Native(0.3)$params$aggressiveness, 0.3)
+    expect_equal(AdaptiveScheme.Native(0.5)$params$aggressiveness, 0.5)
+})
+
+
+test_that("AdaptiveScheme.Native() rejects out-of-range aggressiveness", {
+    expect_error(AdaptiveScheme.Native(0))         # closed lower
+    expect_error(AdaptiveScheme.Native(1))         # closed upper
+    expect_error(AdaptiveScheme.Native(-0.1))
+    expect_error(AdaptiveScheme.Native(1.5))
+    expect_error(AdaptiveScheme.Native(NA_real_))
+    expect_error(AdaptiveScheme.Native(NaN))
+    expect_error(AdaptiveScheme.Native(Inf))
+    expect_error(AdaptiveScheme.Native(c(0.1, 0.2)))
+    expect_error(AdaptiveScheme.Native("0.2"))
 })
 
 
@@ -102,12 +122,17 @@ test_that("print.AdaptiveScheme produces output without error", {
 
 
 test_that("format.AdaptiveScheme returns expected character shape", {
-    expect_equal(format(AdaptiveScheme.Native()), "AdaptiveScheme: native")
-    f <- format(AdaptiveScheme.AndrieuThoms())
-    expect_type(f, "character")
-    expect_equal(length(f), 2L)
-    expect_true(grepl("andrieu_thoms", f[1]))
-    expect_true(grepl("target = 0.234", f[2]))
+    f.native <- format(AdaptiveScheme.Native())
+    expect_type(f.native, "character")
+    expect_equal(length(f.native), 2L)
+    expect_true(grepl("native", f.native[1]))
+    expect_true(grepl("aggressiveness = 0.2", f.native[2]))
+
+    f.at <- format(AdaptiveScheme.AndrieuThoms())
+    expect_type(f.at, "character")
+    expect_equal(length(f.at), 2L)
+    expect_true(grepl("andrieu_thoms", f.at[1]))
+    expect_true(grepl("target = 0.234", f.at[2]))
 })
 
 
@@ -193,6 +218,24 @@ test_that("setCSPAdaptationScheme rejects extra params for native", {
     p <- new("Rcpp_ROCParameter")
     expect_error(p$setCSPAdaptationScheme("native", list(target = 0.234)),
                  regexp = "takes no params|unexpected param")
+})
+
+
+test_that("setCSPAdaptationScheme accepts native + aggressiveness", {
+    p <- new("Rcpp_ROCParameter")
+    p$setCSPAdaptationScheme("native", list(aggressiveness = 0.3))
+    expect_equal(p$getCSPAdaptationSchemeName(), "native")
+})
+
+
+test_that("setCSPAdaptationScheme rejects out-of-range aggressiveness at C++ layer", {
+    p <- new("Rcpp_ROCParameter")
+    expect_error(p$setCSPAdaptationScheme("native", list(aggressiveness = 0.0)),
+                 regexp = "aggressiveness")
+    expect_error(p$setCSPAdaptationScheme("native", list(aggressiveness = 1.0)),
+                 regexp = "aggressiveness")
+    expect_error(p$setCSPAdaptationScheme("native", list(aggressiveness = -0.1)),
+                 regexp = "aggressiveness")
 })
 
 

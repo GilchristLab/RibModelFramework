@@ -47,13 +47,21 @@ std::unique_ptr<CSPAdaptationStrategy> makeCSPAdapter(
     const std::map<std::string, double>& params)
 {
     if (name == "native") {
-        if (!params.empty()) {
-            std::ostringstream o;
-            o << "scheme 'native' takes no params; got " << params.size()
-              << " (e.g. '" << params.begin()->first << "')";
-            throw std::invalid_argument(o.str());
+        // Native scheme takes one OPTIONAL numeric param `aggressiveness`
+        // in (0, 1).  Default 0.2 preserves the legacy 0.8/1.2 behavior.
+        double aggressiveness = 0.2;
+        for (const auto& kv : params) {
+            if (kv.first == "aggressiveness") {
+                aggressiveness = kv.second;
+            } else {
+                std::ostringstream o;
+                o << "scheme 'native' got unexpected param '" << kv.first
+                  << "'; allowed: aggressiveness";
+                throw std::invalid_argument(o.str());
+            }
         }
-        return std::unique_ptr<CSPAdaptationStrategy>(new NativeCSPAdapter());
+        return std::unique_ptr<CSPAdaptationStrategy>(
+            new NativeCSPAdapter(aggressiveness));
     }
 
     if (name == "andrieu_thoms") {
