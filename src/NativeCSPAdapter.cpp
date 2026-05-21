@@ -26,6 +26,16 @@
 #include "include/base/NativeCSPAdapter.h"
 
 void NativeCSPAdapter::update(const CSPAdaptContext& ctx) {
+    // Per-AA target band keyed off the joint proposal dimension.  d here
+    // is the number of variates the cov matrix proposes jointly
+    // (= numCodons * (numMutCat + numSelCat); for single-mixture ROC,
+    // 2*(n_codons - 1) per AA).  See targetBandFor doc in the header.
+    const unsigned d =
+        static_cast<unsigned>(ctx.covarianceMatrix.getNumVariates());
+    std::pair<double, double> band = targetBandFor(d);
+    const double acceptanceTargetLow  = band.first;
+    const double acceptanceTargetHigh = band.second;
+
     // Off-target gate.  When acceptance is inside [low, high] the chain is
     // mixing well at its current proposal; do nothing (no scale, no shape
     // change, no Cholesky).

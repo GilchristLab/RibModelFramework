@@ -11,24 +11,45 @@
  *
  * Algorithm (per AA per fire):
  *
- *   if acceptanceLevel < 0.225:
+ *   d = covarianceMatrix.getNumVariates()
+ *   (lo, hi) = targetBandFor(d)              # dim-dependent target band
+ *   if acceptanceLevel < lo:
  *       std_csp[k] *= 0.8    for k in [aaStart, aaEnd)
  *       covarianceMatrix *= 0.8
  *       blend toward sample cov (0.6 * prev + 0.4 * sample_cov)
  *       choleskyDecomposition()
- *   else if acceptanceLevel > 0.325:
+ *   else if acceptanceLevel > hi:
  *       std_csp[k] *= 1.2
  *       covarianceMatrix *= 1.2
+ *       blend toward sample cov  (symmetric shape update, 2026-05-20)
  *       choleskyDecomposition()
  *   else:
  *       no change (and no Cholesky)
  *
- * Constants are not user-tunable -- this is the "native" scheme as it
- * has historically existed.  Tunable schemes live in their own classes
- * (e.g. AndrieuThomsCSPAdapter).
+ * The target band is dimensionality-dependent (Roberts-Gelman-Gilks 1997
+ * / Roberts & Rosenthal 2001) instead of a flat [0.225, 0.325].  The
+ * per-AA joint proposal dimension is
+ *   d = numCodons * (numMutationCategories + numSelectionCategories)
+ * which for single-mixture ROC is 2*(n_codons - 1) per AA:
+ *
+ *   AA class           codons  d   optimal AR   band
+ *   2-codon (C,D,E,...) 2      2   0.35         [0.30, 0.40]
+ *   3-codon (Ile)       3      4   0.28         [0.23, 0.33]
+ *   4-codon (A,G,...)   4      6   0.27         [0.22, 0.32]
+ *   6-codon (L,R)       6      10  0.234        [0.19, 0.28]
+ *
+ * Background: the legacy flat [0.225, 0.325] band was correct for d~4-5
+ * but mis-targeted d=2 AAs (their optimum is 0.35, well above the high
+ * edge), so R1 adaptation drove their proposal too wide.  Observed
+ * empirically 2026-05-21 on the 02v.5-chunked sweep where 2-codon AAs
+ * sat at AR 0.50-0.57 in the post-fix-cov frozen R2.
+ *
+ * Scale factors (0.8 / 1.2) are NOT user-tunable in this branch -- see
+ * feat/csp-adapter-aggressiveness for that extension.
  * ============================================================================ */
 
 #include "CSPAdaptationStrategy.h"
+#include <utility>
 
 class NativeCSPAdapter : public CSPAdaptationStrategy {
 public:
@@ -46,9 +67,20 @@ public:
     }
 
 private:
-    // Hard-coded historical constants; see class doc.
-    static constexpr double acceptanceTargetLow  = 0.225;
-    static constexpr double acceptanceTargetHigh = 0.325;
+    // Dimension-dependent target acceptance band.  d is the per-AA joint
+    // proposal dimension (numCodons * (numMutCat + numSelCat); for
+    // single-mixture ROC that is 2*(n_codons - 1)).  Calibration:
+    // Roberts-Gelman-Gilks 1997 / Roberts & Rosenthal 2001 optimal AR
+    // for d-dim Gaussian, +/-0.05 around the optimum to define the band.
+    static std::pair<double, double> targetBandFor(unsigned d) {
+        if (d <= 1) return std::make_pair(0.39, 0.49);   // d=1   target ~0.44
+        if (d == 2) return std::make_pair(0.30, 0.40);   // d=2   target ~0.35
+        if (d == 3) return std::make_pair(0.27, 0.37);   // d=3   target ~0.32
+        if (d == 4) return std::make_pair(0.23, 0.33);   // d=4   target ~0.28
+        if (d <= 6) return std::make_pair(0.22, 0.32);   // d=5,6 target ~0.27
+        return        std::make_pair(0.19, 0.28);        // d>=7  target ~0.234
+    }
+
     static constexpr double adjustFactorLow      = 0.8;
     static constexpr double adjustFactorHigh     = 1.2;
 };
