@@ -65,6 +65,7 @@ export(
 
 ## Genome object
 "initializeGenomeObject",
+"writeFasta",
 "getCodonCounts",
 "getCodonCountsForAA",
 "getNames",
