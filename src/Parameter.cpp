@@ -1,5 +1,7 @@
 #include "include/base/Parameter.h"
 #include "include/base/AnaCoDa-config.h"
+#include "include/base/NativeCSPAdapter.h"
+#include "include/base/CSPAdaptationFactory.h"
 #include <cfloat>
 #include <cmath>
 #include <ctime>
@@ -52,8 +54,8 @@ Parameter::Parameter()
 	lastIteration = 0u;
 	numParam = 0u;
 	obsPhiSets = 0u;
-	adaptiveStepPrev = 0;
-	adaptiveStepCurr = 0;
+	adaptiveSamplePrev = 0;
+	adaptiveSampleCurr = 0;
 	stdDevSynthesisRate.resize(1);
 	stdDevSynthesisRate_proposed.resize(1);
 	numAcceptForStdDevSynthesisRate = 0u;
@@ -97,6 +99,10 @@ Parameter::Parameter()
 	restartFileBuildDate.clear();
 	restartFileWrittenAt.clear();
 	restartFileGeneration = REST_GEN_UNKNOWN;
+
+	// Default CSP adaptive proposal-width scheme: in-house ("native").
+	// Override at runtime via Parameter::setCSPAdapter() from R.
+	cspAdapter = std::unique_ptr<CSPAdaptationStrategy>(new NativeCSPAdapter());
 }
 
 
@@ -105,8 +111,8 @@ Parameter::Parameter(unsigned _maxGrouping)
 	lastIteration = 0u;
 	numParam = 0u;
 	obsPhiSets = 0u;
-	adaptiveStepPrev = 0;
-	adaptiveStepCurr = 0;
+	adaptiveSamplePrev = 0;
+	adaptiveSampleCurr = 0;
 	stdDevSynthesisRate.resize(1);
 	stdDevSynthesisRate_proposed.resize(1);
 	numAcceptForStdDevSynthesisRate = 0u;
@@ -151,12 +157,46 @@ Parameter::Parameter(unsigned _maxGrouping)
 	restartFileBuildDate.clear();
 	restartFileWrittenAt.clear();
 	restartFileGeneration = REST_GEN_UNKNOWN;
+
+	// Default CSP adaptive proposal-width scheme: in-house ("native").
+	// Override at runtime via Parameter::setCSPAdapter() from R.
+	cspAdapter = std::unique_ptr<CSPAdaptationStrategy>(new NativeCSPAdapter());
+}
+
+
+Parameter::Parameter(const Parameter& rhs) : Parameter()
+{
+	// Delegate to the default ctor to initialize ALL primitives (lastIteration,
+	// numParam, etc.) to safe values, then operator= copies the data over.
+	// Field-by-field reliance on operator= alone is unsafe: operator= was
+	// historically incomplete (e.g. did not copy lastIteration; the implicit
+	// copy ctor that pre-existed this refactor handled those fields via the
+	// per-member implicit copy).  Once unique_ptr<CSPAdaptationStrategy>
+	// made the implicit copy ctor ill-formed, we had to provide one, and a
+	// safe initialization pre-pass is the easiest way to avoid surfacing the
+	// pre-existing gaps in operator=.
+	*this = rhs;
 }
 
 
 Parameter& Parameter::operator=(const Parameter& rhs)
 {
 	if (this == &rhs) return *this; // handle self assignment
+
+	// Iteration counter: read by every trace-aware accessor as
+	// traceLength = lastIteration + 1.  Was historically missing from
+	// operator=, masked by the implicit copy ctor that pre-existed the
+	// cspAdapter unique_ptr.  See 2026-05-20 diagnosis.
+	lastIteration = rhs.lastIteration;
+
+	// Restart-file build-info: provenance only; not load-bearing for
+	// MCMC, but copied so a Parameter copy reports the same origin.
+	restartFileVersion    = rhs.restartFileVersion;
+	restartFileCommitSha  = rhs.restartFileCommitSha;
+	restartFileBuildDate  = rhs.restartFileBuildDate;
+	restartFileWrittenAt  = rhs.restartFileWrittenAt;
+	restartFileGeneration = rhs.restartFileGeneration;
+
 	numParam = rhs.numParam;
 
 	stdDevSynthesisRate = rhs.stdDevSynthesisRate;
@@ -166,8 +206,8 @@ Parameter& Parameter::operator=(const Parameter& rhs)
 	obsPhiSets = rhs.obsPhiSets;
 	categories = rhs.categories;
 
-	adaptiveStepPrev = rhs.adaptiveStepPrev;
-	adaptiveStepCurr = rhs.adaptiveStepCurr;
+	adaptiveSamplePrev = rhs.adaptiveSamplePrev;
+	adaptiveSampleCurr = rhs.adaptiveSampleCurr;
 
   	// proposal bias and std for phi values
   	bias_stdDevSynthesisRate = rhs.bias_stdDevSynthesisRate;
@@ -233,6 +273,14 @@ Parameter& Parameter::operator=(const Parameter& rhs)
 	phiMixtureHyper_mu1_sd = rhs.phiMixtureHyper_mu1_sd;
 	phiMixtureHyper_sigma1_scale = rhs.phiMixtureHyper_sigma1_scale;
 	phiMixtureHyper_sigma2_scale = rhs.phiMixtureHyper_sigma2_scale;
+
+	// Deep-copy the CSP adaptation strategy so the copy is independent
+	// of the source (unique_ptr semantics + per-strategy internal state).
+	if (rhs.cspAdapter) {
+		cspAdapter = rhs.cspAdapter->clone();
+	} else {
+		cspAdapter = std::unique_ptr<CSPAdaptationStrategy>(new NativeCSPAdapter());
+	}
 
 	return *this;
 }
@@ -1762,42 +1810,58 @@ void Parameter::adaptSynthesisRateProposalWidth(unsigned adaptationWidth, bool a
 }
 
 
-void Parameter::adaptCodonSpecificParameterProposalWidth(unsigned adaptationWidth, unsigned lastIteration, bool adapt)
+void Parameter::adaptCodonSpecificParameterProposalWidth(unsigned adaptationWidth, unsigned lastSample, bool adapt)
 {
-  //Gelman BDA 3rd Edition suggests a target acceptance rate of 0.23
-  // for high dimensional problems
-  // For CSP the combined selection and mutation dimensions range from 2 to 10
-  //Adjust proposal variance to try and get within this range
+  // Outer-loop bookkeeping that is common to ALL CSP adaptive schemes:
+  // - measure per-AA acceptance rate over the past adaptationWidth raw iters
+  // - feed the acceptance rate to the per-fit Trace object
+  // - delegate the per-AA proposal-width update to the chosen strategy
+  //   (cspAdapter), which is NativeCSPAdapter by default and may be
+  //   replaced from R via Parameter::setCSPAdapter().
+  //
+  // Adaptation runs throughout every iteration up to stepsToAdapt (set
+  // from R via setStepsToAdapt(); typically samples * thinning *
+  // adaptive.ratio).  See docs/csp-adaptation-api.md and the
+  // adaptive-fit-flag-is-ignored memory for the iteration <= stepsToAdapt
+  // mechanic.
+  //
+  // Naming convention (renamed 2026-05-20):
+  //   adaptationWidth     -- window in RAW MCMC iterations between adapt fires
+  //   lastSample          -- thinned-sample index at this fire (= iteration / thinning)
+  //   adaptiveSamplePrev  -- lastSample at the previous fire
+  //   adaptiveSampleCurr  -- lastSample at this fire
+  //   samplesSinceLastAdapt -- thinned-sample count between fires (small;
+  //                            equals adaptationWidth / thinning under
+  //                            typical configs where the outer loop fires
+  //                            every adaptationWidth raw iters)
 
   unsigned acceptanceUnder = 0u;
   unsigned acceptanceOver = 0u;
 
-  double acceptanceTargetLow = 0.225; //below this value weighted sum adjustment is applied, was 0.2
-  double acceptanceTargetHigh = 0.325;///above this value weighted sum adjustment is applied, was 0.3
-  double diffFactorAdjust = 0.05; //sets when multiplication factor adjustment is applied, was 0.1 and 0.0, respectively
-  double factorCriteriaLow;
-  double factorCriteriaHigh;
-  double adjustFactorLow = 0.8; //factor by which to reduce proposal widths
-  double adjustFactorHigh = 1.2; //factor by which to increase proposal widths
-  double adjustFactor = 1.0; //variable assigned value of either adjustFactorLow or adjustFactorHigh
+  // These thresholds are now native-only diagnostic numbers; they appear
+  // in the log header but are not used to decide whether to call the
+  // strategy.  Kept here so the log output stays bit-identical to HEAD.
+  const double acceptanceTargetLow  = 0.225;
+  const double acceptanceTargetHigh = 0.325;
+  const double diffFactorAdjust     = 0.05;
+  const double factorCriteriaLow    = acceptanceTargetLow  - diffFactorAdjust;
+  const double factorCriteriaHigh   = acceptanceTargetHigh + diffFactorAdjust;
 
-  factorCriteriaLow = acceptanceTargetLow - diffFactorAdjust;  //below this value weighted sum and factor adjustments are applied
-  factorCriteriaHigh = acceptanceTargetHigh + diffFactorAdjust;  //above this value weighted sum and factor adjustments are applied
-
-  adaptiveStepPrev = adaptiveStepCurr;
-  adaptiveStepCurr = lastIteration;
-  unsigned samples = adaptiveStepCurr - adaptiveStepPrev;
+  adaptiveSamplePrev = adaptiveSampleCurr;
+  adaptiveSampleCurr = lastSample;
+  unsigned samplesSinceLastAdapt = adaptiveSampleCurr - adaptiveSamplePrev;
 
   my_print("Acceptance rates for Codon Specific Parameters\n");
   my_print("Target range: %-% \n", factorCriteriaLow, factorCriteriaHigh );
   my_print("Adjustment range: < % or > % \n", acceptanceTargetLow, acceptanceTargetHigh );
-  my_print("\tAA\tAcc.Rat\n"); //Prop.Width\n";
+  my_print("\tAA\tAcc.Rat\n");
 
-  for (unsigned i = 0; i < groupList.size(); i++) //cycle through all of the aa
+  for (unsigned i = 0; i < groupList.size(); i++)
   {
-  	std::string aa = groupList[i];
+    std::string aa = groupList[i];
     unsigned aaIndex = SequenceSummary::AAToAAIndex(aa);
-    double acceptanceLevel = (double)numAcceptForCodonSpecificParameters[aaIndex] / (double)adaptationWidth;
+    double acceptanceLevel =
+        (double)numAcceptForCodonSpecificParameters[aaIndex] / (double)adaptationWidth;
 
     my_print("\t%:\t%\n", aa.c_str(), acceptanceLevel);
 
@@ -1806,72 +1870,62 @@ void Parameter::adaptCodonSpecificParameterProposalWidth(unsigned adaptationWidt
     unsigned aaStart, aaEnd;
     SequenceSummary::AAToCodonRange(aa, aaStart, aaEnd, true);
 
-      //Evaluate current acceptance ratio  performance
     if (acceptanceLevel < factorCriteriaLow) acceptanceUnder++;
     else if (acceptanceLevel > factorCriteriaHigh) acceptanceOver++;
 
     if (adapt)
-	{
-		if( (acceptanceLevel < acceptanceTargetLow) || (acceptanceLevel > acceptanceTargetHigh) )// adjust proposal width
-	  	{
-	  	 
-	      // define adjustFactor
-	      if (acceptanceLevel < factorCriteriaLow)
-	      {
-		  	adjustFactor = adjustFactorLow;
-		  	
-		  	//Update cov matrix based on previous window to improve efficiency of sampling
-		  	//In original code, Cedric only did this when the acceptance level was too low.
-		  	//Mike updated the code to do this every time.
-		  	//Alex noticed this tended to lead to high acceptance ratios for some amino acids in ROC (e.g. 0.4 -- 0.5 range)
-		  	//Most likely effect is would decrease sampling efficiency. Parameter estimates should be reliable if MCMC run long enough.
-		  	//Can check effective sample sizes if concerned.
-		  	//Note that in Cedric's original code, he adjusted the covariance matrix prior to this chunk of code.
-		  	//This implementation seems to work, as well. 
-		  	CovarianceMatrix covcurr(covarianceMatrix[aaIndex].getNumVariates());
-	      	covcurr.calculateSampleCovariance(*traces.getCodonSpecificParameterTrace(), aa, samples, adaptiveStepCurr);
-	      	CovarianceMatrix covprev = covarianceMatrix[aaIndex];
-	      	covprev = (covprev*0.6);
-	      	covcurr = (covcurr*0.4);
-	      	covarianceMatrix[aaIndex] = covprev + covcurr;
-	      	//replace cov matrix based on previous window
-	      //The is approach was commented out and above code uncommented to replace it in commit ec63bb21a1e9 (2016).  Should remove
-	      //covarianceMatrix[aaIndex].calculateSampleCovariance(*traces.getCodonSpecificParameterTrace(), aa, samples, adaptiveStepCurr);
+    {
+      CSPAdaptContext ctx{
+        aaIndex, aa, aaStart, aaEnd,
+        acceptanceLevel, adaptationWidth, lastSample, samplesSinceLastAdapt,
+        std_csp, covarianceMatrix[aaIndex], traces
+      };
+      cspAdapter->update(ctx);
+    }
 
-		  }
-	      else if(acceptanceLevel > factorCriteriaHigh)
-	      {
-		  	adjustFactor = adjustFactorHigh;
-		  }
-	      else //Don't adjust
-	      {
-		  	adjustFactor = 1.0;
-		  }
-
-		 if( adjustFactor != 1.0 )
-		 {
-		 
-		    //Adjust proposal width for codon specific parameters
-		    for (unsigned k = aaStart; k < aaEnd; k++)
-		    {
-		    	std_csp[k] *= adjustFactor;
-		    	
-		    }
-		    covarianceMatrix[aaIndex] *= adjustFactor;
-		    //Adjust widths if using cov matrix
-		   	
-	  	   
-		}
-
-		//Decomposing of cov matrix to convert iid samples to covarying samples using matrix decomposition
-		//The decomposed matrix is used in the proposal of new samples
-		covarianceMatrix[aaIndex].choleskyDecomposition();
-		}// end adjust loop
-	} // end if(adapt)
-
-	numAcceptForCodonSpecificParameters[aaIndex] = 0u;
+    numAcceptForCodonSpecificParameters[aaIndex] = 0u;
   }
 }
+
+
+void Parameter::setCSPAdapter(std::unique_ptr<CSPAdaptationStrategy> adapter)
+{
+  if (!adapter) {
+    // Defensive: an empty unique_ptr would null out cspAdapter and crash
+    // the next adapt fire.  Either replace with a real adapter or leave
+    // the current one in place.
+    return;
+  }
+  cspAdapter = std::move(adapter);
+}
+
+
+#ifndef STANDALONE
+void Parameter::setCSPAdaptationScheme(std::string name, Rcpp::List params)
+{
+  // Convert the Rcpp::List of named doubles into the typed map that the
+  // factory expects.  Non-numeric entries are caught here via Rcpp::as
+  // throwing.  Unknown scheme names or out-of-range param values are
+  // caught inside makeCSPAdapter (layer 3 + layer 4); we translate
+  // those std::invalid_argument throws into R errors via Rcpp::stop.
+  std::map<std::string, double> m;
+  if (params.size() > 0) {
+    Rcpp::CharacterVector keys = params.names();
+    for (R_xlen_t i = 0; i < params.size(); ++i) {
+      std::string k = Rcpp::as<std::string>(keys[i]);
+      m[k] = Rcpp::as<double>(params[i]);
+    }
+  }
+
+  try {
+    setCSPAdapter(makeCSPAdapter(name, m));
+  } catch (const std::invalid_argument& e) {
+    Rcpp::stop(std::string("setCSPAdaptationScheme: ") + e.what());
+  } catch (const std::exception& e) {
+    Rcpp::stop(std::string("setCSPAdaptationScheme: ") + e.what());
+  }
+}
+#endif
 
 
 

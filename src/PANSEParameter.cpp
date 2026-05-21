@@ -1061,7 +1061,7 @@ void PANSEParameter::updatePartitionFunction()
 // ----------------------------------------------//
 
 
-void PANSEParameter::adaptCodonSpecificParameterProposalWidth(unsigned adaptationWidth, unsigned lastIteration, bool adapt)
+void PANSEParameter::adaptCodonSpecificParameterProposalWidth(unsigned adaptationWidth, unsigned lastSample, bool adapt)
 {
   //Gelman BDA 3rd Edition suggests a target acceptance rate of 0.23
   // for high dimensional problems
@@ -1083,9 +1083,9 @@ void PANSEParameter::adaptCodonSpecificParameterProposalWidth(unsigned adaptatio
   factorCriteriaLow = acceptanceTargetLow - diffFactorAdjust;  //below this value weighted sum and factor adjustments are applied
   factorCriteriaHigh = acceptanceTargetHigh + diffFactorAdjust;  //above this value weighted sum and factor adjustments are applied
 
-  adaptiveStepPrev = adaptiveStepCurr;
-  adaptiveStepCurr = lastIteration;
-  unsigned samples = adaptiveStepCurr - adaptiveStepPrev;
+  adaptiveSamplePrev = adaptiveSampleCurr;
+  adaptiveSampleCurr = lastSample;
+  unsigned samplesSinceLastAdapt = adaptiveSampleCurr - adaptiveSamplePrev;
 
   my_print("Acceptance rates for Codon Specific Parameters\n");
   my_print("Target range: %-% \n", factorCriteriaLow, factorCriteriaHigh );
@@ -1120,7 +1120,7 @@ void PANSEParameter::adaptCodonSpecificParameterProposalWidth(unsigned adaptatio
 
 
 				CovarianceMatrix covcurr(covarianceMatrix[codonIndex].getNumVariates());
-				covcurr.calculateSampleCovarianceForPANSE(*traces.getCodonSpecificParameterTrace(), codon, samples, adaptiveStepCurr,"elongation");
+				covcurr.calculateSampleCovarianceForPANSE(*traces.getCodonSpecificParameterTrace(), codon, samplesSinceLastAdapt, adaptiveSampleCurr,"elongation");
 				CovarianceMatrix covprev = covarianceMatrix[codonIndex];
 				covprev = (covprev*0.6);
 				covcurr = (covcurr*0.4);
@@ -1155,7 +1155,7 @@ void PANSEParameter::adaptCodonSpecificParameterProposalWidth(unsigned adaptatio
 				if (numNSECategories > 1)
 				{
 					CovarianceMatrix covcurr(nse_covarianceMatrix[codonIndex].getNumVariates());
-					covcurr.calculateSampleCovarianceForPANSE(*traces.getCodonSpecificParameterTrace(), codon, samples, adaptiveStepCurr,"nse");
+					covcurr.calculateSampleCovarianceForPANSE(*traces.getCodonSpecificParameterTrace(), codon, samplesSinceLastAdapt, adaptiveSampleCurr,"nse");
 					CovarianceMatrix covprev = nse_covarianceMatrix[codonIndex];
 					covprev = (covprev*0.6);
 					covcurr = (covcurr*0.4);

@@ -562,9 +562,9 @@ void PAModel::adaptSynthesisRateProposalWidth(unsigned adaptiveWidth, bool adapt
 }
 
 
-void PAModel::adaptCodonSpecificParameterProposalWidth(unsigned adaptiveWidth, unsigned lastIteration, bool adapt)
+void PAModel::adaptCodonSpecificParameterProposalWidth(unsigned adaptiveWidth, unsigned lastSample, bool adapt)
 {
-	parameter->adaptCodonSpecificParameterProposalWidth(adaptiveWidth, lastIteration, adapt);
+	parameter->adaptCodonSpecificParameterProposalWidth(adaptiveWidth, lastSample, adapt);
 }
 
 

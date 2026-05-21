@@ -108,7 +108,7 @@ class Model
 		//Adaptive Width Functions:
 		virtual void adaptStdDevSynthesisRateProposalWidth(unsigned adaptiveWidth, bool adapt) = 0;
 		virtual void adaptSynthesisRateProposalWidth(unsigned adaptiveWidth, bool adapt) = 0;
-		virtual void adaptCodonSpecificParameterProposalWidth(unsigned adaptiveWidth, unsigned lastIteration,
+		virtual void adaptCodonSpecificParameterProposalWidth(unsigned adaptiveWidth, unsigned lastSample,
 					bool adapt) = 0;
 		virtual void adaptHyperParameterProposalWidths(unsigned adaptiveWidth, bool adapt) = 0;
 

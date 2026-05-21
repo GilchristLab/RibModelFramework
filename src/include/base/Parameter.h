@@ -5,6 +5,7 @@
 #include "../Genome.h"
 #include "../CovarianceMatrix.h"
 #include "Trace.h"
+#include "CSPAdaptationStrategy.h"
 
 
 #include <vector>
@@ -14,6 +15,7 @@
 #include <fstream>
 #include <ctime>
 #include <sstream>
+#include <memory>
 
 #ifndef STANDALONE
 #include <Rcpp.h>
@@ -69,6 +71,7 @@ class Parameter {
 		//Constructors & Destructors:
 		Parameter();
 		Parameter(unsigned maxGrouping);
+		Parameter(const Parameter& rhs);            // explicit: unique_ptr<CSPAdaptationStrategy> is non-copyable
 		Parameter& operator=(const Parameter& rhs);
 		virtual ~Parameter();
 
@@ -287,7 +290,34 @@ class Parameter {
 		//Adaptive Width Functions: TODO: test
 		void adaptStdDevSynthesisRateProposalWidth(unsigned adaptationWidth, bool adapt);
 		void adaptSynthesisRateProposalWidth(unsigned adaptationWidth, bool adapt);
-		virtual void adaptCodonSpecificParameterProposalWidth(unsigned adaptationWidth, unsigned lastIteration, bool adapt);
+		// Per Note about `lastSample`: this parameter is the THINNED-sample
+		// index, not a raw MCMC iteration count.  Computed in
+		// MCMCAlgorithm.cpp:678 as `iteration / thinning`.  Was historically
+		// named `lastIteration`, which is misleading -- renamed 2026-05-20.
+		// Likewise `adaptationWidth` is the user-facing adaptive_width in
+		// RAW iterations (= thinned-sample-count * thinning).
+		virtual void adaptCodonSpecificParameterProposalWidth(unsigned adaptationWidth, unsigned lastSample, bool adapt);
+
+		// CSP adaptive proposal-width scheme.  Default = NativeCSPAdapter
+		// (the in-house scheme, bit-identical to pre-refactor behavior).
+		// See docs/csp-adaptation-api.md.
+		void setCSPAdapter(std::unique_ptr<CSPAdaptationStrategy> adapter);
+		const CSPAdaptationStrategy& getCSPAdapter() const { return *cspAdapter; }
+
+		// R-side Rcpp entry point.  Name + named list of double params;
+		// see docs/csp-adaptation-api.md for the contract.  Validation
+		// happens inside makeCSPAdapter (layer 3 + layer 4) and is
+		// translated to R errors by Rcpp::stop at this seam.
+#ifndef STANDALONE
+		void setCSPAdaptationScheme(std::string name, Rcpp::List params);
+#endif
+
+		// Convenience accessor for R-side diagnostics: returns the
+		// canonical lowercase snake_case name of the scheme currently
+		// in effect (e.g. "native", "andrieu_thoms").
+		std::string getCSPAdaptationSchemeName() const {
+		    return cspAdapter ? cspAdapter->name() : std::string("native");
+		}
 
 
 		//Posterior, Variance, and Estimates Functions: TODO: test
@@ -421,8 +451,17 @@ class Parameter {
 	protected:
 		Trace traces;
 
-		unsigned adaptiveStepPrev;
-		unsigned adaptiveStepCurr;
+		// CSP adaptive proposal-width strategy.  Constructors default this
+		// to NativeCSPAdapter; runtime override via setCSPAdapter() from R.
+		std::unique_ptr<CSPAdaptationStrategy> cspAdapter;
+
+		// Thinned-sample indices used by the CSP proposal-width adaptation
+		// path to compute samplesSinceLastAdapt = adaptiveSampleCurr -
+		// adaptiveSamplePrev.  Was historically `adaptiveStepPrev/Curr`,
+		// renamed 2026-05-20 to reflect that the units are thinned samples
+		// (received as the `lastSample` parameter), not raw MCMC steps.
+		unsigned adaptiveSamplePrev;
+		unsigned adaptiveSampleCurr;
 		
 		std::vector<CovarianceMatrix> covarianceMatrix;
 		std::vector<mixtureDefinition> categories;

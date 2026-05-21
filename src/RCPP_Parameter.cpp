@@ -215,6 +215,16 @@ RCPP_MODULE(Parameter_mod)
 		.method("initializeSynthesisRateByGenome", &Parameter::initializeSynthesisRateByGenome)
 		.method("initializeSynthesisRateByList", &Parameter::initializeSynthesisRateByList)
 		.method("initializeSynthesisRateByRandom", &Parameter::initializeSynthesisRateByRandom)
+
+		// CSP adaptive proposal-width scheme selection (R-side; see
+		// docs/csp-adaptation-api.md).  setCSPAdaptationScheme takes a
+		// scheme name + named-list of double params and replaces the
+		// in-memory adapter (errors translated to Rcpp::stop).
+		// getCSPAdaptationSchemeName returns the canonical name of the
+		// scheme currently in effect.
+		.method("setCSPAdaptationScheme", &Parameter::setCSPAdaptationScheme)
+		.method("getCSPAdaptationSchemeName", &Parameter::getCSPAdaptationSchemeName)
+
 		//checkIndex is not listed/exposed since it is only called from the other R functions
 		.method("readPhiValues", &Parameter::readPhiValues) //Not a R wrapper
 

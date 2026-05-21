@@ -45,6 +45,12 @@ class MCMCAlgorithm
 		std::string file;
 		unsigned fileWriteInterval;
 		bool multipleFiles;
+		// True if the caller's restart filename already carried a recognisable
+		// extension in its leaf (e.g. ".rst"); controls whether the per-sample
+		// suffix is appended AFTER the extension ("<base>.rst_<sample>",
+		// pre-existing convention) or BEFORE it ("<base>_<sample>.rst", new
+		// behaviour when caller passes a bare prefix).
+		bool sampleAfterExt;
 
 
 		//Acceptance Rejection Functions:
