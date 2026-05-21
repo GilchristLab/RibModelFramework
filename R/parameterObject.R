@@ -1763,7 +1763,7 @@ extractBaseInfo <- function(parameter){
 #called from "writeParameterObject."
 writeParameterObject.Rcpp_ROCParameter <- function(parameter, file){
   paramBase <- extractBaseInfo(parameter)
-  
+
   currentMutation <- parameter$currentMutationParameter
   currentSelection <- parameter$currentSelectionParameter
   proposedMutation <- parameter$proposedMutationParameter
@@ -1771,16 +1771,61 @@ writeParameterObject.Rcpp_ROCParameter <- function(parameter, file){
   model = "ROC"
   mutationPrior <- parameter$getMutationPriorStandardDeviation()
   selectionPrior <- parameter$getSelectionPriorStandardDeviation()
-  
+
   trace <- parameter$getTraceObject()
-  
+
   mutationTrace <- trace$getCodonSpecificParameterTrace(0)
   selectionTrace <- trace$getCodonSpecificParameterTrace(1)
-  
-  
+
+  # Phi-mixture-LN state (task #12c.3, 2026-05-21).  Without this block,
+  # writeParameterObject silently strips the mixture prior type, the
+  # current/proposed mixture hyperparameter values, and the per-iteration
+  # mixture traces.  loadParameterObject then returns a parameter object
+  # that reports phiPriorType=0 (single-LN) regardless of the source
+  # chain -- the same downstream failure as the .rst persistence bug
+  # fixed in commit 9c298c4.  See ROC.data.analyses memory
+  # `[[mixture-restart-bug]]` and `evaluate.R` "(mixture trace getters
+  # returned empty)" warning.
+  phiPriorType        <- parameter$getPhiPriorType()
+  phiPriorConstraint  <- parameter$getPhiPriorConstraint()
+  # Per-mixture-category scalars.  num.mixtures == 1 in current
+  # phi-mixture-LN workflows; we still vectorise across categories for
+  # forward-compat with multi-mixture extensions.
+  numMix              <- paramBase$numMix
+  phiMixtureP         <- vapply(seq_len(numMix) - 1L,
+                                function(c) parameter$getPhiMixtureP(c, FALSE),
+                                numeric(1))
+  phiMixtureMu1       <- vapply(seq_len(numMix) - 1L,
+                                function(c) parameter$getPhiMixtureMu1(c, FALSE),
+                                numeric(1))
+  phiMixtureSigma1    <- vapply(seq_len(numMix) - 1L,
+                                function(c) parameter$getPhiMixtureSigma1(c, FALSE),
+                                numeric(1))
+  phiMixtureSigma2    <- vapply(seq_len(numMix) - 1L,
+                                function(c) parameter$getPhiMixtureSigma2(c, FALSE),
+                                numeric(1))
+  # Traces (one inner vector per synthesis-rate category).  These are
+  # the actual per-iteration history the chain produced; with this
+  # block, loadParameterObject sees the full posterior and the
+  # downstream tooling can compute quantiles / Geweke / ACF etc.
+  phiMixturePTrace        <- trace$getPhiMixturePTrace()
+  phiMixtureMu1Trace      <- trace$getPhiMixtureMu1Trace()
+  phiMixtureSigma1Trace   <- trace$getPhiMixtureSigma1Trace()
+  phiMixtureSigma2Trace   <- trace$getPhiMixtureSigma2Trace()
+  phiMixturePAccTrace     <- trace$getPhiMixturePAcceptanceRateTrace()
+  phiMixtureMu1AccTrace   <- trace$getPhiMixtureMu1AcceptanceRateTrace()
+  phiMixtureSigma1AccTrace<- trace$getPhiMixtureSigma1AcceptanceRateTrace()
+  phiMixtureSigma2AccTrace<- trace$getPhiMixtureSigma2AcceptanceRateTrace()
+
   save(list = c("paramBase", "currentMutation", "currentSelection",
-                "proposedMutation", "proposedSelection", "model",  
-                "mutationPrior", "mutationTrace", "selectionPrior", "selectionTrace"),
+                "proposedMutation", "proposedSelection", "model",
+                "mutationPrior", "mutationTrace", "selectionPrior", "selectionTrace",
+                "phiPriorType", "phiPriorConstraint",
+                "phiMixtureP", "phiMixtureMu1", "phiMixtureSigma1", "phiMixtureSigma2",
+                "phiMixturePTrace", "phiMixtureMu1Trace",
+                "phiMixtureSigma1Trace", "phiMixtureSigma2Trace",
+                "phiMixturePAccTrace", "phiMixtureMu1AccTrace",
+                "phiMixtureSigma1AccTrace", "phiMixtureSigma2AccTrace"),
        file=file)
 }
 
@@ -2127,16 +2172,67 @@ loadROCParameterObject <- function(parameter, files)
   }#end of for loop (files)
   
   trace <- parameter$getTraceObject()
-  
+
   trace$setCodonSpecificParameterTrace(codonSpecificParameterTraceMut, 0)
   trace$setCodonSpecificParameterTrace(codonSpecificParameterTraceSel, 1)
-  
+
   parameter$currentMutationParameter <- tempEnv$currentMutation
   parameter$currentSelectionParameter <- tempEnv$currentSelection
   parameter$proposedMutationParameter <- tempEnv$proposedMutation
   parameter$proposedSelectionParameter <- tempEnv$proposedSelection
+
+  # Restore phi-mixture-LN state (task #12c.3, 2026-05-21).  Backward-
+  # compatible: pre-patch .Rdata files written without this block omit
+  # the phiPriorType / phi-mixture-* fields, in which case the
+  # in-memory defaults (phiPriorType = 0, no mixture state) stand.
+  # Forward-compat is the goal: writeParameterObject paired with this
+  # loader round-trips phi-mixture-LN state through .Rdata identically
+  # to how it round-trips CSP traces.
+  if (!is.null(tempEnv$phiPriorType) && length(tempEnv$phiPriorType) == 1L) {
+    parameter$setPhiPriorType(tempEnv$phiPriorType)
+    if (!is.null(tempEnv$phiPriorConstraint))
+      parameter$setPhiPriorConstraint(tempEnv$phiPriorConstraint)
+    # Ensure phiMixture* per-category vectors are allocated.  When the
+    # parameter is reconstructed via new(ROCParameter) (as in
+    # loadParameterObject), initParameterSet -- which normally calls
+    # initPhiMixtureStorage as a side effect -- is bypassed, leaving the
+    # vectors empty and the per-category setters silent no-ops (the C++
+    # setters guard with `if (mixtureCategory >= phiMixtureP.size()) return`).
+    # Call the idempotent allocator explicitly here.
+    parameter$initPhiMixtureStorage()
+    # Scalars per mixture category.  Length-num.mixtures vectors.
+    if (!is.null(tempEnv$phiMixtureP)) {
+      for (c in seq_along(tempEnv$phiMixtureP)) {
+        parameter$setPhiMixtureP(     tempEnv$phiMixtureP[c],      c - 1L)
+        parameter$setPhiMixtureMu1(   tempEnv$phiMixtureMu1[c],    c - 1L)
+        parameter$setPhiMixtureSigma1(tempEnv$phiMixtureSigma1[c], c - 1L)
+        parameter$setPhiMixtureSigma2(tempEnv$phiMixtureSigma2[c], c - 1L)
+      }
+    }
+    # Traces (only meaningful when phiPriorType == 1 = MIXTURE_LN; for
+    # single-LN the traces are zero-filled).  Set unconditionally so
+    # downstream get* calls always return something; consumers can gate
+    # on phiPriorType.
+    if (!is.null(tempEnv$phiMixturePTrace))
+      trace$setPhiMixturePTrace(tempEnv$phiMixturePTrace)
+    if (!is.null(tempEnv$phiMixtureMu1Trace))
+      trace$setPhiMixtureMu1Trace(tempEnv$phiMixtureMu1Trace)
+    if (!is.null(tempEnv$phiMixtureSigma1Trace))
+      trace$setPhiMixtureSigma1Trace(tempEnv$phiMixtureSigma1Trace)
+    if (!is.null(tempEnv$phiMixtureSigma2Trace))
+      trace$setPhiMixtureSigma2Trace(tempEnv$phiMixtureSigma2Trace)
+    if (!is.null(tempEnv$phiMixturePAccTrace))
+      trace$setPhiMixturePAcceptanceRateTrace(tempEnv$phiMixturePAccTrace)
+    if (!is.null(tempEnv$phiMixtureMu1AccTrace))
+      trace$setPhiMixtureMu1AcceptanceRateTrace(tempEnv$phiMixtureMu1AccTrace)
+    if (!is.null(tempEnv$phiMixtureSigma1AccTrace))
+      trace$setPhiMixtureSigma1AcceptanceRateTrace(tempEnv$phiMixtureSigma1AccTrace)
+    if (!is.null(tempEnv$phiMixtureSigma2AccTrace))
+      trace$setPhiMixtureSigma2AcceptanceRateTrace(tempEnv$phiMixtureSigma2AccTrace)
+  }
+
   parameter$setTraceObject(trace)
-  return(parameter) 
+  return(parameter)
 }
 
 

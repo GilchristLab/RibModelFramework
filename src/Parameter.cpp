@@ -3052,6 +3052,14 @@ void   Parameter::setPhiMixtureHyperSigma2Scale(double v) { if (v > 0.0) phiMixt
 void Parameter::initPhiMixtureStorage()
 {
 	unsigned n = numSynthesisRateCategories;
+	// loadParameterObject path (task #12c.3): when a parameter is
+	// reconstructed via new(ROCParameter) + setBaseInfo, the path that
+	// normally derives numSynthesisRateCategories from numSelectionCategories
+	// (Parameter.cpp:1210) is bypassed, so numSynthesisRateCategories stays
+	// at the default 0 even though numMixtures is restored.  Fall back to
+	// getNumMixtureElements() to keep the vector sizing consistent with
+	// the restored mixture count.
+	if (n == 0u) n = getNumMixtureElements();
 	// Defaults: well-identified regime A from prototypes/phi_mixture_identifiability.R.
 	// (p=0.9, mu1=-0.4, sigma1=0.4, sigma2=0.25 -> derived mu2 ~ 0.91 under mean=1)
 	//
