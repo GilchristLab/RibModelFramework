@@ -637,6 +637,78 @@ void Parameter::initBaseValuesFromFile(std::string filename)
 						std_NoiseOffset.push_back(val);
 					}
 				}
+				// ---- Phi prior + mixture-LN state (task #12 restart) ----
+				// Forward-compat: older .rst files lack these blocks; the
+				// switch's default behavior leaves phiPriorType/Constraint and
+				// the mixture vectors at the C++ defaults, and downstream
+				// initPhiMixtureStorage() fills any empty vectors with the
+				// regime-A defaults. Newer .rst files carry the saved state
+				// here, and initPhiMixtureStorage's idempotent guard preserves
+				// it.
+				else if (variableName == "phiPriorType") {
+					iss.str(tmp); iss >> phiPriorType;
+				}
+				else if (variableName == "phiPriorConstraint") {
+					iss.str(tmp); iss >> phiPriorConstraint;
+				}
+				else if (variableName == "phiMixtureP") {
+					double val; iss.str(tmp);
+					while (iss >> val) phiMixtureP.push_back(val);
+				}
+				else if (variableName == "phiMixtureMu1") {
+					double val; iss.str(tmp);
+					while (iss >> val) phiMixtureMu1.push_back(val);
+				}
+				else if (variableName == "phiMixtureSigma1") {
+					double val; iss.str(tmp);
+					while (iss >> val) phiMixtureSigma1.push_back(val);
+				}
+				else if (variableName == "phiMixtureSigma2") {
+					double val; iss.str(tmp);
+					while (iss >> val) phiMixtureSigma2.push_back(val);
+				}
+				else if (variableName == "std_phiMixtureP") {
+					iss.str(tmp); iss >> std_phiMixtureP;
+				}
+				else if (variableName == "std_phiMixtureMu1") {
+					iss.str(tmp); iss >> std_phiMixtureMu1;
+				}
+				else if (variableName == "std_phiMixtureSigma1") {
+					iss.str(tmp); iss >> std_phiMixtureSigma1;
+				}
+				else if (variableName == "std_phiMixtureSigma2") {
+					iss.str(tmp); iss >> std_phiMixtureSigma2;
+				}
+				else if (variableName == "numAcceptForPhiMixtureP") {
+					iss.str(tmp); iss >> numAcceptForPhiMixtureP;
+				}
+				else if (variableName == "numAcceptForPhiMixtureMu1") {
+					iss.str(tmp); iss >> numAcceptForPhiMixtureMu1;
+				}
+				else if (variableName == "numAcceptForPhiMixtureSigma1") {
+					iss.str(tmp); iss >> numAcceptForPhiMixtureSigma1;
+				}
+				else if (variableName == "numAcceptForPhiMixtureSigma2") {
+					iss.str(tmp); iss >> numAcceptForPhiMixtureSigma2;
+				}
+				else if (variableName == "phiMixtureHyperPAlpha") {
+					iss.str(tmp); iss >> phiMixtureHyper_p_alpha;
+				}
+				else if (variableName == "phiMixtureHyperPBeta") {
+					iss.str(tmp); iss >> phiMixtureHyper_p_beta;
+				}
+				else if (variableName == "phiMixtureHyperMu1Mean") {
+					iss.str(tmp); iss >> phiMixtureHyper_mu1_mean;
+				}
+				else if (variableName == "phiMixtureHyperMu1Sd") {
+					iss.str(tmp); iss >> phiMixtureHyper_mu1_sd;
+				}
+				else if (variableName == "phiMixtureHyperSigma1Scale") {
+					iss.str(tmp); iss >> phiMixtureHyper_sigma1_scale;
+				}
+				else if (variableName == "phiMixtureHyperSigma2Scale") {
+					iss.str(tmp); iss >> phiMixtureHyper_sigma2_scale;
+				}
 			}
 		}
 
@@ -867,6 +939,42 @@ void Parameter::writeBasicRestartFile(std::string filename)
 		}
 		if (j % 10 != 0)
 			oss << "\n";
+
+		// ---- Phi prior + mixture-LN state (task #12: restart support) ----
+		// These blocks were added 2026-05-21 to make .rst self-sufficient for
+		// mixture-LN chains. Older AnaCoDa builds will silently skip unknown
+		// variableName blocks (see initBaseValuesFromFile's switch), so this
+		// is forward-compatible. Restart files written by single-LN chains
+		// will also carry these blocks (with phiPriorType=0 and the mixture
+		// vectors empty/default), which is harmless.
+		oss << ">phiPriorType:\n"        << phiPriorType        << "\n";
+		oss << ">phiPriorConstraint:\n"  << phiPriorConstraint  << "\n";
+		oss << ">phiMixtureP:\n";
+		for (i = 0; i < phiMixtureP.size(); i++)
+			oss << phiMixtureP[i] << ((i + 1 == phiMixtureP.size()) ? "\n" : " ");
+		oss << ">phiMixtureMu1:\n";
+		for (i = 0; i < phiMixtureMu1.size(); i++)
+			oss << phiMixtureMu1[i] << ((i + 1 == phiMixtureMu1.size()) ? "\n" : " ");
+		oss << ">phiMixtureSigma1:\n";
+		for (i = 0; i < phiMixtureSigma1.size(); i++)
+			oss << phiMixtureSigma1[i] << ((i + 1 == phiMixtureSigma1.size()) ? "\n" : " ");
+		oss << ">phiMixtureSigma2:\n";
+		for (i = 0; i < phiMixtureSigma2.size(); i++)
+			oss << phiMixtureSigma2[i] << ((i + 1 == phiMixtureSigma2.size()) ? "\n" : " ");
+		oss << ">std_phiMixtureP:\n"      << std_phiMixtureP      << "\n";
+		oss << ">std_phiMixtureMu1:\n"    << std_phiMixtureMu1    << "\n";
+		oss << ">std_phiMixtureSigma1:\n" << std_phiMixtureSigma1 << "\n";
+		oss << ">std_phiMixtureSigma2:\n" << std_phiMixtureSigma2 << "\n";
+		oss << ">numAcceptForPhiMixtureP:\n"      << numAcceptForPhiMixtureP      << "\n";
+		oss << ">numAcceptForPhiMixtureMu1:\n"    << numAcceptForPhiMixtureMu1    << "\n";
+		oss << ">numAcceptForPhiMixtureSigma1:\n" << numAcceptForPhiMixtureSigma1 << "\n";
+		oss << ">numAcceptForPhiMixtureSigma2:\n" << numAcceptForPhiMixtureSigma2 << "\n";
+		oss << ">phiMixtureHyperPAlpha:\n"       << phiMixtureHyper_p_alpha      << "\n";
+		oss << ">phiMixtureHyperPBeta:\n"        << phiMixtureHyper_p_beta       << "\n";
+		oss << ">phiMixtureHyperMu1Mean:\n"      << phiMixtureHyper_mu1_mean     << "\n";
+		oss << ">phiMixtureHyperMu1Sd:\n"        << phiMixtureHyper_mu1_sd       << "\n";
+		oss << ">phiMixtureHyperSigma1Scale:\n"  << phiMixtureHyper_sigma1_scale << "\n";
+		oss << ">phiMixtureHyperSigma2Scale:\n"  << phiMixtureHyper_sigma2_scale << "\n";
 	}
 	my_print("End writing restart file\n");
 
@@ -2946,14 +3054,20 @@ void Parameter::initPhiMixtureStorage()
 	unsigned n = numSynthesisRateCategories;
 	// Defaults: well-identified regime A from prototypes/phi_mixture_identifiability.R.
 	// (p=0.9, mu1=-0.4, sigma1=0.4, sigma2=0.25 -> derived mu2 ~ 0.91 under mean=1)
-	phiMixtureP.assign(n, 0.9);
-	phiMixtureP_proposed.assign(n, 0.9);
-	phiMixtureMu1.assign(n, -0.4);
-	phiMixtureMu1_proposed.assign(n, -0.4);
-	phiMixtureSigma1.assign(n, 0.4);
-	phiMixtureSigma1_proposed.assign(n, 0.4);
-	phiMixtureSigma2.assign(n, 0.25);
-	phiMixtureSigma2_proposed.assign(n, 0.25);
+	//
+	// Idempotent: a per-component vector that is already non-empty is treated
+	// as restart-loaded (initBaseValuesFromFile may have pushed values into
+	// it before calling this function); we only top up the _proposed mirror
+	// rather than clobber the loaded state. Vectors that are still empty are
+	// initialized with the regime-A defaults.
+	if (phiMixtureP.empty())  { phiMixtureP.assign(n, 0.9);  }
+	phiMixtureP_proposed = phiMixtureP;
+	if (phiMixtureMu1.empty())  { phiMixtureMu1.assign(n, -0.4); }
+	phiMixtureMu1_proposed = phiMixtureMu1;
+	if (phiMixtureSigma1.empty()) { phiMixtureSigma1.assign(n, 0.4); }
+	phiMixtureSigma1_proposed = phiMixtureSigma1;
+	if (phiMixtureSigma2.empty()) { phiMixtureSigma2.assign(n, 0.25); }
+	phiMixtureSigma2_proposed = phiMixtureSigma2;
 }
 
 
