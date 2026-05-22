@@ -58,22 +58,38 @@
 #'   (preserves the legacy 0.8 / 1.2 behavior).
 #'   Recommended: 0.1 (gentle), 0.2 (default), 0.3 (aggressive).
 #'
+#' @param prev.weight  Single scalar in (0, 1) controlling the cov-blend
+#'   mixture between the prior proposal cov and the sample cov estimated
+#'   over the recent adaptation window:
+#'     `covarianceMatrix <- prev.weight * prev + (1 - prev.weight) * sample_cov`.
+#'   Default 0.6 (preserves the legacy 0.6 / 0.4 blend).  Smaller values
+#'   give faster cov-shape adaptation at the cost of higher shape
+#'   variance; larger values give smoother shape estimates that lag the
+#'   chain.  Independent of `aggressiveness`: scale and shape are
+#'   controlled separately.
+#'
 #' @return An object of S3 class `c("AdaptiveScheme.Native", "AdaptiveScheme")`.
 #' @seealso [AdaptiveScheme.AndrieuThoms()], [schemes.available()].
 #' @examples
-#' s <- AdaptiveScheme.Native()                     # default 0.2
-#' s2 <- AdaptiveScheme.Native(aggressiveness = 0.3) # 0.7 / 1.3
-#' print(s2)
+#' s  <- AdaptiveScheme.Native()                                       # legacy defaults
+#' s2 <- AdaptiveScheme.Native(aggressiveness = 0.3)                   # 0.7 / 1.3
+#' s3 <- AdaptiveScheme.Native(aggressiveness = 0.1, prev.weight = 0.4) # faster shape adapt
+#' print(s3)
 #' @export
-AdaptiveScheme.Native <- function(aggressiveness = 0.2) {
+AdaptiveScheme.Native <- function(aggressiveness = 0.2,
+                                  prev.weight    = 0.6) {
     stopifnot(
         is.numeric(aggressiveness), length(aggressiveness) == 1L,
         is.finite(aggressiveness),
-        aggressiveness > 0, aggressiveness < 1
+        aggressiveness > 0, aggressiveness < 1,
+        is.numeric(prev.weight), length(prev.weight) == 1L,
+        is.finite(prev.weight),
+        prev.weight > 0, prev.weight < 1
     )
     structure(
         list(scheme = "native",
-             params = list(aggressiveness = aggressiveness)),
+             params = list(aggressiveness = aggressiveness,
+                           prev.weight    = prev.weight)),
         class = c("AdaptiveScheme.Native", "AdaptiveScheme")
     )
 }

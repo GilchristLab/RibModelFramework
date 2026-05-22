@@ -14,13 +14,13 @@
  *   d = covarianceMatrix.getNumVariates()
  *   (lo, hi) = targetBandFor(d)              # dim-dependent target band
  *   if acceptanceLevel < lo:
- *       std_csp[k] *= 0.8    for k in [aaStart, aaEnd)
- *       covarianceMatrix *= 0.8
- *       blend toward sample cov (0.6 * prev + 0.4 * sample_cov)
+ *       std_csp[k] *= (1 - aggressiveness)    for k in [aaStart, aaEnd)
+ *       covarianceMatrix *= (1 - aggressiveness)
+ *       blend toward sample cov (prevWeight * prev + (1 - prevWeight) * sample_cov)
  *       choleskyDecomposition()
  *   else if acceptanceLevel > hi:
- *       std_csp[k] *= 1.2
- *       covarianceMatrix *= 1.2
+ *       std_csp[k] *= (1 + aggressiveness)
+ *       covarianceMatrix *= (1 + aggressiveness)
  *       blend toward sample cov  (symmetric shape update, 2026-05-20)
  *       choleskyDecomposition()
  *   else:
@@ -52,6 +52,15 @@
  * 0.3 (aggressive).  Larger a converges faster but with more thrash;
  * smaller a is steadier but slower.  Target band is NOT user-tunable
  * (theory-driven from optimal-AR scaling).
+ *
+ * The cov-blend mixture is user-tunable via `prev.weight` (alias prevWeight)
+ * w in (0, 1):
+ *   covarianceMatrix <- w * covarianceMatrix + (1 - w) * sample_cov
+ * Default 0.6 preserves the legacy 0.6 / 0.4 blend.  Smaller w => faster
+ * cov-shape adaptation (more weight on the most recent sample cov) at the
+ * cost of higher shape variance; larger w => smoother shape estimate.
+ * Independent of `aggressiveness`: the two control distinct facets of the
+ * adapter (scale vs shape).
  * ============================================================================ */
 
 #include "CSPAdaptationStrategy.h"
@@ -60,17 +69,20 @@
 class NativeCSPAdapter : public CSPAdaptationStrategy {
 public:
     // aggressiveness in (0, 1); default 0.2 preserves legacy 0.8/1.2 behavior.
-    explicit NativeCSPAdapter(double aggressiveness = 0.2);
+    // prevWeight in (0, 1); default 0.6 preserves legacy 0.6/0.4 cov blend.
+    explicit NativeCSPAdapter(double aggressiveness = 0.2,
+                              double prevWeight    = 0.6);
     ~NativeCSPAdapter() override = default;
 
     void update(const CSPAdaptContext& ctx) override;
     std::string name() const override { return "native"; }
 
     double getAggressiveness() const { return aggressiveness; }
+    double getPrevWeight()     const { return prevWeight; }
 
     std::unique_ptr<CSPAdaptationStrategy> clone() const override {
         return std::unique_ptr<CSPAdaptationStrategy>(
-            new NativeCSPAdapter(aggressiveness));
+            new NativeCSPAdapter(aggressiveness, prevWeight));
     }
 
 private:
@@ -91,6 +103,7 @@ private:
     double aggressiveness;       // a in (0, 1)
     double adjustFactorLow;      // 1 - a
     double adjustFactorHigh;     // 1 + a
+    double prevWeight;           // w in (0, 1); legacy 0.6
 };
 
 #endif // NATIVE_CSP_ADAPTER_H

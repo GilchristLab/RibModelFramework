@@ -27,14 +27,20 @@
 #include <stdexcept>
 #include <sstream>
 
-NativeCSPAdapter::NativeCSPAdapter(double a)
+NativeCSPAdapter::NativeCSPAdapter(double a, double w)
     : aggressiveness(a),
       adjustFactorLow(1.0 - a),
-      adjustFactorHigh(1.0 + a)
+      adjustFactorHigh(1.0 + a),
+      prevWeight(w)
 {
     if (!(a > 0.0 && a < 1.0)) {
         std::ostringstream o;
         o << "NativeCSPAdapter: aggressiveness must be in (0, 1); got " << a;
+        throw std::invalid_argument(o.str());
+    }
+    if (!(w > 0.0 && w < 1.0)) {
+        std::ostringstream o;
+        o << "NativeCSPAdapter: prevWeight must be in (0, 1); got " << w;
         throw std::invalid_argument(o.str());
     }
 }
@@ -65,8 +71,8 @@ void NativeCSPAdapter::update(const CSPAdaptContext& ctx) {
         *ctx.traces.getCodonSpecificParameterTrace(),
         ctx.aa, ctx.samplesSinceLastAdapt, ctx.lastSample);
     CovarianceMatrix covprev = ctx.covarianceMatrix;
-    covprev = (covprev * 0.6);
-    covcurr = (covcurr * 0.4);
+    covprev = (covprev * prevWeight);
+    covcurr = (covcurr * (1.0 - prevWeight));
     ctx.covarianceMatrix = covprev + covcurr;
 
     // 2) Asymmetric scale update: shrink on low acceptance, grow on high.
