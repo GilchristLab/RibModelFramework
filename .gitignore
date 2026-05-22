@@ -11,3 +11,9 @@
 src/include/base/AnaCoDa-config.h
 inst/BUILD_INFO
 
+# Stan model executables (compiled per-host from .stan source)
+stan/roc_basic
+stan/roc_sphi_est
+stan/roc_mixture_sphi
+stan/*.hpp
+
