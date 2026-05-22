@@ -57,24 +57,24 @@ void Vihola2012CSPAdapter::update(const CSPAdaptContext& ctx)
     if (dInt <= 0) return;
     const std::size_t d = static_cast<std::size_t>(dInt);
 
-    // Read the Cholesky factor L (= what proposeCodonSpecificParameter uses
-    // via transformIidNumbersIntoCovaryingNumbers).  Stored row-major n*n;
-    // the proposal computes covarying[i] = sum_k L[k*n + i] * Z[k], i.e.
-    // the actual proposal direction is v = L^T Z under this convention.
-    // We hold L_0 fixed across the window (batch approximation) and update
-    // the cov matrix in place; choleskyDecomposition() refreshes L at end.
-    std::vector<double> L = *C.getCholeskyMatrix();
     std::vector<double>& cov = *C.getCovMatrix();
-    if (L.size() != d * d || cov.size() != d * d) {
-        // Storage shape unexpected -- skip rather than corrupt state.
-        return;
-    }
+    if (cov.size() != d * d) return;       // unexpected shape; skip
 
-    // Loop over per-step Z + alpha pairs, accumulating rank-1 cov updates.
-    // sigma_i = sign(alpha_i - target) * eta_i * |alpha_i - target|
-    //         = eta_i * (alpha_i - target)
-    // eta_i   = min(1, d * (t_global + 1)^{-gamma}) with t_global the
-    //           absolute MH step count for this AA (advances per step).
+    // Loop over per-step Z + alpha pairs, applying the rank-1 cov update
+    // sequentially with L refreshed AFTER each step.  This mirrors Vihola's
+    // per-MH-step algorithm: step i's update sees the cov shrunk/grown by
+    // steps 0..i-1, so cumulative downdates cannot drive cov non-PSD beyond
+    // the per-step PSD bound (|sigma_i| <= 1).
+    //
+    // The COST of the in-loop choleskyDecomposition is O(d^3) per step.
+    // For d=10 and W=200 steps/window, that's ~200K flops per AA per fire,
+    // negligible vs the MH inner loop.
+    //
+    // The ACTUAL chain used L_0 (start-of-window L) for all W proposals,
+    // so this replay produces a slightly different cov than Vihola's true
+    // per-step algorithm would.  But the proposal stationarity is set by
+    // the actual proposals (L_0); the adapter's job is to evolve L for
+    // future windows, and per-step replay does this in a PSD-preserving way.
     for (std::size_t i = 0; i < nsteps; ++i) {
         const std::vector<double>& z = zBuf[i];
         if (z.size() != d) continue;       // dim mismatch -- skip
@@ -92,18 +92,26 @@ void Vihola2012CSPAdapter::update(const CSPAdaptContext& ctx)
         for (std::size_t k = 0; k < d; ++k) z2 += z[k] * z[k];
         if (!(z2 > 0.0)) continue;          // degenerate Z; skip
 
-        // v_i = L^T Z_i (this code's proposal direction, applied at step i)
-        //     = sum_k L[k*d + j] * Z[k]   for j = 0..d-1
+        // v_i = L_i^T Z_i  using the CURRENT (evolving) Cholesky factor.
+        // L_i is the choleskyMatrix as updated by the previous step's
+        // choleskyDecomposition() call (or the initial L_0 for i=0).
+        const std::vector<double>& Lcurr = *C.getCholeskyMatrix();
+        if (Lcurr.size() != d * d) break;
         std::vector<double> v(d, 0.0);
         for (std::size_t j = 0; j < d; ++j) {
             double s = 0.0;
             for (std::size_t k = 0; k < d; ++k) {
-                s += L[k * d + j] * z[k];
+                s += Lcurr[k * d + j] * z[k];
             }
             v[j] = s;
         }
 
         // Rank-1 cov update: cov += (sigma_i / ||Z||^2) * v v^T.
+        // PSD bound: with sigma_i in [-1, +inf) and |Z|^2 = sum z_k^2,
+        // this preserves PSD when sigma_i / |Z|^2 * v^T cov^-1 v >= -1.
+        // Since v = L^T Z and v^T cov^-1 v = Z^T Z = |Z|^2, the constraint
+        // reduces to sigma_i >= -1, which holds (eta_i <= 1, |alpha_i -
+        // target| < 1 => |sigma_i| < 1).  Therefore this update is PSD-safe.
         const double scale = sigma_i / z2;
         for (std::size_t r = 0; r < d; ++r) {
             const double vr = v[r];
@@ -111,19 +119,14 @@ void Vihola2012CSPAdapter::update(const CSPAdaptContext& ctx)
                 cov[r * d + c2] += scale * vr * v[c2];
             }
         }
+
+        // Refresh L from the updated cov so step i+1 sees the new shape.
+        C.choleskyDecomposition();
     }
 
     // Advance per-AA step counter by the number of consumed steps so the
     // next fire's eta picks up where this one left off.
     aaStepCount[ctx.aaIndex] += static_cast<unsigned long>(nsteps);
-
-    // Refresh L from the updated cov.  If the rank-1 downdates drove cov
-    // toward indefiniteness, choleskyDecomposition will produce NaNs on
-    // the diagonal sqrt(negative); we tolerate that here (the next
-    // proposal will be NaN-poisoned and a downstream isnan guard will
-    // reject it).  Production hardening: clip negative diag of cov to a
-    // small epsilon before refresh -- deferred to a Phase-2 robustness pass.
-    C.choleskyDecomposition();
 
     // std_csp is the per-codon proposal SD scalar used by the legacy
     // proposal path BEFORE Cholesky factoring; native/A-T mutate it but

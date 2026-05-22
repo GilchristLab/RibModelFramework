@@ -22,16 +22,18 @@
  * The adapter is called once per adapt-fire (not per MH step) and consumes
  * the per-step buffers populated by Parameter::pushStepZ /
  * Model::recordCSPStepAlpha during the fire window.  The update is done in
- * cov-matrix space using rank-1 outer products, then the existing
- * CovarianceMatrix::choleskyDecomposition() refreshes the Cholesky factor.
+ * cov-matrix space with sequential per-step Cholesky refresh: each step's
+ * rank-1 update sees the cov shrunk/grown by prior steps, so cumulative
+ * downdates cannot drive cov non-PSD beyond Vihola's per-step PSD bound
+ * (|sigma_i| <= 1).
  *
- * Within-window batching note: Vihola's per-step algorithm uses S_i (the
- * Cholesky factor at step i) when applying step i's update.  Here we keep
- * the L used by the proposal path fixed to L_0 (start of window) across
- * the W steps in the window, then apply all W rank-1 updates in
- * cov-matrix space, then refresh L for the next window.  Equivalent to
- * Vihola's algorithm with adaptive_width=1; an approximation otherwise.
- * For typical adaptive_width=20 the divergence is small in practice.
+ * Replay-with-evolving-L caveat: the ACTUAL chain used the start-of-window
+ * L_0 for all W proposals, so this replay produces a slightly different
+ * cov than Vihola's true per-step algorithm would.  But the chain's
+ * stationarity is set by the actual proposals (L_0); the adapter's job is
+ * to evolve L for future windows, and per-step replay does this in a
+ * PSD-preserving way that converges to Vihola's behavior as adaptive_width
+ * -> 1.  For typical adaptive_width=20 the divergence is small in practice.
  *
  * Tunable parameters (enforced by ctor):
  *   target in (0, 1)             -- coerced acceptance rate (alpha_star)
