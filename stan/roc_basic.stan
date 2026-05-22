@@ -41,7 +41,7 @@ functions {
     // 1-based gene IDs (a sub-range of the gene_indices array in transformed
     // data).  start/end are the original-array bounds and are unused here
     // because we iterate over slice_g directly.
-    real partial_sum_lpdf(array[] int slice_g, int start, int end,
+    real partial_sum(array[] int slice_g, int start, int end,
                           int A,
                           array[] int aa_start, array[] int aa_end,
                           array[,] int y_k,
@@ -116,7 +116,7 @@ model {
     log_phi ~ normal(-0.5 * sphi * sphi, sphi);
 
     // Per-gene likelihood via reduce_sum (threaded if STAN_THREADS=true)
-    target += reduce_sum(partial_sum_lpdf, gene_indices, grainsize,
+    target += reduce_sum(partial_sum, gene_indices, grainsize,
                          A, aa_start, aa_end, y_k, N_ga,
                          dM, dEta, phi);
 }

@@ -49,7 +49,7 @@
  * ============================================================================ */
 
 functions {
-    real partial_sum_lpdf(array[] int slice_g, int start, int end,
+    real partial_sum(array[] int slice_g, int start, int end,
                           int A,
                           array[] int aa_start, array[] int aa_end,
                           array[,] int y_k,
@@ -81,7 +81,7 @@ functions {
     // Component 1 leg -> std_normal_lpdf(z_phi[g]);
     // component 2 leg -> normal_lpdf(log_phi[g] | mu2, sigma2) + log(sigma1).
     // Combined via log_mix(p, leg1, leg2).
-    real partial_mix_prior_lpdf(array[] int slice_g, int start, int end,
+    real partial_mix_prior(array[] int slice_g, int start, int end,
                                 vector z_phi, vector log_phi,
                                 real p, real mu2, real sigma1, real sigma2) {
         real lp = 0;
@@ -161,11 +161,11 @@ model {
     dEta ~ normal(dEta_prior_mean, dEta_prior_sd);
 
     // Per-gene mixture-LN log prior (threaded)
-    target += reduce_sum(partial_mix_prior_lpdf, gene_indices, grainsize,
+    target += reduce_sum(partial_mix_prior, gene_indices, grainsize,
                          z_phi, log_phi, p, mu2, sigma1, sigma2);
 
     // Per-gene likelihood (threaded)
-    target += reduce_sum(partial_sum_lpdf, gene_indices, grainsize,
+    target += reduce_sum(partial_sum, gene_indices, grainsize,
                          A, aa_start, aa_end, y_k, N_ga,
                          dM, dEta, phi);
 }
