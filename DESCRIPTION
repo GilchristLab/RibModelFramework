@@ -35,7 +35,7 @@ Description: Is a collection of models to analyze genome scale codon
         analyze estimate ribosome pausing times with and without
         nonsense error rate from ribosome footprinting data.
 License: GPL (>= 2)
-Imports:
+Imports: dplyr, magrittr, rlang, tidyr
 LinkingTo: Rcpp
 LazyLoad: yes
 LazyData: yes

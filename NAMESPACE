@@ -16,6 +16,12 @@ importFrom(utils, write.csv)
 importFrom(grDevices, adjustcolor, rgb)
 importFrom(graphics , mtext, title)
 
+# RFP/phi filtering utility
+importFrom(dplyr, filter, group_by, summarize, select, mutate, left_join, n, pull)
+importFrom(tidyr, pivot_wider)
+importFrom(rlang, .data)
+importFrom(magrittr, "%>%")
+
 S3method(length, Rcpp_Genome)
 S3method(summary, Rcpp_Genome)
 S3method(writeParameterObject, Rcpp_ROCParameter)
@@ -90,7 +96,10 @@ export(
 
 ##
 "acfMCMC",
-"acfCSP"
+"acfCSP",
+
+## RFP/phi filtering utility
+"filterRFPData"
 
 )
 
