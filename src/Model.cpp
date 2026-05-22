@@ -59,6 +59,18 @@ bool Model::isShared(std::string csp_parameters)
 	return false;
 }
 
+// Push a per-step MH alpha into the Parameter's stepAlphaBuffer for the
+// AA index corresponding to `grouping`.  No-op if parameter is null
+// (shouldn't happen post-setParameter() but guarded for unit-test paths).
+void Model::recordCSPStepAlpha(std::string grouping, double alpha)
+{
+	if (parameter == nullptr) return;
+	if (!(alpha >= 0.0)) alpha = 0.0;
+	if (!(alpha <= 1.0)) alpha = 1.0;
+	unsigned aaIndex = SequenceSummary::AAToAAIndex(grouping);
+	parameter->pushStepAlpha(aaIndex, alpha);
+}
+
 void Model::fillMatrices(Genome& genome)
 {
   //do nothing

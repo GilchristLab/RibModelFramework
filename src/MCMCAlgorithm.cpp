@@ -2,6 +2,8 @@
 #include <vector>
 #include <random>
 #include <climits>
+#include <cmath>
+#include <algorithm>
 
 //R runs only
 #ifndef STANDALONE
@@ -451,6 +453,14 @@ void MCMCAlgorithm::acceptRejectCodonSpecificParameter(Genome& genome, Model& mo
 			{
 				std::string grouping = model.getGrouping(groups[0]);
 				model.calculateLogLikelihoodRatioPerGroupingPerCategory(grouping, genome, acceptanceRatioForAllMixtures,csp_parameters[param]);
+		    	// Record per-step MH acceptance probability for Vihola2012 /
+		    	// RAM-class adapters.  Consumed at adapt-fire time; ignored
+		    	// by native and andrieu_thoms.
+		    	{
+		    	    double la = acceptanceRatioForAllMixtures[0];
+		    	    double a  = std::isfinite(la) ? std::min(1.0, std::exp(la)) : 0.0;
+		    	    model.recordCSPStepAlpha(grouping, a);
+		    	}
 		    	double threshold = -Parameter::randExp(1);
 		 		if (threshold < acceptanceRatioForAllMixtures[0] && std::isfinite(acceptanceRatioForAllMixtures[0]) && !std::isnan(acceptanceRatioForAllMixtures[2]))
 				{	
@@ -483,6 +493,13 @@ void MCMCAlgorithm::acceptRejectCodonSpecificParameter(Genome& genome, Model& mo
 				{
 					std::string grouping = model.getGrouping(groups[i]);
 					model.calculateLogLikelihoodRatioPerGroupingPerCategory(grouping, genome, acceptanceRatioForAllMixtures,csp_parameters[param]);
+					// Record per-step MH acceptance probability for Vihola2012
+					// / RAM-class adapters; ignored by native and andrieu_thoms.
+					{
+					    double la = acceptanceRatioForAllMixtures[0];
+					    double a  = std::isfinite(la) ? std::min(1.0, std::exp(la)) : 0.0;
+					    model.recordCSPStepAlpha(grouping, a);
+					}
 			    double threshold = -Parameter::randExp(1);
 			 		if (threshold < acceptanceRatioForAllMixtures[0] && std::isfinite(acceptanceRatioForAllMixtures[0]) && !std::isnan(acceptanceRatioForAllMixtures[2]))
 					{	

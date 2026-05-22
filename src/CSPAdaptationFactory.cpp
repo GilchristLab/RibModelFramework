@@ -10,6 +10,7 @@
 #include "include/base/CSPAdaptationFactory.h"
 #include "include/base/NativeCSPAdapter.h"
 #include "include/base/AndrieuThomsCSPAdapter.h"
+#include "include/base/Vihola2012CSPAdapter.h"
 #include <sstream>
 #include <stdexcept>
 #include <vector>
@@ -79,8 +80,16 @@ std::unique_ptr<CSPAdaptationStrategy> makeCSPAdapter(
                 params.at("t0")));
     }
 
+    if (name == "vihola_2012") {
+        requireExactKeys(params, {"target", "gamma"}, "vihola_2012");
+        return std::unique_ptr<CSPAdaptationStrategy>(
+            new Vihola2012CSPAdapter(
+                params.at("target"),
+                params.at("gamma")));
+    }
+
     std::ostringstream o;
     o << "unknown CSP adaptation scheme: '" << name
-      << "'; known: native, andrieu_thoms";
+      << "'; known: native, andrieu_thoms, vihola_2012";
     throw std::invalid_argument(o.str());
 }

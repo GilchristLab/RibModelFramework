@@ -162,6 +162,13 @@ class Model
 		virtual bool isShared(std::string csp_parameters) = 0;
 		std::vector<std::string> getParameterTypeList();
 
+		// Push a per-step MH acceptance probability into the Parameter's
+		// per-AA buffer.  Called once per AA per MH step from
+		// MCMCAlgorithm::acceptRejectCodonSpecificParameter.  Only consumed
+		// by adapters that need per-proposal alpha (Vihola2012 / RAM).
+		// alpha is clamped to [0, 1] -- callers may pass min(1, exp(log_a)).
+		void recordCSPStepAlpha(std::string grouping, double alpha);
+
 
 		virtual void fillMatrices(Genome& genome);
         virtual void clearMatrices();

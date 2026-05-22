@@ -109,6 +109,7 @@ export(
 # docs/csp-adaptation-api.md and R/adaptiveScheme.R.
 export(AdaptiveScheme.Native)
 export(AdaptiveScheme.AndrieuThoms)
+export(AdaptiveScheme.Vihola2012)
 export(schemes.available)
 export(is.AdaptiveScheme)
 export(adaptive.scheme.diagnostics)
