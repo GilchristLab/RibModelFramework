@@ -1,27 +1,58 @@
 /* ============================================================================
- * roc_sphi_est.stan -- ROC HMC model with sphi estimated, NON-CENTERED on log_phi.
+ * roc_sphi_est.stan -- ROC HMC with sphi estimated, non-centered + reduce_sum.
  *
- * Identical to roc_basic.stan except (a) sphi moves from `data` to `parameters`
- * with a half-normal prior (proper, weak), and (b) log_phi is non-centered:
+ * Combines:
+ *   - sphi as a parameter with half-normal prior (vs roc_basic's data sphi)
+ *   - non-centered log_phi parameterization to break Neal's funnel:
+ *       z_phi[g] ~ std_normal()                (parameter)
+ *       log_phi[g] = -0.5 * sphi^2 + sphi * z_phi[g]   (transformed parameter)
+ *   - reduce_sum threaded gene loop for within-chain parallelism
  *
- *   z_phi[g] ~ std_normal()                (parameter)
- *   log_phi[g] = -0.5 * sphi^2 + sphi * z_phi[g]    (transformed parameter)
+ * Without non-centering, small sphi forces log_phi tightly around -sphi^2/2
+ * and HMC step size has to track sphi; sphi ESS_bulk was 91/4000 on the
+ * G=1000 centered baseline.
  *
- * This breaks Neal's funnel between sphi and the per-gene log_phi: with the
- * old centered form (`log_phi ~ normal(-sphi^2/2, sphi)`), small sphi forces
- * log_phi tightly around -sphi^2/2 and HMC step size has to track sphi.
- * Non-centering decouples z_phi from sphi so the geometry is sphi-invariant.
+ * THREADING: see roc_basic.stan header.  Compile with STAN_THREADS=true and
+ * pass threads_per_chain > 1 to mod$sample() to enable.
  *
- * Earlier centered version hit sphi ESS_bulk = 91 / 4000 on sim S288c
- * (G=1000, sphi=1.0).  This non-centered form should restore sphi ESS to
- * the per-iteration mixing level of the other scalar parameters.
+ * sphi prior: half_normal(0, sphi_prior_sd).  Switch to flat or uniform via
+ * a separate file if needed.  Mixture-of-lognormals (multiple sphi components)
+ * is in roc_mixture_sphi.stan.
  *
  * mphi convention: mphi = -sphi^2/2 (mean(phi)=1, matching v.3 convention).
- * sphi prior: half_normal(0, sphi_prior_sd).  Switch to flat or uniform via
- * a separate file if needed.
  *
  * See roc_basic.stan header for the data layout.
  * ============================================================================ */
+
+functions {
+    real partial_sum_lpdf(array[] int slice_g, int start, int end,
+                          int A,
+                          array[] int aa_start, array[] int aa_end,
+                          array[,] int y_k,
+                          array[,] int N_ga,
+                          vector dM, vector dEta,
+                          vector phi) {
+        real lp = 0;
+        int n_slice = size(slice_g);
+        for (i in 1:n_slice) {
+            int g = slice_g[i];
+            lp += dot_product(to_vector(y_k[g, :]), -dM - dEta * phi[g]);
+            for (a in 1:A) {
+                if (N_ga[g, a] == 0) continue;
+                int s = aa_start[a];
+                int e = aa_end[a];
+                int n = e - s + 1;
+                vector[n + 1] eta_full;
+                eta_full[1] = 0;
+                for (k in 1:n) {
+                    eta_full[k + 1] = -dM[s - 1 + k] - dEta[s - 1 + k] * phi[g];
+                }
+                lp += -N_ga[g, a] * log_sum_exp(eta_full);
+            }
+        }
+        return lp;
+    }
+}
 
 data {
     int<lower=1> G;
@@ -36,6 +67,13 @@ data {
     vector[K] dEta_prior_mean;
     vector<lower=0>[K] dEta_prior_sd;
     real<lower=0> sphi_prior_sd;        // half-normal scale for sphi prior
+
+    int<lower=1> grainsize;             // reduce_sum partition size
+}
+
+transformed data {
+    array[G] int gene_indices;
+    for (g in 1:G) gene_indices[g] = g;
 }
 
 parameters {
@@ -46,8 +84,6 @@ parameters {
 }
 
 transformed parameters {
-    // log_phi is deterministic in (sphi, z_phi); funnel-free in the sampling
-    // space because z_phi has unit-scale geometry independent of sphi.
     vector[G] log_phi = -0.5 * sphi * sphi + sphi * z_phi;
     vector<lower=0>[G] phi = exp(log_phi);
 }
@@ -59,20 +95,8 @@ model {
     sphi  ~ normal(0, sphi_prior_sd);                 // half-normal via lower=0
     z_phi ~ std_normal();                             // non-centered latent
 
-    // Likelihood (identical to roc_basic.stan)
-    for (g in 1:G) {
-        target += dot_product(to_vector(y_k[g, :]), -dM - dEta * phi[g]);
-        for (a in 1:A) {
-            if (N_ga[g, a] == 0) continue;
-            int s = aa_start[a];
-            int e = aa_end[a];
-            int n = e - s + 1;
-            vector[n + 1] eta_full;
-            eta_full[1] = 0;
-            for (k in 1:n) {
-                eta_full[k + 1] = -dM[s - 1 + k] - dEta[s - 1 + k] * phi[g];
-            }
-            target += -N_ga[g, a] * log_sum_exp(eta_full);
-        }
-    }
+    // Per-gene likelihood via reduce_sum
+    target += reduce_sum(partial_sum_lpdf, gene_indices, grainsize,
+                         A, aa_start, aa_end, y_k, N_ga,
+                         dM, dEta, phi);
 }
