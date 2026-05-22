@@ -48,6 +48,39 @@ test_that("AdaptiveScheme.Native() rejects out-of-range aggressiveness", {
 })
 
 
+test_that("AdaptiveScheme.Native() default has prev.weight = 0.6", {
+    s <- AdaptiveScheme.Native()
+    expect_equal(s$params$prev.weight, 0.6)
+})
+
+
+test_that("AdaptiveScheme.Native() accepts numeric prev.weight in (0, 1)", {
+    expect_equal(AdaptiveScheme.Native(prev.weight = 0.4)$params$prev.weight, 0.4)
+    expect_equal(AdaptiveScheme.Native(prev.weight = 0.8)$params$prev.weight, 0.8)
+    expect_equal(AdaptiveScheme.Native(prev.weight = 0.95)$params$prev.weight, 0.95)
+})
+
+
+test_that("AdaptiveScheme.Native() rejects out-of-range prev.weight", {
+    expect_error(AdaptiveScheme.Native(prev.weight =  0.0))    # closed lower
+    expect_error(AdaptiveScheme.Native(prev.weight =  1.0))    # closed upper
+    expect_error(AdaptiveScheme.Native(prev.weight = -0.1))
+    expect_error(AdaptiveScheme.Native(prev.weight =  1.5))
+    expect_error(AdaptiveScheme.Native(prev.weight =  NA_real_))
+    expect_error(AdaptiveScheme.Native(prev.weight =  NaN))
+    expect_error(AdaptiveScheme.Native(prev.weight =  Inf))
+    expect_error(AdaptiveScheme.Native(prev.weight =  c(0.4, 0.6)))
+    expect_error(AdaptiveScheme.Native(prev.weight =  "0.6"))
+})
+
+
+test_that("AdaptiveScheme.Native() accepts both knobs independently", {
+    s <- AdaptiveScheme.Native(aggressiveness = 0.1, prev.weight = 0.8)
+    expect_equal(s$params$aggressiveness, 0.1)
+    expect_equal(s$params$prev.weight,    0.8)
+})
+
+
 test_that("AdaptiveScheme.AndrieuThoms() defaults pass and have expected fields", {
     s <- AdaptiveScheme.AndrieuThoms()
     expect_s3_class(s, c("AdaptiveScheme.AndrieuThoms", "AdaptiveScheme"))
@@ -225,6 +258,34 @@ test_that("setCSPAdaptationScheme accepts native + aggressiveness", {
     p <- new("Rcpp_ROCParameter")
     p$setCSPAdaptationScheme("native", list(aggressiveness = 0.3))
     expect_equal(p$getCSPAdaptationSchemeName(), "native")
+})
+
+
+test_that("setCSPAdaptationScheme accepts native + prev.weight", {
+    p <- new("Rcpp_ROCParameter")
+    p$setCSPAdaptationScheme("native", list("prev.weight" = 0.8))
+    expect_equal(p$getCSPAdaptationSchemeName(), "native")
+})
+
+
+test_that("setCSPAdaptationScheme accepts native + aggressiveness + prev.weight", {
+    p <- new("Rcpp_ROCParameter")
+    p$setCSPAdaptationScheme("native",
+                             list(aggressiveness = 0.2, "prev.weight" = 0.8))
+    expect_equal(p$getCSPAdaptationSchemeName(), "native")
+})
+
+
+test_that("setCSPAdaptationScheme rejects out-of-range prev.weight at C++ layer", {
+    p <- new("Rcpp_ROCParameter")
+    expect_error(p$setCSPAdaptationScheme("native", list("prev.weight" = 0.0)),
+                 regexp = "prevWeight|prev.weight")
+    expect_error(p$setCSPAdaptationScheme("native", list("prev.weight" = 1.0)),
+                 regexp = "prevWeight|prev.weight")
+    expect_error(p$setCSPAdaptationScheme("native", list("prev.weight" = -0.1)),
+                 regexp = "prevWeight|prev.weight")
+    expect_error(p$setCSPAdaptationScheme("native", list("prev.weight" = 1.5)),
+                 regexp = "prevWeight|prev.weight")
 })
 
 
