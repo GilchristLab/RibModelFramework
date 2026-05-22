@@ -1,0 +1,118 @@
+---
+title: "Filtering RFP and Phi Data"
+author: "Michael Gilchrist"
+date: "`r Sys.Date()`"
+output: rmarkdown::html_vignette
+vignette: >
+  %\VignetteIndexEntry{Filtering RFP and Phi Data}
+  %\VignetteEngine{knitr::rmarkdown}
+  %\VignetteEncoding{UTF-8}
+---
+
+```{r setup, include = FALSE}
+knitr::opts_chunk$set(
+  collapse = TRUE,
+  comment  = "#>"
+)
+```
+
+## Purpose
+
+`filterRFPData()` filters a tidy long-format ribosome footprint (RFP)
+data frame and its matching wide-format phi (expression) data frame
+by gene length, read counts, pause-site outliers, position trimming,
+gene-ID exclusion, and random gene subsampling. It is intended as a
+pre-processing step before loading data into AnaCoDa for fitting PA,
+PANSE, FONSE, or any other RFP-based model.
+
+The function returns a list `list(rfp, phi)` with both tables filtered
+to a consistent surviving gene set.
+
+## Input formats
+
+- **RFP table:** tidy long format with columns `GeneID`, `Position`,
+  `Codon`, `RFPCount`. One row per (gene, codon position).
+- **Phi table:** wide format with a `GeneID` column plus one or more
+  expression value columns.
+
+## Filter order
+
+Filters are applied in a fixed order regardless of argument order:
+
+1. Exclude by gene ID (`exclude_genes`)
+2. Minimum gene length (`min_length_gene`)
+3. Minimum total read count (`min_read_counts`), global or per-half
+4. Minimum read count per position (`min_read_counts_per_pos`),
+   global or per-half
+5. Pause-site removal (`remove_pause_sites`)
+6. Position ceiling (`last_position_to_include`)
+7. 5' trim (`trim_5`), with renumbering
+8. 3' trim (`trim_3`)
+9. Random subsample (`num_genes_to_include`, optionally seeded)
+
+After RFP filtering completes, the phi table is subset and reordered
+to match `unique(rfp$GeneID)`.
+
+## Example
+
+```{r example, eval = FALSE}
+library(AnaCoDa)
+
+rfp <- read.csv(system.file("extdata", "test_rfp.csv",
+                            package = "AnaCoDa"),
+                stringsAsFactors = FALSE)
+phi <- read.csv(system.file("extdata", "test_phi.csv",
+                            package = "AnaCoDa"),
+                stringsAsFactors = FALSE)
+
+out <- filterRFPData(
+  rfp, phi,
+  min_length_gene    = 5,     # drop short genes
+  min_read_counts    = 100,   # drop low-coverage genes
+  remove_pause_sites = 2,     # drop genes with Z-score > 2 outlier
+  trim_5             = 5,     # drop the first 5 codons
+  trim_3             = 5      # drop the last 5 codons
+)
+
+nrow(out$rfp)
+nrow(out$phi)
+```
+
+## CLI wrapper
+
+A command-line wrapper that mirrors the function's interface and
+handles I/O is shipped with the package at:
+
+```{r cli-path, eval = FALSE}
+system.file("scripts", "createSubSampled.R", package = "AnaCoDa")
+```
+
+It requires the `argparse` and `readr` packages. Run with `Rscript`:
+
+```sh
+Rscript createSubSampled.R \
+  --input rfp.csv --phi phi.csv \
+  --output_dir out/ \
+  --output_rfp filtered_rfp.csv \
+  --output_phi filtered_phi.csv \
+  --min_length_gene 100 \
+  --min_read_counts 200 \
+  --remove_pause_sites 3
+```
+
+The wrapper also accepts legacy column names `gene` (in place of
+`GeneID` in the RFP table) and `ORF` (in place of `GeneID` in the
+phi table), renaming them before calling the library function.
+
+## Notes
+
+- `min_read_counts` and `min_read_counts_per_pos` are mutually
+  exclusive; specifying both is an error.
+- Combining `last_position_to_include` and `trim_5` is supported but
+  emits a warning, since `last_position_to_include` is applied first
+  and `trim_5` then drops additional codons from what remains.
+- `apply_filter_to_halves = TRUE` evaluates the active read-count
+  threshold independently on the 5' and 3' halves; both halves must
+  pass for the gene to be kept.
+- `seed` sets the global RNG state via `set.seed()` before random
+  subsampling, making the subsample reproducible.
