@@ -133,8 +133,16 @@ void Vihola2012CSPAdapter::update(const CSPAdaptContext& ctx)
         // Refresh L from the updated cov so step i+1 sees the new shape.
         C.choleskyDecomposition();
 
-        // Validate: every L diag entry must be finite and > 0.  If not,
-        // the update drove cov to the boundary; revert this step.
+        // Validate: every L diag entry must be finite and > 0.  In exact
+        // arithmetic Vihola's rank-1 update preserves PSD (sigma_i in
+        // (-1, +1) and v = L * Z so v^T * cov^-1 * v = |Z|^2; see PR
+        // notes).  With the cholesky proposal-direction bug fixed
+        // (fix/cholesky-proposal-index, 2026-05-22), this rollback should
+        // essentially never fire -- if it does, that signals a
+        // floating-point edge case worth investigating, not a routine
+        // operating mode.  Keep the rollback as a safety net; do NOT add
+        // a scalar-shrink fallback (the original workaround for the
+        // cholesky bug, now obsolete).
         const std::vector<double>& Lcheck = *C.getCholeskyMatrix();
         bool bad = false;
         for (std::size_t k = 0; k < d; ++k) {
@@ -142,25 +150,8 @@ void Vihola2012CSPAdapter::update(const CSPAdaptContext& ctx)
             if (!std::isfinite(dk) || dk <= 0.0) { bad = true; break; }
         }
         if (bad) {
-            // Roll back this step's rank-1 update.  But to keep making
-            // forward progress when high-d AAs persistently violate PSD
-            // (early phase, cov-stored vs proposal-cov convention mismatch
-            // on this codebase amplifies floating-point boundary cases),
-            // apply a scalar shrink/grow in the SAME direction as sigma:
-            //   sigma < 0 (AR < target) -> shrink cov by factor (1 + sigma)
-            //   sigma > 0 (AR > target) -> grow   cov by factor (1 + sigma)
-            // The factor is bounded by (1 + sigma) in (-eta_max, 1+eta_max).
-            // This preserves PSD (scalar multiply doesn't change shape) and
-            // gives at least some forward AR coercion when the rank-1 path
-            // is blocked.
             cov = cov_save;
             *C.getCholeskyMatrix() = L_save;
-            const double shrink_factor = 1.0 + sigma_i;
-            if (std::isfinite(shrink_factor) && shrink_factor > 0.0) {
-                std::vector<double>& covRW = *C.getCovMatrix();
-                for (std::size_t k = 0; k < d * d; ++k) covRW[k] *= shrink_factor;
-                C.choleskyDecomposition();
-            }
         }
     }
 
