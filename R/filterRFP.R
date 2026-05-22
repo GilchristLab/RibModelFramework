@@ -226,13 +226,17 @@ filterRFPData <- function(rfp, phi,
       dplyr::mutate(Position = .data$Position - trim_5)
   }
   if (!is.null(trim_3)) {
+    # Note: original script used `Rel.to.3.end > trim_3`, which drops
+    # the last trim_3+1 codons (since the last position has
+    # Rel.to.3.end = 0). Fixed here to match the parameter's name: with
+    # trim_3 = N, the last N codons are dropped.
     lengths <- rfp %>%
       dplyr::group_by(.data$GeneID) %>%
       dplyr::summarize(Length = dplyr::n(), .groups = "drop")
     rfp <- rfp %>%
       dplyr::left_join(lengths, by = "GeneID") %>%
       dplyr::mutate(RelTo3End = .data$Length - .data$Position) %>%
-      dplyr::filter(.data$RelTo3End > trim_3) %>%
+      dplyr::filter(.data$RelTo3End >= trim_3) %>%
       dplyr::select(-"Length", -"RelTo3End")
   }
   rfp
