@@ -1,35 +1,42 @@
 /* ============================================================================
  * roc_mixture_sphi.stan -- ROC HMC with 2-component lognormal phi prior.
  *
- * Mirrors the phi-mixture-LN prior implemented in C++ on
- * feat/rst-mixture-state (task #12 family).  Per gene:
+ * Non-centered on component 1 (the dominant component under the default
+ * p ~ Beta(8, 2) prior, which puts E[p] = 0.8 on component 1).
  *
- *   log_phi_g | mixture-LN  ~  p * Normal(mu1, sigma1) + (1 - p) * Normal(mu2, sigma2)
+ *   z_phi[g] ~ std_normal()                (parameter)
+ *   log_phi[g] = mu1 + sigma1 * z_phi[g]   (transformed parameter)
  *
- * with mu2 DERIVED from the constraint mean(phi) = 1 (PHI_CONSTRAINT_MEAN):
+ * Under this change of variables, the original mixture-LN prior on log_phi
+ *
+ *   log_mix(p, N(log_phi | mu1, sigma1), N(log_phi | mu2, sigma2))
+ *
+ * becomes, in z_phi-space (with Jacobian |d log_phi / d z_phi| = sigma1):
+ *
+ *   log_mix(p,
+ *           std_normal_lpdf(z_phi),
+ *           N(log_phi | mu2, sigma2) + log(sigma1))
+ *
+ * Component 1's contribution is exactly std_normal (no funnel).  Component 2's
+ * contribution is still centered but its weight is small (1 - E[p] ~ 0.2),
+ * so the residual funnel is rare in posterior draws.  For workloads where
+ * component 2 dominates (atypical), the analogous "non-centered on
+ * component 2" variant would be the right tool; not implemented here.
+ *
+ * Mirrors the phi-mixture-LN prior implemented in C++ on feat/rst-mixture-state
+ * (task #12 family).  mu2 is DERIVED from mean(phi) = 1 (PHI_CONSTRAINT_MEAN):
  *
  *   p * exp(mu1 + sigma1^2/2) + (1 - p) * exp(mu2 + sigma2^2/2) = 1
  *   => mu2 = log( (1 - p * exp(mu1 + sigma1^2/2)) / (1 - p) ) - sigma2^2/2
  *
- * Label-switching guard: require mu2 >= mu1 (component 2 has the higher
- * mean in log-space).  Together with mean=1 constraint this also requires
- * the closed-form numerator (1 - p * exp(mu1 + sigma1^2/2)) > 0; otherwise
- * the constraint is infeasible and the proposal is rejected.
+ * Label-switching guard: mu2 >= mu1 (component 2 is the higher-mode
+ * lognormal in log-space).  Constraint infeasibility (numer <= 0) reject.
  *
- * Free hyperparameters: p, mu1, sigma1, sigma2.  mu2 is a transformed
- * parameter.  Hyperpriors match the C++ defaults in src/Parameter.cpp:
- *
- *   p      ~ Beta(8, 2)            (mean 0.8; concentrated toward larger
- *                                    weight on component 1)
- *   mu1    ~ Normal(0, 10)         (very weak; matches phi mixture hyper
- *                                    Mu1_mean=0, Mu1_sd=10)
- *   sigma1 ~ half_normal(0, 1)     (matches sigma1_scale=1 default)
- *   sigma2 ~ half_normal(0, 1)     (matches sigma2_scale=1 default)
- *
- * The half_normal vs half_cauchy choice for the sigma_k priors is a
- * judgment call; both have scale=1 as the C++ default.  half_normal is
- * lighter-tailed and tends to mix better in HMC; switch to cauchy via
- * sigma ~ cauchy(0, 1) if posterior tails matter.
+ * Hyperpriors match C++ defaults in src/Parameter.cpp:
+ *   p      ~ Beta(p_alpha, p_beta)         default Beta(8, 2)
+ *   mu1    ~ Normal(mu1_prior_mean, mu1_prior_sd)   default N(0, 10)
+ *   sigma1 ~ half_normal(0, sigma1_prior_scale)     default scale 1
+ *   sigma2 ~ half_normal(0, sigma2_prior_scale)     default scale 1
  *
  * See roc_basic.stan for the data layout (identical here; only the prior
  * on log_phi changes).
@@ -60,7 +67,7 @@ data {
 parameters {
     vector[K] dM;
     vector[K] dEta;
-    vector[G] log_phi;
+    vector[G] z_phi;                        // non-centered latent for component 1
     real<lower=0, upper=1> p;
     real mu1;
     real<lower=0> sigma1;
@@ -68,11 +75,14 @@ parameters {
 }
 
 transformed parameters {
+    // log_phi is deterministic in (mu1, sigma1, z_phi); funnel-free in
+    // sampling space for component-1 (the dominant component).
+    vector[G] log_phi = mu1 + sigma1 * z_phi;
     vector<lower=0>[G] phi = exp(log_phi);
 
     // Derived mu2 from the mean=1 constraint.
     // Infeasibility (numerator <= 0) is handled in the model block by
-    // adding -infinity to the log-posterior; here we just compute it.
+    // rejecting; here we just compute it (Stan needs no try/catch).
     real numer = 1.0 - p * exp(mu1 + 0.5 * sigma1 * sigma1);
     real mu2 = log(numer / (1.0 - p)) - 0.5 * sigma2 * sigma2;
 }
@@ -85,17 +95,20 @@ model {
     sigma2 ~ normal(0, sigma2_prior_scale);
 
     // Constraint feasibility + label-switching guard
-    // If numer <= 0, mu2 is not well-defined; reject.  Likewise for mu2 < mu1
-    // (component 2 must dominate in log-space).
-    if (numer <= 0)  reject("mixture-LN constraint infeasible: numer <= 0");
-    if (mu2 < mu1)   reject("label-switching guard: mu2 < mu1");
+    if (numer <= 0) reject("mixture-LN constraint infeasible: numer <= 0");
+    if (mu2 < mu1)  reject("label-switching guard: mu2 < mu1");
 
-    // Per-gene mixture-LN log prior on log_phi
+    // Per-gene mixture-LN log prior on log_phi, expressed in z_phi-space.
+    // Change of variables (log_phi = mu1 + sigma1 * z_phi):
+    //   component 1: N(log_phi | mu1, sigma1) + log|sigma1| = std_normal_lpdf(z_phi)
+    //   component 2: N(log_phi | mu2, sigma2) + log|sigma1|
+    // The log(sigma1) Jacobian appears only on the component-2 leg because
+    // it cancels exactly on the component-1 leg.
     for (g in 1:G) {
         target += log_mix(
             p,
-            normal_lpdf(log_phi[g] | mu1, sigma1),
-            normal_lpdf(log_phi[g] | mu2, sigma2));
+            std_normal_lpdf(z_phi[g]),
+            normal_lpdf(log_phi[g] | mu2, sigma2) + log(sigma1));
     }
 
     // dM, dEta priors (Gaussian, per-codon means/SDs)
