@@ -139,6 +139,11 @@ class ROCModel : public Model
 
 		virtual bool getParameterTypeFixed(std::string csp_parameters);
 		virtual bool isShared(std::string csp_parameters);
+		// Override base Model::recordCSPStepAlpha so it reaches ROCModel's
+		// own typed parameter ptr (the base Model::parameter is shadowed
+		// and stays nullptr).  Used by Vihola2012CSPAdapter for per-step
+		// alpha capture.
+		virtual void recordCSPStepAlpha(std::string grouping, double alpha) override;
 
 
 		//R Section:

@@ -490,6 +490,20 @@ bool ROCModel::isShared(std::string csp_parameters)
 }
 
 
+// Override Model::recordCSPStepAlpha so it reaches ROCModel's own typed
+// parameter ptr (the base Model::parameter is shadowed and stays nullptr
+// post-setParameter).  Used by Vihola2012CSPAdapter for per-step alpha
+// capture in MCMCAlgorithm::acceptRejectCodonSpecificParameter.
+void ROCModel::recordCSPStepAlpha(std::string grouping, double alpha)
+{
+	if (parameter == nullptr) return;
+	if (!(alpha >= 0.0)) alpha = 0.0;
+	if (!(alpha <= 1.0)) alpha = 1.0;
+	unsigned aaIndex = SequenceSummary::AAToAAIndex(grouping);
+	parameter->pushStepAlpha(aaIndex, alpha);
+}
+
+
 
 //-------------------------------------//
 //---------- Trace Functions ----------//

@@ -167,7 +167,13 @@ class Model
 		// MCMCAlgorithm::acceptRejectCodonSpecificParameter.  Only consumed
 		// by adapters that need per-proposal alpha (Vihola2012 / RAM).
 		// alpha is clamped to [0, 1] -- callers may pass min(1, exp(log_a)).
-		void recordCSPStepAlpha(std::string grouping, double alpha);
+		//
+		// VIRTUAL: subclasses (ROCModel, FONSEModel, PAModel, PANSEModel)
+		// each shadow the base Model::parameter with their own typed
+		// Parameter pointer.  The base implementation is a no-op (its
+		// parameter pointer is nullptr post-setParameter); each subclass
+		// must override to reach its actual typed parameter object.
+		virtual void recordCSPStepAlpha(std::string grouping, double alpha);
 
 
 		virtual void fillMatrices(Genome& genome);
