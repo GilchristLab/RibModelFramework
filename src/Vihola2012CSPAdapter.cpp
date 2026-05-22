@@ -142,8 +142,25 @@ void Vihola2012CSPAdapter::update(const CSPAdaptContext& ctx)
             if (!std::isfinite(dk) || dk <= 0.0) { bad = true; break; }
         }
         if (bad) {
+            // Roll back this step's rank-1 update.  But to keep making
+            // forward progress when high-d AAs persistently violate PSD
+            // (early phase, cov-stored vs proposal-cov convention mismatch
+            // on this codebase amplifies floating-point boundary cases),
+            // apply a scalar shrink/grow in the SAME direction as sigma:
+            //   sigma < 0 (AR < target) -> shrink cov by factor (1 + sigma)
+            //   sigma > 0 (AR > target) -> grow   cov by factor (1 + sigma)
+            // The factor is bounded by (1 + sigma) in (-eta_max, 1+eta_max).
+            // This preserves PSD (scalar multiply doesn't change shape) and
+            // gives at least some forward AR coercion when the rank-1 path
+            // is blocked.
             cov = cov_save;
             *C.getCholeskyMatrix() = L_save;
+            const double shrink_factor = 1.0 + sigma_i;
+            if (std::isfinite(shrink_factor) && shrink_factor > 0.0) {
+                std::vector<double>& covRW = *C.getCovMatrix();
+                for (std::size_t k = 0; k < d * d; ++k) covRW[k] *= shrink_factor;
+                C.choleskyDecomposition();
+            }
         }
     }
 
