@@ -107,11 +107,21 @@ void Vihola2012CSPAdapter::update(const CSPAdaptContext& ctx)
         }
 
         // Rank-1 cov update: cov += (sigma_i / ||Z||^2) * v v^T.
-        // PSD bound: with sigma_i in [-1, +inf) and |Z|^2 = sum z_k^2,
-        // this preserves PSD when sigma_i / |Z|^2 * v^T cov^-1 v >= -1.
-        // Since v = L^T Z and v^T cov^-1 v = Z^T Z = |Z|^2, the constraint
-        // reduces to sigma_i >= -1, which holds (eta_i <= 1, |alpha_i -
-        // target| < 1 => |sigma_i| < 1).  Therefore this update is PSD-safe.
+        // PSD bound in EXACT arithmetic: with sigma_i in [-1, +inf) and
+        // |Z|^2 = sum z_k^2, this preserves PSD when sigma_i / |Z|^2 *
+        // v^T cov^-1 v >= -1.  Since v = L^T Z (with cov = L L^T), we
+        // have v^T cov^-1 v = Z^T Z = |Z|^2, so the constraint reduces
+        // to sigma_i >= -1.  This holds (eta_i <= 1, |alpha_i - target|
+        // < 1 => sigma_i in (-1, +1)).
+        //
+        // But floating-point arithmetic can drive cov to the PSD boundary
+        // (smallest eigenvalue ~ 0), and the next step's L would have
+        // near-zero diag entries, causing v to be ill-conditioned.  Defensive
+        // rollback: save pre-update cov + L, attempt update + chol, then
+        // check chol-diag for non-finite or non-positive; if bad, revert.
+        std::vector<double> cov_save = cov;
+        std::vector<double> L_save   = *C.getCholeskyMatrix();
+
         const double scale = sigma_i / z2;
         for (std::size_t r = 0; r < d; ++r) {
             const double vr = v[r];
@@ -122,6 +132,19 @@ void Vihola2012CSPAdapter::update(const CSPAdaptContext& ctx)
 
         // Refresh L from the updated cov so step i+1 sees the new shape.
         C.choleskyDecomposition();
+
+        // Validate: every L diag entry must be finite and > 0.  If not,
+        // the update drove cov to the boundary; revert this step.
+        const std::vector<double>& Lcheck = *C.getCholeskyMatrix();
+        bool bad = false;
+        for (std::size_t k = 0; k < d; ++k) {
+            double dk = Lcheck[k * d + k];
+            if (!std::isfinite(dk) || dk <= 0.0) { bad = true; break; }
+        }
+        if (bad) {
+            cov = cov_save;
+            *C.getCholeskyMatrix() = L_save;
+        }
     }
 
     // Advance per-AA step counter by the number of consumed steps so the
