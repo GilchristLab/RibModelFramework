@@ -1442,6 +1442,35 @@ void Parameter::setSynthesisRate(double phi, unsigned geneIndex, unsigned mixtur
 }
 
 
+void Parameter::setCurrentSynthesisRateLevel(std::vector<std::vector<double>> levels)
+{
+	// If we already have allocated state, enforce dimension match (so a
+	// caller can't accidentally swap genomes underneath the trace).  If
+	// we have no state yet (e.g., parameter was loaded via the no-arg
+	// ctor and has not yet been initialized), accept the input as the
+	// first-time allocation.
+	if (!currentSynthesisRateLevel.empty())
+	{
+		if (levels.size() != currentSynthesisRateLevel.size())
+		{
+			my_printError("ERROR: setCurrentSynthesisRateLevel got % categories but expected %.\n",
+			              (unsigned)levels.size(), (unsigned)currentSynthesisRateLevel.size());
+			return;
+		}
+		for (unsigned i = 0u; i < levels.size(); i++)
+		{
+			if (levels[i].size() != currentSynthesisRateLevel[i].size())
+			{
+				my_printError("ERROR: setCurrentSynthesisRateLevel category % has % genes but expected %.\n",
+				              i, (unsigned)levels[i].size(), (unsigned)currentSynthesisRateLevel[i].size());
+				return;
+			}
+		}
+	}
+	currentSynthesisRateLevel = levels;
+}
+
+
 void Parameter::updateSynthesisRate(unsigned geneIndex)
 {
 	for (unsigned category = 0; category < numSynthesisRateCategories; category++)

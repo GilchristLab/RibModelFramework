@@ -747,13 +747,22 @@ void MCMCAlgorithm::run(Genome& genome, Model& model, unsigned numCores, unsigne
 				{
 					posteriorTrace[(iteration / thinning)] = logPost;
 				}
-//				if (std::isnan(logPost))
-//				{
-//
-//					//my_printError("ERROR: LogPosterior is NaN, exiting at iteration %\n", iteration);
-//					//model.setLastIteration(iteration / thinning);
-//					//return;
-//				}
+
+				// Overwrite the in-loop likelihoodTrace value with the
+				// correct full-genome L(data | theta) for ROC.  The
+				// existing writes in acceptRejectSynthesisRateLevelForAllGenes
+				// have a bug in the estimateMixtureAssignment branch
+				// (maxValue4 stays at -1e+20 because that branch never
+				// updates it, producing a constant ~-1e+20*n_genes trace
+				// value -- the famous -5.493e+23 sentinel-looking number).
+				// Base Model::calculateLogLikelihood returns NaN; only
+				// ROCModel overrides it.  When NaN, leave the trace alone
+				// so non-ROC models retain their existing behavior.
+				double ll = model.calculateLogLikelihood(genome);
+				if (!std::isnan(ll))
+				{
+					likelihoodTrace[(iteration / thinning)] = ll;
+				}
 			}
 			if ((iteration % adaptiveWidth) == 0u)
 				model.adaptSynthesisRateProposalWidth(adaptiveWidth, iteration <= stepsToAdapt);

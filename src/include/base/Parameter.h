@@ -241,6 +241,15 @@ class Parameter {
 		double getSynthesisRateProposalWidth(unsigned geneIndex, unsigned mixtureElement);
 		void proposeSynthesisRateLevels(); //TODO: test
 		void setSynthesisRate(double phi, unsigned geneIndex, unsigned mixtureElement);
+
+		// Bulk setter for the full per-category synthesis rate state.  Used
+		// by loadParameterObject() to restore currentSynthesisRateLevel from
+		// saved .Rdata so that getSynthesisRate() and any C++ method that
+		// reads it (e.g. ROCModel::calculateLogLikelihood) work after load.
+		// Validates outer size matches numSynthesisRateCategories and inner
+		// sizes match the bound genome's gene count; throws on mismatch.
+		void setCurrentSynthesisRateLevel(std::vector<std::vector<double>> levels);
+
 		void updateSynthesisRate(unsigned geneIndex); //TODO: test
 		void updateSynthesisRate(unsigned geneIndex, unsigned mixtureElement); //TODO: test
 		unsigned getNumAcceptForSynthesisRate(unsigned expressionCategory, unsigned geneIndex); //Only for unit testing
