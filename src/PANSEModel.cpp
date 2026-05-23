@@ -1466,7 +1466,7 @@ double PANSEModel::calculateLambdaPrior(std::string grouping,bool proposed)
 }
 
 
-void PANSEModel::setNSERatePriorDistribution(std::string distributionName, double lower, double upper, double exponential_mean)
+void PANSEModel::setNSERatePriorDistribution(std::string distributionName, double lower, double upper, double exponential_mean, double shape, double rate)
 {
   if (distributionName == "Natural-Uniform")
   {
@@ -1485,6 +1485,12 @@ void PANSEModel::setNSERatePriorDistribution(std::string distributionName, doubl
     priorType = 2;
     nse_exponential_mean = exponential_mean;
     my_print("Prior set to % (prior type %) with exponential mean",distributionName,priorType,nse_exponential_mean);
+  } else if (distributionName == "Gamma") {
+      priorType = 3;
+      nse_gamma_shape = shape;
+      nse_gamma_rate  = rate;
+      my_print("Prior set to % (prior type %) with shape % and rate %",
+               distributionName, priorType, nse_gamma_shape, nse_gamma_rate);
   }
 }
 
@@ -1502,6 +1508,8 @@ double PANSEModel::calculateNSERatePrior(std::string grouping, bool proposed)
   } else if (priorType == 2)
   {
     prior = calculateNSERatePriorExponential(grouping,proposed);
+  } else if (priorType == 3) {
+    prior = calculateNSERatePriorGamma(grouping, proposed);
   }
   return(prior);
 }
@@ -1560,11 +1568,33 @@ double PANSEModel::calculateNSERatePriorExponential(std::string grouping,bool pr
   for (unsigned i = 0u; i < numMutCat; i++)
   {
     NSERate = parameter->getParameterForCategory(i, PANSEParameter::nse, grouping, proposed);
-    priorValue += (log_dist_mean - nse_exponential_mean * NSERate);  
+    priorValue += (log_dist_mean - nse_exponential_mean * NSERate);
   }
   return priorValue;
 }
 
+
+double PANSEModel::calculateNSERatePriorGamma(std::string grouping, bool proposed)
+{
+    double NSERate;
+    double priorValue = 0.0;
+    unsigned numNSECat = parameter->getNumNSECategories();
+    double logRate = std::log(nse_gamma_rate);
+    double lgShape = std::lgamma(nse_gamma_shape);
+    for (unsigned i = 0u; i < numNSECat; i++) {
+        NSERate = parameter->getParameterForCategory(i, PANSEParameter::nse, grouping, proposed);
+        if (NSERate <= 0.0) {
+            priorValue += std::log(0.0);   // -Inf; degenerate
+        } else {
+            // Gamma log-pdf: shape*log(rate) - lgamma(shape) + (shape-1)*log(x) - rate*x
+            priorValue += nse_gamma_shape * logRate
+                        - lgShape
+                        + (nse_gamma_shape - 1.0) * std::log(NSERate)
+                        - nse_gamma_rate * NSERate;
+        }
+    }
+    return priorValue;
+}
 
 
 double PANSEModel::calculateAllPriors(bool proposed)

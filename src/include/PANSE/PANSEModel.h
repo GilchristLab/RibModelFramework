@@ -32,6 +32,8 @@ class PANSEModel: public Model
     double nse_lower_limit = 1e-100;
     double nse_upper_limit = 1e-1;
     double nse_exponential_mean = 25000;
+    double nse_gamma_shape = 1.0;
+    double nse_gamma_rate  = 1.0;
     
  
     std::vector<double> Z;
@@ -153,7 +155,7 @@ class PANSEModel: public Model
 			return parameter ? parameter->getNumGenesFromState() : 0u;
 		}
 		bool checkValues(bool proposed=false);
-		void setNSERatePriorDistribution(std::string distributionName = "Natural-Uniform", double lower = 1e-100, double upper=1e-10, double mean = 25000);
+		void setNSERatePriorDistribution(std::string distributionName = "Natural-Uniform", double lower = 1e-100, double upper=1e-10, double mean = 25000, double shape = 1.0, double rate = 1.0);
 		virtual double calculateAllPriors(bool proposed=false);
 		virtual double calculateAlphaPrior(std::string grouping,bool proposed=false);
 		virtual double calculateLambdaPrior(std::string grouping,bool proposed=false);
@@ -161,6 +163,7 @@ class PANSEModel: public Model
 		virtual double calculateNSERatePriorNaturalUniform(std::string grouping,bool proposed=false);
 		virtual double calculateNSERatePriorLogUniform(std::string grouping,bool proposed=false);
 		virtual double calculateNSERatePriorExponential(std::string grouping,bool proposed=false);
+		virtual double calculateNSERatePriorGamma(std::string grouping, bool proposed=false);
 		virtual double getParameterForCategory(unsigned category, unsigned param, std::string codon, bool proposal);
 
 		double UpperIncompleteGammaHelper(double s, double x);
