@@ -175,6 +175,11 @@ data {
     real log_nse_upper;
     int<lower=0, upper=1> nse_log_uniform;         // 1 = log-uniform, 0 = natural-uniform
 
+    int<lower=0, upper=1> emit_log_lik;            // 1 = emit log_lik[P] in generated
+                                                   //   quantities (24 GB at full Weinberg
+                                                   //   scale); 0 = skip (codon-recovery
+                                                   //   fits don't need WAIC).
+
     int<lower=1> grainsize;                        // reduce_sum partition size
 }
 
@@ -183,6 +188,9 @@ transformed data {
     for (g in 1:G) gene_indices[g] = g;
     vector[G] log_phi = log(phi);
     real log_U = log(U);
+
+    // Length of log_lik in generated quantities: P if emit_log_lik, else 0.
+    int n_log_lik = emit_log_lik * P;
 }
 
 parameters {
@@ -238,9 +246,12 @@ model {
 
 generated quantities {
     /* Per-position log-likelihood for WAIC / LOO post-hoc.  Positions with
-     * like_mask == 0 contribute 0 (no penalty). */
-    vector[P] log_lik;
-    {
+     * like_mask == 0 contribute 0 (no penalty).
+     * Emitted only when emit_log_lik == 1; at full Weinberg scale
+     * (P ~ 747k, 4000 draws) the GQ output is ~24 GB and the per-sample
+     * GQ pass adds ~30% wall time. */
+    vector[n_log_lik] log_lik;
+    if (emit_log_lik) {
         for (g in 1:G) {
             int p0 = gene_offset[g];
             int p1 = gene_offset[g + 1] - 1;

@@ -94,6 +94,7 @@ data {
     real log_nse_lower;
     real log_nse_upper;
     int<lower=0, upper=1> nse_log_uniform;
+    int<lower=0, upper=1> emit_log_lik;            // see panse_csp_only.stan header
 
     int<lower=1> grainsize;
 }
@@ -102,6 +103,7 @@ transformed data {
     array[G] int gene_indices;
     for (g in 1:G) gene_indices[g] = g;
     real log_U = log(U);
+    int n_log_lik = emit_log_lik * P;
 }
 
 parameters {
@@ -147,8 +149,8 @@ model {
 }
 
 generated quantities {
-    vector[P] log_lik;
-    {
+    vector[n_log_lik] log_lik;
+    if (emit_log_lik) {
         for (g in 1:G) {
             int p0 = gene_offset[g];
             int p1 = gene_offset[g + 1] - 1;
