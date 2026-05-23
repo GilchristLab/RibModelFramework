@@ -28,6 +28,33 @@ class ROCModel : public Model
 		virtual void calculateLogLikelihoodRatioForHyperParameters(Genome &genome, unsigned iteration,
 					std::vector <double> &logProbabilityRatio);
 
+		// Full L(data | theta) evaluation at the model's CURRENT parameter
+		// state.  Mirrors PA/PANSE Model::calculateLogLikelihood signature.
+		// Sums per-AA per-gene contributions across the entire genome via
+		// calculateLogLikelihoodPerAAPerGene; reads dM, dEta, and phi from
+		// the bound parameter object rather than taking them as arguments.
+		//
+		// For DIC: call once at the posterior-mean parameter state to get
+		//          D(theta_bar); D_bar comes for free from the existing
+		//          MCMC$getLogLikelihoodTrace().
+		// For bridge sampling: call once per proposal-distribution sample.
+		//
+		// Currently assumes numMixtures == 1 (the Lokiarchaeota case);
+		// multi-mixture marginalization would require summing across
+		// mixture categories weighted by mixture probabilities, which
+		// the MCMC accept-reject pathway handles internally but is not
+		// yet abstracted here.
+		//
+		// LIMITATION: Works on a Parameter that's been freshly initialized
+		// via initializeParameterObject() (in-memory, post-MCMC).  Does
+		// NOT work on a Parameter loaded from .Rdata via
+		// loadParameterObject(): writeParameterObject() does not preserve
+		// currentSynthesisRateLevel, so the per-gene phi accessor returns
+		// uninitialized state.  For post-hoc analysis from saved .Rdata,
+		// either (a) restore phi from trace via R helper, or (b) call this
+		// method from within the original R session that produced the fit.
+		double calculateLogLikelihood(Genome& genome);
+
 
 		//Initialization and Restart Functions:
 		virtual void initTraces(unsigned samples, unsigned num_genes, bool estimateSynthesisRate = true);
