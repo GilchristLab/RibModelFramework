@@ -5,6 +5,9 @@
 #include "../Genome.h"
 #include "Parameter.h"
 
+#include <cmath>
+#include <limits>
+
 class Model
 {
     private:
@@ -32,6 +35,19 @@ class Model
 
 		virtual double calculateAllPriors(bool proposed=false) = 0;
 		virtual bool checkValues(bool proposed=false);
+
+		// Full L(data | theta) at the bound Parameter's current state.
+		// ROCModel overrides with the real per-AA per-gene sum.  Default
+		// returns NaN so non-ROC models keep whatever the in-loop trace
+		// writer produced (MCMCAlgorithm::run treats NaN as "leave the
+		// trace value untouched").  Lets MCMCAlgorithm populate
+		// likelihoodTrace via a known-correct primitive without altering
+		// the existing accept/reject path's tested math -- fixes the
+		// uninitialized-maxValue4 bug in
+		// acceptRejectSynthesisRateLevelForAllGenes for ROC.
+		virtual double calculateLogLikelihood(Genome& /*genome*/) {
+			return std::numeric_limits<double>::quiet_NaN();
+		}
 
 
 
