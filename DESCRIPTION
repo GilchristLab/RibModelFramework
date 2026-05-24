@@ -39,7 +39,6 @@ License: GPL (>= 2)
 
 Imports: coda, dplyr, magrittr, rlang, tidyr
 
-Imports:
 
 
 LinkingTo: Rcpp
