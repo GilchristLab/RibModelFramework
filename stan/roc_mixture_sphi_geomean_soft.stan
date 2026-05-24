@@ -89,6 +89,8 @@ data {
     real<lower=0> p_beta;
     real         mu1_prior_mean;
     real<lower=0> mu1_prior_sd;
+    real         mu2_prior_mean;
+    real<lower=0> mu2_prior_sd;
     real<lower=0> sigma1_prior_scale;
     real<lower=0> sigma2_prior_scale;
 
@@ -125,7 +127,7 @@ model {
     // Hyperpriors
     p      ~ beta(p_alpha, p_beta);
     mu1    ~ normal(mu1_prior_mean, mu1_prior_sd);
-    mu2    ~ normal(mu1_prior_mean, mu1_prior_sd);   // same prior on both
+    mu2    ~ normal(mu2_prior_mean, mu2_prior_sd);
     sigma1 ~ normal(0, sigma1_prior_scale);
     sigma2 ~ normal(0, sigma2_prior_scale);
 

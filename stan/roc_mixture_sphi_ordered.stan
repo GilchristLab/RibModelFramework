@@ -107,6 +107,8 @@ data {
     real<lower=0> p_beta;
     real         mu1_prior_mean;
     real<lower=0> mu1_prior_sd;
+    real         mu2_prior_mean;
+    real<lower=0> mu2_prior_sd;
     real<lower=0> sigma1_prior_scale;
     real<lower=0> sigma2_prior_scale;
 
@@ -141,10 +143,13 @@ transformed parameters {
 
 model {
     // Hyperpriors
-    p                  ~ beta(p_alpha, p_beta);
-    log_component_mean ~ normal(mu1_prior_mean, mu1_prior_sd);   // both components
-    sigma1             ~ normal(0, sigma1_prior_scale);          // half-normal
-    sigma2             ~ normal(0, sigma2_prior_scale);
+    p                            ~ beta(p_alpha, p_beta);
+    // Per-component priors on log E[phi_k] (approx prior on mu_k since
+    // mu_k = log_component_mean[k] - 0.5*sigma_k^2 and sigma_k is small).
+    log_component_mean[1]        ~ normal(mu1_prior_mean, mu1_prior_sd);
+    log_component_mean[2]        ~ normal(mu2_prior_mean, mu2_prior_sd);
+    sigma1                       ~ normal(0, sigma1_prior_scale);  // half-normal
+    sigma2                       ~ normal(0, sigma2_prior_scale);
 
     // Soft mean(phi)=1 constraint (replaces hard derive-and-reject).
     log(overall_mean_phi) ~ normal(0, mean_phi_constraint_sd);
