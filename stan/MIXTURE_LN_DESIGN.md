@@ -176,6 +176,54 @@ Use a `geomean_soft`-style architecture as the template:
 canonical reference implementation.  `roc_mixture_sphi_ordered.stan`
 is a label-switching-safe alternative using Stan's `ordered[2]`.
 
+## Centered vs non-centered for log_phi (Neal's funnel)
+
+For data-dense regimes (G in the thousands with ~1000+ AA positions
+per gene), the **centered** parameterization for log_phi (sampling
+log_phi directly) is the default and works well.
+
+For data-sparse regimes (small G, low per-gene count, or just a
+sparse rare-component), **non-centered** reparametrization of log_phi
+removes Neal's funnel in the (log_phi, sigma) plane:
+
+    log_phi[g] = mu1 + sigma1 * z_phi[g]      // transformed
+    z_phi[g] ~ p * N(0, 1) + (1-p) * N((mu2-mu1)/sigma1, sigma2/sigma1)
+
+Anchoring on component 1 fully removes the funnel for the bulk
+component; the high component still sees sigma2 through the scale
+ratio so its funnel is partially mitigated but not removed.
+
+`roc_mixture_sphi_geomean_soft_noncentered.stan` is the non-centered
+analog of `geomean_soft`.
+
+### When to switch from centered to non-centered
+
+Symptoms that suggest non-centered:
+- R-hat for sigma1 fails to close even with longer warmup / more chains
+- Chains stick in tight-sigma1 regions and explore wider-sigma1 only
+  rarely
+- Divergence rate spikes correlate with sigma1 excursions toward zero
+- Per-gene log_phi posteriors near the bulk-component mean show wider
+  posterior than the prior suggests they should
+
+For mixture models on MAG-scale data (1500-3000 genes) with a small
+rare component (e.g., 1-p = 0.05 -> ~75-150 high-expression genes),
+the rare-component-side sigma is the most fragile dimension.  Non-
+centering provides geometric improvement for the bulk but the rare
+component remains a difficulty.
+
+### Per-component non-centering (future work)
+
+A more thorough fix would non-center BOTH components separately,
+e.g. via mixture-model-aware reparametrization with explicit
+component labels.  Stan's discrete-parameter limitation makes this
+non-trivial (each gene's component assignment is marginalized in the
+log_mix expression).  See e.g. the Stan mixture model documentation
+for label-switching reparametrizations.
+
+For now, the single-component non-centering above is the simplest
+useful intervention.
+
 ## See also
 
 - `stan/README.md` for the full inventory of Stan models in this directory.
