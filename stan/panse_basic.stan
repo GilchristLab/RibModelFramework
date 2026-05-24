@@ -150,6 +150,15 @@ model {
     /* lognormal phi prior with mean = 1 (v.3 mPhi convention) */
     log_phi ~ normal(-0.5 * sphi * sphi, sphi);
 
+    /* Soft anchor on the SAMPLE mean of log_phi to break the multiplicative
+     * ridge mu = alpha * phi * sigma / (U * lambdaPrime).  The per-gene
+     * prior above pulls each log_phi[g] to -sphi^2/2, but with informative
+     * per-gene data the ensemble can drift along (phi *= k, lambda *= k)
+     * without changing mu.  This extra penalty tightly anchors the
+     * ENSEMBLE mean -- adds little bias because the prior already centers
+     * each log_phi[g] there, but kills the ridge gradient. */
+    target += -0.5 * square((mean(log_phi) + 0.5 * sphi * sphi) / 0.01);
+
     target += reduce_sum(partial_sum, gene_indices, grainsize,
                          gene_offset, codon_at_pos, y, like_mask, all_unmasked,
                          alpha, log_alpha_term, log_psuccess, log_phi);

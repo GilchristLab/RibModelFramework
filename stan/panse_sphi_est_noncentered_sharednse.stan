@@ -163,6 +163,12 @@ model {
     sphi  ~ normal(0, sphi_prior_sd);
     z_phi ~ std_normal();    // implicit log_phi ~ Normal(-sphi^2/2, sphi)
 
+    /* Soft mean(phi)=1 anchor; breaks the phi <-> lambda multiplicative
+     * ridge.  Operates on the TRANSFORMED log_phi (defined as
+     * -0.5*sphi^2 + sphi*z_phi in transformed parameters), so effectively
+     * constrains mean(z_phi) ~ 0 modulo the sphi coupling. */
+    target += -0.5 * square((mean(log_phi) + 0.5 * sphi * sphi) / 0.01);
+
     target += reduce_sum(partial_sum, gene_indices, grainsize,
                          gene_offset, codon_at_pos, y, like_mask, all_unmasked,
                          alpha, log_alpha_term, log_psuccess, log_phi);

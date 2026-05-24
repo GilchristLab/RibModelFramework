@@ -160,6 +160,11 @@ model {
     sphi    ~ normal(0, sphi_prior_sd);           // half-normal (lower=0)
     log_phi ~ normal(-0.5 * sphi * sphi, sphi);
 
+    /* Soft mean(phi)=1 anchor; breaks the phi <-> lambda multiplicative
+     * ridge that drives the slow mixing in v1+v2 (centered + noncentered).
+     * See panse_basic.stan for the math rationale. */
+    target += -0.5 * square((mean(log_phi) + 0.5 * sphi * sphi) / 0.01);
+
     target += reduce_sum(partial_sum, gene_indices, grainsize,
                          gene_offset, codon_at_pos, y, like_mask, all_unmasked,
                          alpha, log_alpha_term, log_psuccess, log_phi);
