@@ -1,20 +1,32 @@
 /* ============================================================================
- * panse_basic.stan -- PANSE v1: log_phi sampled, sphi fixed.
+ * panse_basic_sharednse.stan -- PANSE v1: log_phi sampled, sphi fixed,
+ * single shared NSE scalar across all codons.
  *
- * Extends panse_csp_only.stan by promoting phi from data to a parameter.
- * Prior:
- *     log_phi ~ Normal(-0.5 * sphi^2, sphi)    (lognormal mean(phi) = 1,
- *                                               v.3 mPhi convention)
- * sphi is held fixed as data.  See panse_sphi_est_centered.stan for the
- * variant that estimates sphi.
+ * Combination of panse_basic.stan (log_phi as parameter) and the shared-
+ * NSE pattern from panse_csp_only_sharednse.stan.  Used for the staged
+ * fit pipeline: validate codon-specific recovery on csp-only-sharednse
+ * first, then promote phi to a parameter here keeping NSE shared.
  *
- * See panse_csp_only.stan for full math derivation, data layout, NSE
- * prior switch, and the per-codon precomputation optimization (same
- * pattern used here).
+ * See panse_basic.stan for the log_phi prior structure and
+ * panse_csp_only_sharednse.stan for the shared-NSE bookkeeping.
+ *
+ *   parameters {
+ *     vector<lower, upper>[C] log_alpha;
+ *     vector<lower, upper>[C] log_lambdaPrime;
+ *     real<lower, upper>      log_NSERate_shared;     // single scalar
+ *     vector[G]               log_phi;
+ *   }
+ *
+ *   model {
+ *     log_alpha       ~ normal(prior_mean_alpha,  prior_sd_alpha);
+ *     log_lambdaPrime ~ normal(prior_mean_lambda, prior_sd_lambda);
+ *     if (nse_log_uniform == 0) target += log_NSERate_shared;  // 1-scalar Jacobian
+ *     log_phi         ~ normal(-0.5 * sphi^2, sphi);           // v.3 mPhi convention
+ *     target          += reduce_sum(...);
+ *   }
  * ============================================================================ */
 
 functions {
-    /* See panse_csp_only.stan for the all_unmasked fast-path rationale. */
     real partial_sum(array[] int slice_g, int start, int end,
                      array[] int gene_offset,
                      array[] int codon_at_pos,
@@ -81,7 +93,7 @@ data {
     array[P]     int<lower=0, upper=1> like_mask;
     int<lower=0, upper=1> all_unmasked;
 
-    /* phi removed from data; log_phi is now a parameter (see below). */
+    /* phi removed from data; log_phi is a parameter (see below). */
 
     real<lower=0> U;
     real<lower=0> sphi;                            // synthesis-rate stddev (fixed)
@@ -91,8 +103,6 @@ data {
     real log_lambda_prior_mean;
     real<lower=0> log_lambda_prior_sd;
 
-    /* Hard bounds (see panse_csp_only.stan -- same rationale, prevents
-     * HMC -nan during warmup proposals at extreme parameter values). */
     real log_alpha_lower;
     real log_alpha_upper;
     real log_lambda_lower;
@@ -101,7 +111,8 @@ data {
     real log_nse_lower;
     real log_nse_upper;
     int<lower=0, upper=1> nse_log_uniform;
-    int<lower=0, upper=1> emit_log_lik;            // see panse_csp_only.stan header
+
+    int<lower=0, upper=1> emit_log_lik;
 
     int<lower=1> grainsize;
 }
@@ -116,17 +127,17 @@ transformed data {
 parameters {
     vector<lower=log_alpha_lower,  upper=log_alpha_upper>[C]  log_alpha;
     vector<lower=log_lambda_lower, upper=log_lambda_upper>[C] log_lambdaPrime;
-    vector<lower=log_nse_lower,    upper=log_nse_upper>[C]    log_NSERate;
+    real<lower=log_nse_lower, upper=log_nse_upper> log_NSERate_shared;
     vector[G] log_phi;
 }
 
 transformed parameters {
     vector<lower=0>[C] alpha       = exp(log_alpha);
     vector<lower=0>[C] lambdaPrime = exp(log_lambdaPrime);
-    vector<lower=0>[C] NSERate     = exp(log_NSERate);
+    real NSERate_shared            = exp(log_NSERate_shared);
+    vector<lower=0>[C] NSERate     = rep_vector(NSERate_shared, C);
     vector<lower=0>[G] phi         = exp(log_phi);
 
-    /* Per-codon precomputations (see panse_csp_only.stan header). */
     vector[C] log_alpha_term;
     vector[C] log_psuccess;
     for (c in 1:C) {
@@ -144,10 +155,9 @@ model {
     log_lambdaPrime ~ normal(log_lambda_prior_mean, log_lambda_prior_sd);
 
     if (nse_log_uniform == 0) {
-        target += sum(log_NSERate);
+        target += log_NSERate_shared;
     }
 
-    /* lognormal phi prior with mean = 1 (v.3 mPhi convention) */
     log_phi ~ normal(-0.5 * sphi * sphi, sphi);
 
     target += reduce_sum(partial_sum, gene_indices, grainsize,
