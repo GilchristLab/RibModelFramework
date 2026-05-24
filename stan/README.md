@@ -4,6 +4,11 @@ HMC implementations of the ROC codon-usage model, intended as an alternative
 sampling backend to the in-house AnaCoDa native MCMC (Rcpp).  Same model;
 different sampler.
 
+**Mixture-LN design rationale:** see `MIXTURE_LN_DESIGN.md` in this
+directory for cross-method (ROC / PANSE / FONSE) Stan mixture-LN
+prior structure, failure-mode catalog, SCUO init mechanics, anchor
+convention discussion, and recommended starting architecture.
+
 ## When to use Stan vs native
 
 Stan's per-iteration mixing is 100-400x better than native+ar-and-cov on the
