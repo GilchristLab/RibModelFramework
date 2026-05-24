@@ -36,11 +36,7 @@ Description: Is a collection of models to analyze genome scale codon
         nonsense error rate from ribosome footprinting data.
 Encoding: UTF-8
 License: GPL (>= 2)
-
 Imports: coda, dplyr, magrittr, rlang, tidyr
-
-
-
 LinkingTo: Rcpp
 LazyLoad: yes
 LazyData: yes
