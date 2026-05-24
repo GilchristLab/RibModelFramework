@@ -96,7 +96,10 @@ export(
 
 ##
 "acfMCMC",
-"acfCSP"
+"acfCSP",
+
+## Diagnostics
+"assertChainsMoving"
 
 )
 
