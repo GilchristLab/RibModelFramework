@@ -169,6 +169,15 @@ data {
     real log_lambda_prior_mean;
     real<lower=0> log_lambda_prior_sd;
 
+    /* Hard bounds on log_alpha / log_lambdaPrime to prevent HMC from
+     * exploring extreme tails where neg_binomial_2_log_lpmf evaluates to
+     * -nan during warmup proposals.  Set to log() of the YAML's natural-
+     * scale uniform bounds; e.g. log(1e-3) ~ -6.9 to log(100) ~ 4.6. */
+    real log_alpha_lower;
+    real log_alpha_upper;
+    real log_lambda_lower;
+    real log_lambda_upper;
+
     /* NSE prior bounds (always declared in log space).  Matches RMF's
      * Log-Uniform(nserate.uniform.lower, nserate.uniform.upper). */
     real log_nse_lower;
@@ -194,12 +203,13 @@ transformed data {
 }
 
 parameters {
-    /* Log-transformed codon params: weak normal prior in log space, no
-     * upper bound (RMF's Uniform(0, 100) is matched loosely via the prior
-     * SDs supplied by the YAML).  Log-transform gives HMC smooth
-     * gradients across many orders of magnitude. */
-    vector[C] log_alpha;
-    vector[C] log_lambdaPrime;
+    /* Log-transformed codon params with hard bounds at the natural-scale
+     * uniform support (YAML alpha.prior.lower/upper).  Bounds prevent HMC
+     * from exploring extreme tails where the NB2 likelihood evaluates to
+     * -nan during warmup proposals; the weak normal prior still does the
+     * within-bounds shaping. */
+    vector<lower=log_alpha_lower,  upper=log_alpha_upper>[C]  log_alpha;
+    vector<lower=log_lambda_lower, upper=log_lambda_upper>[C] log_lambdaPrime;
 
     /* NSE: declared in log space with bounds.  Implicit uniform prior in
      * log space gives Log-Uniform on NSERate; Jacobian below converts to

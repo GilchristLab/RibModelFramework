@@ -113,6 +113,15 @@ data {
     real log_lambda_prior_mean;
     real<lower=0> log_lambda_prior_sd;
 
+    /* Hard bounds on log_alpha / log_lambdaPrime to prevent HMC from
+     * exploring extreme tails where neg_binomial_2_log_lpmf evaluates to
+     * -nan during warmup proposals.  Set to log() of the YAML's natural-
+     * scale uniform bounds; e.g. log(1e-3) ~ -6.9 to log(100) ~ 4.6. */
+    real log_alpha_lower;
+    real log_alpha_upper;
+    real log_lambda_lower;
+    real log_lambda_upper;
+
     real log_nse_lower;
     real log_nse_upper;
     int<lower=0, upper=1> nse_log_uniform;
@@ -132,8 +141,8 @@ transformed data {
 }
 
 parameters {
-    vector[C] log_alpha;
-    vector[C] log_lambdaPrime;
+    vector<lower=log_alpha_lower,  upper=log_alpha_upper>[C]  log_alpha;
+    vector<lower=log_lambda_lower, upper=log_lambda_upper>[C] log_lambdaPrime;
 
     /* Single shared NSE in log space.  Replaces vector[C] log_NSERate. */
     real<lower=log_nse_lower, upper=log_nse_upper> log_NSERate_shared;
