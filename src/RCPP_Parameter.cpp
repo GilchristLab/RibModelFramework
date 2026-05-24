@@ -314,6 +314,11 @@ RCPP_MODULE(Parameter_mod)
 		.method("setPhiPriorType", &Parameter::setPhiPriorType)
 		.method("getPhiPriorConstraint", &Parameter::getPhiPriorConstraint)
 		.method("setPhiPriorConstraint", &Parameter::setPhiPriorConstraint)
+		// Idempotent allocator for phiMixture* vectors; needed when
+		// loadParameterObject reconstructs a parameter via new(ROCParameter)
+		// where initParameterSet (which normally calls this) is bypassed.
+		// Task #12c.3 (2026-05-21).
+		.method("initPhiMixtureStorage", &Parameter::initPhiMixtureStorage)
 		.method("getPhiMixtureP", &Parameter::getPhiMixtureP)
 		.method("setPhiMixtureP", &Parameter::setPhiMixtureP)
 		.method("getPhiMixtureMu1", &Parameter::getPhiMixtureMu1)

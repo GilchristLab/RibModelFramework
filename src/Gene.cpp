@@ -532,7 +532,7 @@ RCPP_MODULE(Gene_mod)
   class_<Gene>( "Gene" )
 
 	.constructor("empty constructor")
-    .constructor<std::string, std::string, std::string >("Initialize a gene by giving the id, description, and sequence string")
+    .constructor<std::string, std::string, std::string >("Initialize a gene by giving the sequence, id, and description strings (in that order; matches Gene::Gene(seq, id, desc))")
 
 
 	//Public functions & variables:

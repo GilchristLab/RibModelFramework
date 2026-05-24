@@ -825,6 +825,18 @@ std::vector<double> Trace::getPhiMixtureMu1AcceptanceRateTrace()    { return phi
 std::vector<double> Trace::getPhiMixtureSigma1AcceptanceRateTrace() { return phiMixtureSigma1AcceptanceRateTrace; }
 std::vector<double> Trace::getPhiMixtureSigma2AcceptanceRateTrace() { return phiMixtureSigma2AcceptanceRateTrace; }
 
+// Setters (task #12c.3): allow writeParameterObject / loadParameterObject
+// to round-trip the phi-mixture-LN traces through .Rdata serialisation.
+// Without these the get* methods return empty after a .Rdata reload.
+void Trace::setPhiMixturePTrace(std::vector<std::vector<double>> _trace)      { phiMixturePTrace      = _trace; }
+void Trace::setPhiMixtureMu1Trace(std::vector<std::vector<double>> _trace)    { phiMixtureMu1Trace    = _trace; }
+void Trace::setPhiMixtureSigma1Trace(std::vector<std::vector<double>> _trace) { phiMixtureSigma1Trace = _trace; }
+void Trace::setPhiMixtureSigma2Trace(std::vector<std::vector<double>> _trace) { phiMixtureSigma2Trace = _trace; }
+void Trace::setPhiMixturePAcceptanceRateTrace(std::vector<double> _trace)      { phiMixturePAcceptanceRateTrace      = _trace; }
+void Trace::setPhiMixtureMu1AcceptanceRateTrace(std::vector<double> _trace)    { phiMixtureMu1AcceptanceRateTrace    = _trace; }
+void Trace::setPhiMixtureSigma1AcceptanceRateTrace(std::vector<double> _trace) { phiMixtureSigma1AcceptanceRateTrace = _trace; }
+void Trace::setPhiMixtureSigma2AcceptanceRateTrace(std::vector<double> _trace) { phiMixtureSigma2AcceptanceRateTrace = _trace; }
+
 //TODO: How well does this generalize?
 unsigned Trace::getNumberOfMixtures()
 {

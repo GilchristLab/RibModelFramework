@@ -804,8 +804,6 @@ void ROCModel::simulateGenome(Genome &genome)
 {
 	unsigned codonIndex;
 
-	std::string tmpDesc = "Simulated Gene";
-
 	for (unsigned geneIndex = 0; geneIndex < genome.getGenomeSize(); geneIndex++) //loop over all genes in the genome
 	{
 		Gene gene = genome.getGene(geneIndex);
@@ -864,7 +862,13 @@ void ROCModel::simulateGenome(Genome &genome)
 		}
 		std::string codon =	sequenceSummary.indexToCodon((unsigned)Parameter::randUnif(61.0, 64.0)); //randomly choose a stop codon, from range 61-63
 		tmpSeq += codon;
-		Gene simulatedGene(tmpSeq, tmpDesc, gene.getId());
+		// Preserve the source gene's ID + full original description.  Prior
+		// versions passed args in (seq, "Simulated Gene", id) order, leaving
+		// id="Simulated Gene" and description=id -- which is why writeFasta()
+		// emitted bare ">ID" headers for simulated output.  The corrected
+		// ordering plus Genome::writeFasta(simulated=true, includeDescription)
+		// lets the simulated fasta retain the original SGD-style annotation.
+		Gene simulatedGene(tmpSeq, gene.getId(), gene.getDescription());
 		genome.addGene(simulatedGene, true);
 	}
 }

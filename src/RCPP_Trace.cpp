@@ -39,7 +39,19 @@ RCPP_MODULE(Trace_mod)
     .method("getPhiMixtureMu1AcceptanceRateTrace",    &Trace::getPhiMixtureMu1AcceptanceRateTrace)
     .method("getPhiMixtureSigma1AcceptanceRateTrace", &Trace::getPhiMixtureSigma1AcceptanceRateTrace)
     .method("getPhiMixtureSigma2AcceptanceRateTrace", &Trace::getPhiMixtureSigma2AcceptanceRateTrace)
-    
+
+    // Phi-mixture-LN trace setters (task #12c.3): expose so
+    // writeParameterObject / loadParameterObject can round-trip the
+    // mixture-hyper traces through .Rdata serialisation.
+    .method("setPhiMixturePTrace",      &Trace::setPhiMixturePTrace)
+    .method("setPhiMixtureMu1Trace",    &Trace::setPhiMixtureMu1Trace)
+    .method("setPhiMixtureSigma1Trace", &Trace::setPhiMixtureSigma1Trace)
+    .method("setPhiMixtureSigma2Trace", &Trace::setPhiMixtureSigma2Trace)
+    .method("setPhiMixturePAcceptanceRateTrace",      &Trace::setPhiMixturePAcceptanceRateTrace)
+    .method("setPhiMixtureMu1AcceptanceRateTrace",    &Trace::setPhiMixtureMu1AcceptanceRateTrace)
+    .method("setPhiMixtureSigma1AcceptanceRateTrace", &Trace::setPhiMixtureSigma1AcceptanceRateTrace)
+    .method("setPhiMixtureSigma2AcceptanceRateTrace", &Trace::setPhiMixtureSigma2AcceptanceRateTrace)
+
 
     //Setter Functions:
     .method("setStdDevSynthesisRateTraces", &Trace::setStdDevSynthesisRateTraces)
