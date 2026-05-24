@@ -176,6 +176,54 @@ Use a `geomean_soft`-style architecture as the template:
 canonical reference implementation.  `roc_mixture_sphi_ordered.stan`
 is a label-switching-safe alternative using Stan's `ordered[2]`.
 
+## Dense mass matrix (`metric: dense_e`) is high-leverage
+
+PANSE Stan port (2026-05-24, sphi-est sim sweep, compact 100-gene
+simulation, results in `PANSE.data.analyses/.../adapter.dev/Output/
+compare_all_sim_fits.rds`) found:
+
+| Variant | sphi ESS | sphi R-hat | log_phi ESS-min |
+|---|---|---|---|
+| v2-centered (diag_e) | 404 | 1.011 | 31 |
+| v2-noncentered (diag_e) | 25 | 1.154 | 23 |
+| v2-noncentered-anchor (diag_e) | 42 | 1.093 | 143 |
+| **v2-noncentered-anchor + dense_e** | **748** | **1.006** | **1263** |
+
+`dense_e` gave 17.8x sphi ESS over diag_e + noncentered + anchor, with
+R-hat closing from 1.093 to 1.006.  log_phi ESS-min jumped 8.8x.
+Non-centered ALONE without dense_e actually HURT sphi mixing on this
+data (25 vs 404 for centered).  The dense mass matrix learns the
+sphi <-> z_phi negative cross-correlation (-0.91 observed) that
+diag_e cannot represent.
+
+### When to use dense_e
+
+- Posterior has known cross-block correlation (typical for mixture
+  hyperparameters; sphi <-> log_phi in non-centered; mu1 <-> mu2 in
+  geomean_soft).
+- R-hat for a scalar hyperparameter fails to close even with longer
+  warmup -- often indicates a correlation the diag metric can't
+  navigate.
+- Affordable cost: warmup roughly 2x for full mass-matrix estimation;
+  per-iter cost is also higher.  Worth it when you'd otherwise need
+  to double sample budget.
+
+### When to avoid dense_e
+
+- Per-parameter scale very heterogeneous AND no strong cross-
+  correlation: diag_e is cheaper and equivalent.
+- Very large parameter dim (G in tens of thousands): the metric grows
+  as O(D^2) memory and warmup cost.  At G=5000+ the dense mass
+  matrix is ~25M entries; dense_e becomes prohibitive.
+- Quick-iteration prototyping: pay the dense_e warmup tax only when
+  you're going for final results.
+
+### Wiring
+
+Cmdstanr exposes `metric = "dense_e"` via `mod$sample()`.  PANSE and
+ROC adapter.dev wrappers expose a `fit.metric` YAML field + a
+`--metric` CLI flag, both gating to "diag_e" / "dense_e" / "unit_e".
+
 ## Centered vs non-centered for log_phi (Neal's funnel)
 
 For data-dense regimes (G in the thousands with ~1000+ AA positions
