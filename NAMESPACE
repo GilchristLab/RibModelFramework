@@ -105,8 +105,7 @@ export(
 "acfCSP",
 
 ## Diagnostics
-"assertChainsMoving"
-"acfCSP",
+"assertChainsMoving",
 
 ## RFP/phi filtering utility
 "filterRFPData"
