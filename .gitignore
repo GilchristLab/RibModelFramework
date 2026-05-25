@@ -11,3 +11,16 @@
 src/include/base/AnaCoDa-config.h
 inst/BUILD_INFO
 
+# Stan model executables (compiled per-host from .stan source)
+# Legacy un-tagged binaries at stan/<name> (pre-branch-tagging)
+stan/roc_basic
+stan/roc_sphi_est
+stan/roc_mixture_sphi
+stan/roc_sphi_est_centered
+stan/roc_sphi_est_noncentered
+stan/roc_mixture_sphi_centered
+stan/roc_mixture_sphi_noncentered
+# Branch+commit-tagged binaries at stan/build/<branch>-<sha>[-th]/<name>
+stan/build/
+stan/*.hpp
+

@@ -126,6 +126,8 @@ Parameter::Parameter(unsigned _maxGrouping)
 	std_stdDevSynthesisRate = 0.1;
 	maxGrouping = _maxGrouping;
 	numAcceptForCodonSpecificParameters.resize(maxGrouping, 0u);
+	stepZBuffer.assign(maxGrouping, std::vector<std::vector<double>>{});
+	stepAlphaBuffer.assign(maxGrouping, std::vector<double>{});
 
 	// Phi prior defaults: legacy single LogNormal, mean=1 anchor.
 	phiPriorType = PHI_PRIOR_SINGLE_LN;
@@ -240,6 +242,8 @@ Parameter& Parameter::operator=(const Parameter& rhs)
 	categoryProbabilities = rhs.categoryProbabilities;
 	traces = rhs.traces;
 	numAcceptForCodonSpecificParameters = rhs.numAcceptForCodonSpecificParameters;
+	stepZBuffer = rhs.stepZBuffer;
+	stepAlphaBuffer = rhs.stepAlphaBuffer;
 	std_csp = rhs.std_csp;
 	covarianceMatrix = rhs.covarianceMatrix;
 
@@ -354,6 +358,8 @@ void Parameter::initParameterSet(std::vector<double> _stdDevSynthesisRate, unsig
 	numAcceptForStdDevSynthesisRate = 0u;
 	std_csp.resize(numParam, 0.1);
 	numAcceptForCodonSpecificParameters.resize(maxGrouping, 0u);
+	stepZBuffer.assign(maxGrouping, std::vector<std::vector<double>>{});
+	stepAlphaBuffer.assign(maxGrouping, std::vector<double>{});
 	// proposal bias and std for phi values
 	bias_phi = 0;
 
@@ -637,6 +643,78 @@ void Parameter::initBaseValuesFromFile(std::string filename)
 						std_NoiseOffset.push_back(val);
 					}
 				}
+				// ---- Phi prior + mixture-LN state (task #12 restart) ----
+				// Forward-compat: older .rst files lack these blocks; the
+				// switch's default behavior leaves phiPriorType/Constraint and
+				// the mixture vectors at the C++ defaults, and downstream
+				// initPhiMixtureStorage() fills any empty vectors with the
+				// regime-A defaults. Newer .rst files carry the saved state
+				// here, and initPhiMixtureStorage's idempotent guard preserves
+				// it.
+				else if (variableName == "phiPriorType") {
+					iss.str(tmp); iss >> phiPriorType;
+				}
+				else if (variableName == "phiPriorConstraint") {
+					iss.str(tmp); iss >> phiPriorConstraint;
+				}
+				else if (variableName == "phiMixtureP") {
+					double val; iss.str(tmp);
+					while (iss >> val) phiMixtureP.push_back(val);
+				}
+				else if (variableName == "phiMixtureMu1") {
+					double val; iss.str(tmp);
+					while (iss >> val) phiMixtureMu1.push_back(val);
+				}
+				else if (variableName == "phiMixtureSigma1") {
+					double val; iss.str(tmp);
+					while (iss >> val) phiMixtureSigma1.push_back(val);
+				}
+				else if (variableName == "phiMixtureSigma2") {
+					double val; iss.str(tmp);
+					while (iss >> val) phiMixtureSigma2.push_back(val);
+				}
+				else if (variableName == "std_phiMixtureP") {
+					iss.str(tmp); iss >> std_phiMixtureP;
+				}
+				else if (variableName == "std_phiMixtureMu1") {
+					iss.str(tmp); iss >> std_phiMixtureMu1;
+				}
+				else if (variableName == "std_phiMixtureSigma1") {
+					iss.str(tmp); iss >> std_phiMixtureSigma1;
+				}
+				else if (variableName == "std_phiMixtureSigma2") {
+					iss.str(tmp); iss >> std_phiMixtureSigma2;
+				}
+				else if (variableName == "numAcceptForPhiMixtureP") {
+					iss.str(tmp); iss >> numAcceptForPhiMixtureP;
+				}
+				else if (variableName == "numAcceptForPhiMixtureMu1") {
+					iss.str(tmp); iss >> numAcceptForPhiMixtureMu1;
+				}
+				else if (variableName == "numAcceptForPhiMixtureSigma1") {
+					iss.str(tmp); iss >> numAcceptForPhiMixtureSigma1;
+				}
+				else if (variableName == "numAcceptForPhiMixtureSigma2") {
+					iss.str(tmp); iss >> numAcceptForPhiMixtureSigma2;
+				}
+				else if (variableName == "phiMixtureHyperPAlpha") {
+					iss.str(tmp); iss >> phiMixtureHyper_p_alpha;
+				}
+				else if (variableName == "phiMixtureHyperPBeta") {
+					iss.str(tmp); iss >> phiMixtureHyper_p_beta;
+				}
+				else if (variableName == "phiMixtureHyperMu1Mean") {
+					iss.str(tmp); iss >> phiMixtureHyper_mu1_mean;
+				}
+				else if (variableName == "phiMixtureHyperMu1Sd") {
+					iss.str(tmp); iss >> phiMixtureHyper_mu1_sd;
+				}
+				else if (variableName == "phiMixtureHyperSigma1Scale") {
+					iss.str(tmp); iss >> phiMixtureHyper_sigma1_scale;
+				}
+				else if (variableName == "phiMixtureHyperSigma2Scale") {
+					iss.str(tmp); iss >> phiMixtureHyper_sigma2_scale;
+				}
 			}
 		}
 
@@ -867,6 +945,42 @@ void Parameter::writeBasicRestartFile(std::string filename)
 		}
 		if (j % 10 != 0)
 			oss << "\n";
+
+		// ---- Phi prior + mixture-LN state (task #12: restart support) ----
+		// These blocks were added 2026-05-21 to make .rst self-sufficient for
+		// mixture-LN chains. Older AnaCoDa builds will silently skip unknown
+		// variableName blocks (see initBaseValuesFromFile's switch), so this
+		// is forward-compatible. Restart files written by single-LN chains
+		// will also carry these blocks (with phiPriorType=0 and the mixture
+		// vectors empty/default), which is harmless.
+		oss << ">phiPriorType:\n"        << phiPriorType        << "\n";
+		oss << ">phiPriorConstraint:\n"  << phiPriorConstraint  << "\n";
+		oss << ">phiMixtureP:\n";
+		for (i = 0; i < phiMixtureP.size(); i++)
+			oss << phiMixtureP[i] << ((i + 1 == phiMixtureP.size()) ? "\n" : " ");
+		oss << ">phiMixtureMu1:\n";
+		for (i = 0; i < phiMixtureMu1.size(); i++)
+			oss << phiMixtureMu1[i] << ((i + 1 == phiMixtureMu1.size()) ? "\n" : " ");
+		oss << ">phiMixtureSigma1:\n";
+		for (i = 0; i < phiMixtureSigma1.size(); i++)
+			oss << phiMixtureSigma1[i] << ((i + 1 == phiMixtureSigma1.size()) ? "\n" : " ");
+		oss << ">phiMixtureSigma2:\n";
+		for (i = 0; i < phiMixtureSigma2.size(); i++)
+			oss << phiMixtureSigma2[i] << ((i + 1 == phiMixtureSigma2.size()) ? "\n" : " ");
+		oss << ">std_phiMixtureP:\n"      << std_phiMixtureP      << "\n";
+		oss << ">std_phiMixtureMu1:\n"    << std_phiMixtureMu1    << "\n";
+		oss << ">std_phiMixtureSigma1:\n" << std_phiMixtureSigma1 << "\n";
+		oss << ">std_phiMixtureSigma2:\n" << std_phiMixtureSigma2 << "\n";
+		oss << ">numAcceptForPhiMixtureP:\n"      << numAcceptForPhiMixtureP      << "\n";
+		oss << ">numAcceptForPhiMixtureMu1:\n"    << numAcceptForPhiMixtureMu1    << "\n";
+		oss << ">numAcceptForPhiMixtureSigma1:\n" << numAcceptForPhiMixtureSigma1 << "\n";
+		oss << ">numAcceptForPhiMixtureSigma2:\n" << numAcceptForPhiMixtureSigma2 << "\n";
+		oss << ">phiMixtureHyperPAlpha:\n"       << phiMixtureHyper_p_alpha      << "\n";
+		oss << ">phiMixtureHyperPBeta:\n"        << phiMixtureHyper_p_beta       << "\n";
+		oss << ">phiMixtureHyperMu1Mean:\n"      << phiMixtureHyper_mu1_mean     << "\n";
+		oss << ">phiMixtureHyperMu1Sd:\n"        << phiMixtureHyper_mu1_sd       << "\n";
+		oss << ">phiMixtureHyperSigma1Scale:\n"  << phiMixtureHyper_sigma1_scale << "\n";
+		oss << ">phiMixtureHyperSigma2Scale:\n"  << phiMixtureHyper_sigma2_scale << "\n";
 	}
 	my_print("End writing restart file\n");
 
@@ -1436,6 +1550,35 @@ void Parameter::setSynthesisRate(double phi, unsigned geneIndex, unsigned mixtur
 }
 
 
+void Parameter::setCurrentSynthesisRateLevel(std::vector<std::vector<double>> levels)
+{
+	// If we already have allocated state, enforce dimension match (so a
+	// caller can't accidentally swap genomes underneath the trace).  If
+	// we have no state yet (e.g., parameter was loaded via the no-arg
+	// ctor and has not yet been initialized), accept the input as the
+	// first-time allocation.
+	if (!currentSynthesisRateLevel.empty())
+	{
+		if (levels.size() != currentSynthesisRateLevel.size())
+		{
+			my_printError("ERROR: setCurrentSynthesisRateLevel got % categories but expected %.\n",
+			              (unsigned)levels.size(), (unsigned)currentSynthesisRateLevel.size());
+			return;
+		}
+		for (unsigned i = 0u; i < levels.size(); i++)
+		{
+			if (levels[i].size() != currentSynthesisRateLevel[i].size())
+			{
+				my_printError("ERROR: setCurrentSynthesisRateLevel category % has % genes but expected %.\n",
+				              i, (unsigned)levels[i].size(), (unsigned)currentSynthesisRateLevel[i].size());
+				return;
+			}
+		}
+	}
+	currentSynthesisRateLevel = levels;
+}
+
+
 void Parameter::updateSynthesisRate(unsigned geneIndex)
 {
 	for (unsigned category = 0; category < numSynthesisRateCategories; category++)
@@ -1878,12 +2021,17 @@ void Parameter::adaptCodonSpecificParameterProposalWidth(unsigned adaptationWidt
       CSPAdaptContext ctx{
         aaIndex, aa, aaStart, aaEnd,
         acceptanceLevel, adaptationWidth, lastSample, samplesSinceLastAdapt,
-        std_csp, covarianceMatrix[aaIndex], traces
+        std_csp, covarianceMatrix[aaIndex], traces,
+        getStepZBuffer(aaIndex), getStepAlphaBuffer(aaIndex)
       };
       cspAdapter->update(ctx);
     }
 
     numAcceptForCodonSpecificParameters[aaIndex] = 0u;
+    // Clear per-step buffers AFTER the adapter ran so it can consume them.
+    // Cleared even when !adapt so the buffers do not grow unbounded across
+    // post-warmup iterations where the adapter is no longer called.
+    clearStepBuffers(aaIndex);
   }
 }
 
@@ -1897,6 +2045,54 @@ void Parameter::setCSPAdapter(std::unique_ptr<CSPAdaptationStrategy> adapter)
     return;
   }
   cspAdapter = std::move(adapter);
+}
+
+
+// ---------------------------------------------------------------------------
+// Per-step Z + alpha buffers for adapters that need per-proposal data
+// (Vihola2012 / RAM).  Defensive grow-on-access keeps the call sites in
+// proposeCodonSpecificParameter and acceptRejectCodonSpecificParameter from
+// having to know about initParameterSet sizing.
+// ---------------------------------------------------------------------------
+void Parameter::pushStepZ(unsigned aaIndex, const std::vector<double>& z)
+{
+    if (stepZBuffer.size() <= aaIndex) {
+        stepZBuffer.resize(aaIndex + 1u, std::vector<std::vector<double>>{});
+    }
+    stepZBuffer[aaIndex].push_back(z);
+}
+
+void Parameter::pushStepAlpha(unsigned aaIndex, double alpha)
+{
+    if (stepAlphaBuffer.size() <= aaIndex) {
+        stepAlphaBuffer.resize(aaIndex + 1u, std::vector<double>{});
+    }
+    stepAlphaBuffer[aaIndex].push_back(alpha);
+}
+
+const std::vector<std::vector<double>>&
+Parameter::getStepZBuffer(unsigned aaIndex) const
+{
+    // Caller is responsible for not running past maxGrouping; we return a
+    // const ref to the empty back-stop vector to avoid out-of-range UB at
+    // unit-test edges.
+    static const std::vector<std::vector<double>> EMPTY;
+    if (aaIndex >= stepZBuffer.size()) return EMPTY;
+    return stepZBuffer[aaIndex];
+}
+
+const std::vector<double>&
+Parameter::getStepAlphaBuffer(unsigned aaIndex) const
+{
+    static const std::vector<double> EMPTY;
+    if (aaIndex >= stepAlphaBuffer.size()) return EMPTY;
+    return stepAlphaBuffer[aaIndex];
+}
+
+void Parameter::clearStepBuffers(unsigned aaIndex)
+{
+    if (aaIndex < stepZBuffer.size())     stepZBuffer[aaIndex].clear();
+    if (aaIndex < stepAlphaBuffer.size()) stepAlphaBuffer[aaIndex].clear();
 }
 
 
@@ -2944,16 +3140,30 @@ void   Parameter::setPhiMixtureHyperSigma2Scale(double v) { if (v > 0.0) phiMixt
 void Parameter::initPhiMixtureStorage()
 {
 	unsigned n = numSynthesisRateCategories;
+	// loadParameterObject path (task #12c.3): when a parameter is
+	// reconstructed via new(ROCParameter) + setBaseInfo, the path that
+	// normally derives numSynthesisRateCategories from numSelectionCategories
+	// (Parameter.cpp:1210) is bypassed, so numSynthesisRateCategories stays
+	// at the default 0 even though numMixtures is restored.  Fall back to
+	// getNumMixtureElements() to keep the vector sizing consistent with
+	// the restored mixture count.
+	if (n == 0u) n = getNumMixtureElements();
 	// Defaults: well-identified regime A from prototypes/phi_mixture_identifiability.R.
 	// (p=0.9, mu1=-0.4, sigma1=0.4, sigma2=0.25 -> derived mu2 ~ 0.91 under mean=1)
-	phiMixtureP.assign(n, 0.9);
-	phiMixtureP_proposed.assign(n, 0.9);
-	phiMixtureMu1.assign(n, -0.4);
-	phiMixtureMu1_proposed.assign(n, -0.4);
-	phiMixtureSigma1.assign(n, 0.4);
-	phiMixtureSigma1_proposed.assign(n, 0.4);
-	phiMixtureSigma2.assign(n, 0.25);
-	phiMixtureSigma2_proposed.assign(n, 0.25);
+	//
+	// Idempotent: a per-component vector that is already non-empty is treated
+	// as restart-loaded (initBaseValuesFromFile may have pushed values into
+	// it before calling this function); we only top up the _proposed mirror
+	// rather than clobber the loaded state. Vectors that are still empty are
+	// initialized with the regime-A defaults.
+	if (phiMixtureP.empty())  { phiMixtureP.assign(n, 0.9);  }
+	phiMixtureP_proposed = phiMixtureP;
+	if (phiMixtureMu1.empty())  { phiMixtureMu1.assign(n, -0.4); }
+	phiMixtureMu1_proposed = phiMixtureMu1;
+	if (phiMixtureSigma1.empty()) { phiMixtureSigma1.assign(n, 0.4); }
+	phiMixtureSigma1_proposed = phiMixtureSigma1;
+	if (phiMixtureSigma2.empty()) { phiMixtureSigma2.assign(n, 0.25); }
+	phiMixtureSigma2_proposed = phiMixtureSigma2;
 }
 
 

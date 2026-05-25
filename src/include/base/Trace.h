@@ -236,6 +236,17 @@ class Trace {
         void setCategories(std::vector<mixtureDefinition> &_categories);
         void setNseRateSpecificAcceptanceRateTrace(std::vector<std::vector<double>> _nseAcceptanceRateTrace);
 
+        // Phi mixture prior hyperparameter trace setters (task #12c.3,
+        // serialise/restore via writeParameterObject .Rdata roundtrip).
+        void setPhiMixturePTrace(std::vector<std::vector<double>> _trace);
+        void setPhiMixtureMu1Trace(std::vector<std::vector<double>> _trace);
+        void setPhiMixtureSigma1Trace(std::vector<std::vector<double>> _trace);
+        void setPhiMixtureSigma2Trace(std::vector<std::vector<double>> _trace);
+        void setPhiMixturePAcceptanceRateTrace(std::vector<double> _trace);
+        void setPhiMixtureMu1AcceptanceRateTrace(std::vector<double> _trace);
+        void setPhiMixtureSigma1AcceptanceRateTrace(std::vector<double> _trace);
+        void setPhiMixtureSigma2AcceptanceRateTrace(std::vector<double> _trace);
+
 
         //ROC Specific:updateSynthesisOffsetAcceptanceRateTrace
 	      std::vector<float> getCodonSpecificParameterTraceByMixtureElementForCodonR(unsigned mixtureElement, std::string& codon, unsigned paramType,
