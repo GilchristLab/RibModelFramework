@@ -38,8 +38,11 @@ RCPP_MODULE(Model_mod)
   		.method("getParameter", &ROCModel::getParameter)
   		.method("setParameter", &ROCModel::setParameter)
   		.method("simulateGenome", &ROCModel::simulateGenome)
+  		// Full L(data | theta) at the model's current parameter state.
+  		// Mirrors PA/PANSE.  Used by DIC + bridge-sampling helpers.
+  		.method("calculateLogLikelihood", &ROCModel::calculateLogLikelihood)
 		;
-	
+
 	class_<PAModel>("PAModel")
 		.derives<Model>("Model")
 		.constructor<unsigned,bool, bool>()

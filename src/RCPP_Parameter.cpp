@@ -225,6 +225,8 @@ RCPP_MODULE(Parameter_mod)
 		.method("setCSPAdaptationScheme", &Parameter::setCSPAdaptationScheme)
 		.method("getCSPAdaptationSchemeName", &Parameter::getCSPAdaptationSchemeName)
 
+		.method("setCurrentSynthesisRateLevel", &Parameter::setCurrentSynthesisRateLevel,
+		        "Bulk setter for per-category current synthesis rates; used by loadParameterObject")
 		//checkIndex is not listed/exposed since it is only called from the other R functions
 		.method("readPhiValues", &Parameter::readPhiValues) //Not a R wrapper
 
