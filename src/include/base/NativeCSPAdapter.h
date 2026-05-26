@@ -50,16 +50,15 @@
  *
  * User-tunable parameters (YAML keys / R AdaptiveScheme.Native() args):
  *
- *   aggressiveness    (0, 1)     scale factor (1-a low, 1+a high); default 0.2
- *   prev.weight       (0, 1)     cov-blend weight on prior cov; default 0.6
- *   target.ar.d2      (0, 1)     optimal AR for d=2 (2-codon AAs); default 0.35
- *   target.ar.d4to6   (0, 1)     optimal AR for d=4..6 (Ile + 4-codon); default 0.27
- *   target.ar.d7plus  (0, 1)     optimal AR for d>=7 (6-codon L,R); default 0.234
+ *   aggressiveness     (0, 1)    scale factor (1-a low, 1+a high); default 0.2
+ *   prev.weight        (0, 1)    cov-blend weight on prior cov; default 0.6
  *   ar.band.half.width (0, 0.5)  half-width of the AR target band; default 0.05
  *
- * band = [target - ar.band.half.width, target + ar.band.half.width]
- * Tighter values (e.g. 0.015) enforce stricter AR targeting so the adapter
- * fires more often; looser values tolerate more deviation before firing.
+ * The per-dimension target AR values are theory-driven (Roberts-Gelman-Gilks
+ * 1997 / Roberts & Rosenthal 2001) and not user-tunable -- use targetARFor(d).
+ * band = [targetARFor(d) - ar.band.half.width, targetARFor(d) + ar.band.half.width]
+ * Tighter values (e.g. 0.015) make the adapter fire more often; looser values
+ * tolerate more AR deviation before a cov update fires.
  *
  * Default values are canonical class constants (kDefault*) used by both the
  * constructor and CSPAdaptationFactory to guarantee a single source of truth.
@@ -76,50 +75,43 @@
 class NativeCSPAdapter : public CSPAdaptationStrategy {
 public:
     // Canonical defaults -- single source of truth for constructor and factory.
-    static constexpr double kDefaultAggressiveness   = 0.2;
-    static constexpr double kDefaultPrevWeight       = 0.6;
-    static constexpr double kDefaultARTargetD2       = 0.35;
-    static constexpr double kDefaultARTargetD4to6    = 0.27;
-    static constexpr double kDefaultARTargetD7plus   = 0.234;
-    static constexpr double kDefaultARBandHalfWidth  = 0.05;
+    static constexpr double kDefaultAggressiveness  = 0.2;
+    static constexpr double kDefaultPrevWeight      = 0.6;
+    static constexpr double kDefaultARBandHalfWidth = 0.05;
 
     explicit NativeCSPAdapter(
-        double aggressiveness   = kDefaultAggressiveness,
-        double prevWeight       = kDefaultPrevWeight,
-        double arTargetD2       = kDefaultARTargetD2,
-        double arTargetD4to6    = kDefaultARTargetD4to6,
-        double arTargetD7plus   = kDefaultARTargetD7plus,
-        double arBandHalfWidth  = kDefaultARBandHalfWidth);
+        double aggressiveness  = kDefaultAggressiveness,
+        double prevWeight      = kDefaultPrevWeight,
+        double arBandHalfWidth = kDefaultARBandHalfWidth);
     ~NativeCSPAdapter() override = default;
 
     void update(const CSPAdaptContext& ctx) override;
     std::string name() const override { return "native"; }
 
-    double getAggressiveness()    const { return aggressiveness; }
-    double getPrevWeight()        const { return prevWeight; }
-    double getARTargetD2()        const { return arTargetD2; }
-    double getARTargetD4to6()     const { return arTargetD4to6; }
-    double getARTargetD7plus()    const { return arTargetD7plus; }
-    double getARBandHalfWidth()   const { return arBandHalfWidth; }
+    double getAggressiveness()   const { return aggressiveness; }
+    double getPrevWeight()       const { return prevWeight; }
+    double getARBandHalfWidth()  const { return arBandHalfWidth; }
 
     std::unique_ptr<CSPAdaptationStrategy> clone() const override {
         return std::unique_ptr<CSPAdaptationStrategy>(
-            new NativeCSPAdapter(aggressiveness, prevWeight,
-                                 arTargetD2, arTargetD4to6, arTargetD7plus,
-                                 arBandHalfWidth));
+            new NativeCSPAdapter(aggressiveness, prevWeight, arBandHalfWidth));
     }
 
 private:
-    // Returns [target - arBandHalfWidth, target + arBandHalfWidth] for
-    // dimension d.  Three user-tunable groups cover all ROC/PANSE AA classes.
-    // d<=1 and d==3 are hardcoded (never fire in standard single-mixture ROC).
+    // Theory-driven optimal AR for dimension d (Roberts-Gelman-Gilks 1997 /
+    // Roberts & Rosenthal 2001).  Not user-tunable -- call targetARFor(d).
+    // Ile (d=4) merged with 4-codon group (d=6) at 0.27: gap is only 0.01.
+    static double targetARFor(unsigned d) {
+        if      (d <= 1) return 0.44;    // unused in standard ROC
+        else if (d == 2) return 0.35;
+        else if (d == 3) return 0.32;    // unused in standard ROC
+        else if (d <= 6) return 0.27;    // d=4 (Ile) merged with d=5,6
+        else             return 0.234;
+    }
+
+    // Returns [targetARFor(d) - arBandHalfWidth, targetARFor(d) + arBandHalfWidth].
     std::pair<double, double> targetBandFor(unsigned d) const {
-        double target;
-        if      (d <= 1) target = 0.44;         // hardcoded; unused in ROC
-        else if (d == 2) target = arTargetD2;
-        else if (d == 3) target = 0.32;         // hardcoded; unused in ROC
-        else if (d <= 6) target = arTargetD4to6;
-        else             target = arTargetD7plus;
+        double target = targetARFor(d);
         return std::make_pair(
             std::max(0.0, target - arBandHalfWidth),
             std::min(1.0, target + arBandHalfWidth));
@@ -129,9 +121,6 @@ private:
     double adjustFactorLow;   // 1 - a
     double adjustFactorHigh;  // 1 + a
     double prevWeight;        // w in (0,1)
-    double arTargetD2;        // optimal AR for d=2
-    double arTargetD4to6;     // optimal AR for d in [4,6]
-    double arTargetD7plus;    // optimal AR for d>=7
     double arBandHalfWidth;   // bw in (0,0.5)
 };
 
