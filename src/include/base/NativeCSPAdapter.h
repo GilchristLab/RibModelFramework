@@ -48,26 +48,26 @@
  * empirically 2026-05-21 on the 02v.5-chunked sweep where 2-codon AAs
  * sat at AR 0.50-0.57 in the post-fix-cov frozen R2.
  *
- * The scale factors are user-tunable via `aggressiveness` a in (0, 1):
- *   adjustFactorLow  = 1 - a
- *   adjustFactorHigh = 1 + a
- * Recommended values: 0.1 (gentle), 0.2 (default, == legacy 0.8/1.2),
- * 0.3 (aggressive).
+ * User-tunable parameters (YAML keys / R AdaptiveScheme.Native() args):
  *
- * The band half-width is user-tunable via `band.half.width` bw in (0, 0.5):
- *   band = [target - bw, target + bw]
- * Default 0.05 preserves the original +-0.05 calibration.  Tighter values
- * (e.g. 0.015) enforce stricter AR targeting; looser values tolerate more
- * deviation before a cov update fires.
+ *   aggressiveness    (0, 1)     scale factor (1-a low, 1+a high); default 0.2
+ *   prev.weight       (0, 1)     cov-blend weight on prior cov; default 0.6
+ *   target.ar.d2      (0, 1)     optimal AR for d=2 (2-codon AAs); default 0.35
+ *   target.ar.d4to6   (0, 1)     optimal AR for d=4..6 (Ile + 4-codon); default 0.27
+ *   target.ar.d7plus  (0, 1)     optimal AR for d>=7 (6-codon L,R); default 0.234
+ *   ar.band.half.width (0, 0.5)  half-width of the AR target band; default 0.05
  *
- * The cov-blend mixture is user-tunable via `prev.weight` (alias prevWeight)
- * w in (0, 1):
+ * band = [target - ar.band.half.width, target + ar.band.half.width]
+ * Tighter values (e.g. 0.015) enforce stricter AR targeting so the adapter
+ * fires more often; looser values tolerate more deviation before firing.
+ *
+ * Default values are canonical class constants (kDefault*) used by both the
+ * constructor and CSPAdaptationFactory to guarantee a single source of truth.
+ *
+ * The cov-blend mixture is user-tunable via `prev.weight` w in (0, 1):
  *   covarianceMatrix <- w * covarianceMatrix + (1 - w) * sample_cov
  * Default 0.6 preserves the legacy 0.6 / 0.4 blend.  Smaller w => faster
- * cov-shape adaptation (more weight on the most recent sample cov) at the
- * cost of higher shape variance; larger w => smoother shape estimate.
- * Independent of `aggressiveness`: the two control distinct facets of the
- * adapter (scale vs shape).
+ * cov-shape adaptation; larger w => smoother shape estimate.
  * ============================================================================ */
 
 #include "CSPAdaptationStrategy.h"
@@ -75,50 +75,64 @@
 
 class NativeCSPAdapter : public CSPAdaptationStrategy {
 public:
-    // aggressiveness in (0, 1); default 0.2 preserves legacy 0.8/1.2 behavior.
-    // prevWeight in (0, 1); default 0.6 preserves legacy 0.6/0.4 cov blend.
-    // bandHalfWidth in (0, 0.5); default 0.05 preserves original +-0.05 bands.
-    explicit NativeCSPAdapter(double aggressiveness  = 0.2,
-                              double prevWeight      = 0.6,
-                              double bandHalfWidth   = 0.05);
+    // Canonical defaults -- single source of truth for constructor and factory.
+    static constexpr double kDefaultAggressiveness   = 0.2;
+    static constexpr double kDefaultPrevWeight       = 0.6;
+    static constexpr double kDefaultARTargetD2       = 0.35;
+    static constexpr double kDefaultARTargetD4to6    = 0.27;
+    static constexpr double kDefaultARTargetD7plus   = 0.234;
+    static constexpr double kDefaultARBandHalfWidth  = 0.05;
+
+    explicit NativeCSPAdapter(
+        double aggressiveness   = kDefaultAggressiveness,
+        double prevWeight       = kDefaultPrevWeight,
+        double arTargetD2       = kDefaultARTargetD2,
+        double arTargetD4to6    = kDefaultARTargetD4to6,
+        double arTargetD7plus   = kDefaultARTargetD7plus,
+        double arBandHalfWidth  = kDefaultARBandHalfWidth);
     ~NativeCSPAdapter() override = default;
 
     void update(const CSPAdaptContext& ctx) override;
     std::string name() const override { return "native"; }
 
-    double getAggressiveness()  const { return aggressiveness; }
-    double getPrevWeight()      const { return prevWeight; }
-    double getBandHalfWidth()   const { return bandHalfWidth; }
+    double getAggressiveness()    const { return aggressiveness; }
+    double getPrevWeight()        const { return prevWeight; }
+    double getARTargetD2()        const { return arTargetD2; }
+    double getARTargetD4to6()     const { return arTargetD4to6; }
+    double getARTargetD7plus()    const { return arTargetD7plus; }
+    double getARBandHalfWidth()   const { return arBandHalfWidth; }
 
     std::unique_ptr<CSPAdaptationStrategy> clone() const override {
         return std::unique_ptr<CSPAdaptationStrategy>(
-            new NativeCSPAdapter(aggressiveness, prevWeight, bandHalfWidth));
+            new NativeCSPAdapter(aggressiveness, prevWeight,
+                                 arTargetD2, arTargetD4to6, arTargetD7plus,
+                                 arBandHalfWidth));
     }
 
 private:
-    // Dimension-dependent target acceptance band.  d is the per-AA joint
-    // proposal dimension (numCodons * (numMutCat + numSelCat); for
-    // single-mixture ROC that is 2*(n_codons - 1)).  Target centers from
-    // Roberts-Gelman-Gilks 1997 / Roberts & Rosenthal 2001; half-width
-    // is user-configurable via bandHalfWidth (default 0.05).
-    // Ile (d=4) merged with 4-codon target (d=6) at 0.27: gap is only 0.01.
+    // Returns [target - arBandHalfWidth, target + arBandHalfWidth] for
+    // dimension d.  Three user-tunable groups cover all ROC/PANSE AA classes.
+    // d<=1 and d==3 are hardcoded (never fire in standard single-mixture ROC).
     std::pair<double, double> targetBandFor(unsigned d) const {
         double target;
-        if      (d <= 1) target = 0.44;   // d=1   target ~0.44
-        else if (d == 2) target = 0.35;   // d=2   target ~0.35
-        else if (d == 3) target = 0.32;   // d=3   target ~0.32 (rare in ROC)
-        else if (d <= 6) target = 0.27;   // d=4,5,6 merged target ~0.27
-        else             target = 0.234;  // d>=7  target ~0.234
+        if      (d <= 1) target = 0.44;         // hardcoded; unused in ROC
+        else if (d == 2) target = arTargetD2;
+        else if (d == 3) target = 0.32;         // hardcoded; unused in ROC
+        else if (d <= 6) target = arTargetD4to6;
+        else             target = arTargetD7plus;
         return std::make_pair(
-            std::max(0.0, target - bandHalfWidth),
-            std::min(1.0, target + bandHalfWidth));
+            std::max(0.0, target - arBandHalfWidth),
+            std::min(1.0, target + arBandHalfWidth));
     }
 
-    double aggressiveness;       // a in (0, 1)
-    double adjustFactorLow;      // 1 - a
-    double adjustFactorHigh;     // 1 + a
-    double prevWeight;           // w in (0, 1); legacy 0.6
-    double bandHalfWidth;        // bw in (0, 0.5); default 0.05
+    double aggressiveness;    // a in (0,1)
+    double adjustFactorLow;   // 1 - a
+    double adjustFactorHigh;  // 1 + a
+    double prevWeight;        // w in (0,1)
+    double arTargetD2;        // optimal AR for d=2
+    double arTargetD4to6;     // optimal AR for d in [4,6]
+    double arTargetD7plus;    // optimal AR for d>=7
+    double arBandHalfWidth;   // bw in (0,0.5)
 };
 
 #endif // NATIVE_CSP_ADAPTER_H

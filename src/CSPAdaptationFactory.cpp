@@ -52,25 +52,33 @@ std::unique_ptr<CSPAdaptationStrategy> makeCSPAdapter(
         //   aggressiveness in (0, 1)  -- scale factor (1 +/- a); default 0.2
         //   prev.weight    in (0, 1)  -- cov-blend weight on prior cov;
         //                                default 0.6 (legacy 0.6/0.4 blend)
-        double aggressiveness   = 0.2;
-        double prev_weight      = 0.6;
-        double band_half_width  = 0.05;
+        // Defaults drawn from NativeCSPAdapter class constants (single source).
+        double aggressiveness  = NativeCSPAdapter::kDefaultAggressiveness;
+        double prev_weight     = NativeCSPAdapter::kDefaultPrevWeight;
+        double ar_target_d2    = NativeCSPAdapter::kDefaultARTargetD2;
+        double ar_target_d4to6 = NativeCSPAdapter::kDefaultARTargetD4to6;
+        double ar_target_d7plus= NativeCSPAdapter::kDefaultARTargetD7plus;
+        double ar_band_hw      = NativeCSPAdapter::kDefaultARBandHalfWidth;
         for (const auto& kv : params) {
-            if (kv.first == "aggressiveness") {
-                aggressiveness = kv.second;
-            } else if (kv.first == "prev.weight") {
-                prev_weight = kv.second;
-            } else if (kv.first == "band.half.width") {
-                band_half_width = kv.second;
-            } else {
+            if      (kv.first == "aggressiveness")     aggressiveness   = kv.second;
+            else if (kv.first == "prev.weight")        prev_weight      = kv.second;
+            else if (kv.first == "target.ar.d2")       ar_target_d2    = kv.second;
+            else if (kv.first == "target.ar.d4to6")    ar_target_d4to6 = kv.second;
+            else if (kv.first == "target.ar.d7plus")   ar_target_d7plus= kv.second;
+            else if (kv.first == "ar.band.half.width") ar_band_hw      = kv.second;
+            else {
                 std::ostringstream o;
                 o << "scheme 'native' got unexpected param '" << kv.first
-                  << "'; allowed: aggressiveness, prev.weight, band.half.width";
+                  << "'; allowed: aggressiveness, prev.weight, "
+                     "target.ar.d2, target.ar.d4to6, target.ar.d7plus, "
+                     "ar.band.half.width";
                 throw std::invalid_argument(o.str());
             }
         }
         return std::unique_ptr<CSPAdaptationStrategy>(
-            new NativeCSPAdapter(aggressiveness, prev_weight, band_half_width));
+            new NativeCSPAdapter(aggressiveness, prev_weight,
+                                 ar_target_d2, ar_target_d4to6, ar_target_d7plus,
+                                 ar_band_hw));
     }
 
     if (name == "andrieu_thoms") {

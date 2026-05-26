@@ -76,25 +76,34 @@
 #' s3 <- AdaptiveScheme.Native(aggressiveness = 0.1, prev.weight = 0.4) # faster shape adapt
 #' print(s3)
 #' @export
-AdaptiveScheme.Native <- function(aggressiveness  = 0.2,
-                                  prev.weight     = 0.6,
-                                  band.half.width = 0.05) {
+AdaptiveScheme.Native <- function(aggressiveness      = 0.2,
+                                  prev.weight         = 0.6,
+                                  target.ar.d2        = 0.35,
+                                  target.ar.d4to6     = 0.27,
+                                  target.ar.d7plus    = 0.234,
+                                  ar.band.half.width  = 0.05) {
     stopifnot(
         is.numeric(aggressiveness), length(aggressiveness) == 1L,
-        is.finite(aggressiveness),
-        aggressiveness > 0, aggressiveness < 1,
+        is.finite(aggressiveness), aggressiveness > 0, aggressiveness < 1,
         is.numeric(prev.weight), length(prev.weight) == 1L,
-        is.finite(prev.weight),
-        prev.weight > 0, prev.weight < 1,
-        is.numeric(band.half.width), length(band.half.width) == 1L,
-        is.finite(band.half.width),
-        band.half.width > 0, band.half.width < 0.5
+        is.finite(prev.weight), prev.weight > 0, prev.weight < 1,
+        is.numeric(target.ar.d2), length(target.ar.d2) == 1L,
+        is.finite(target.ar.d2), target.ar.d2 > 0, target.ar.d2 < 1,
+        is.numeric(target.ar.d4to6), length(target.ar.d4to6) == 1L,
+        is.finite(target.ar.d4to6), target.ar.d4to6 > 0, target.ar.d4to6 < 1,
+        is.numeric(target.ar.d7plus), length(target.ar.d7plus) == 1L,
+        is.finite(target.ar.d7plus), target.ar.d7plus > 0, target.ar.d7plus < 1,
+        is.numeric(ar.band.half.width), length(ar.band.half.width) == 1L,
+        is.finite(ar.band.half.width), ar.band.half.width > 0, ar.band.half.width < 0.5
     )
     structure(
         list(scheme = "native",
-             params = list(aggressiveness  = aggressiveness,
-                           prev.weight     = prev.weight,
-                           band.half.width = band.half.width)),
+             params = list(aggressiveness     = aggressiveness,
+                           prev.weight        = prev.weight,
+                           target.ar.d2       = target.ar.d2,
+                           target.ar.d4to6    = target.ar.d4to6,
+                           target.ar.d7plus   = target.ar.d7plus,
+                           ar.band.half.width = ar.band.half.width)),
         class = c("AdaptiveScheme.Native", "AdaptiveScheme")
     )
 }

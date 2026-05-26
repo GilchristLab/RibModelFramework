@@ -27,12 +27,17 @@
 #include <stdexcept>
 #include <sstream>
 
-NativeCSPAdapter::NativeCSPAdapter(double a, double w, double bw)
+NativeCSPAdapter::NativeCSPAdapter(double a, double w,
+                                   double tD2, double tD4to6, double tD7plus,
+                                   double bw)
     : aggressiveness(a),
       adjustFactorLow(1.0 - a),
       adjustFactorHigh(1.0 + a),
       prevWeight(w),
-      bandHalfWidth(bw)
+      arTargetD2(tD2),
+      arTargetD4to6(tD4to6),
+      arTargetD7plus(tD7plus),
+      arBandHalfWidth(bw)
 {
     if (!(a > 0.0 && a < 1.0)) {
         std::ostringstream o;
@@ -41,12 +46,27 @@ NativeCSPAdapter::NativeCSPAdapter(double a, double w, double bw)
     }
     if (!(w > 0.0 && w < 1.0)) {
         std::ostringstream o;
-        o << "NativeCSPAdapter: prevWeight must be in (0, 1); got " << w;
+        o << "NativeCSPAdapter: prev.weight must be in (0, 1); got " << w;
+        throw std::invalid_argument(o.str());
+    }
+    if (!(tD2 > 0.0 && tD2 < 1.0)) {
+        std::ostringstream o;
+        o << "NativeCSPAdapter: target.ar.d2 must be in (0, 1); got " << tD2;
+        throw std::invalid_argument(o.str());
+    }
+    if (!(tD4to6 > 0.0 && tD4to6 < 1.0)) {
+        std::ostringstream o;
+        o << "NativeCSPAdapter: target.ar.d4to6 must be in (0, 1); got " << tD4to6;
+        throw std::invalid_argument(o.str());
+    }
+    if (!(tD7plus > 0.0 && tD7plus < 1.0)) {
+        std::ostringstream o;
+        o << "NativeCSPAdapter: target.ar.d7plus must be in (0, 1); got " << tD7plus;
         throw std::invalid_argument(o.str());
     }
     if (!(bw > 0.0 && bw < 0.5)) {
         std::ostringstream o;
-        o << "NativeCSPAdapter: band.half.width must be in (0, 0.5); got " << bw;
+        o << "NativeCSPAdapter: ar.band.half.width must be in (0, 0.5); got " << bw;
         throw std::invalid_argument(o.str());
     }
 }
