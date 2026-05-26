@@ -1,5 +1,10 @@
 # Stan models for ROC
 
+> **Branch status: RETIRED 2026-05-26.**
+> All content merged into `upstream-develop` (GilchristLab/RibModelFramework).
+> This branch (`feat/hmc-stan-reduce-sum`) is preserved read-only for history.
+> Active development continues on `upstream-develop`.
+
 HMC implementations of the ROC codon-usage model, intended as an alternative
 sampling backend to the in-house AnaCoDa native MCMC (Rcpp).  Same model;
 different sampler.
@@ -30,45 +35,83 @@ The two backends are alternatives, not replacements.
 
 ## File naming
 
-| File                                | Sphi    | log_phi parameterization |
-|-------------------------------------|---------|--------------------------|
-| `roc_basic.stan`                    | fixed   | centered (no choice; sphi fixed -> no funnel) |
-| `roc_sphi_est_centered.stan`        | sampled | log_phi as direct parameter |
-| `roc_sphi_est_noncentered.stan`     | sampled | log_phi = -sphi^2/2 + sphi * z_phi |
-| `roc_mixture_sphi_centered.stan`    | mixture | log_phi as direct parameter |
-| `roc_mixture_sphi_noncentered.stan` | mixture | log_phi = mu1 + sigma1 * z_phi (component-1 anchored) |
+**Active (unified) files:**
+
+| File                                      | Sphi    | Notes |
+|-------------------------------------------|---------|-------|
+| `roc_basic.stan`                          | fixed   | centered only (no funnel when sphi fixed) |
+| `roc_sphi_est.stan`                       | sampled | unified: centered + NC via `noncentered` data flag |
+| `roc_mixture_sphi_geomean_soft.stan`      | mixture | unified: centered + NC via `noncentered` data flag; geomean(phi)=1 |
+
+**Legacy files (retained for reference, not called by fit.stan.R):**
+
+| File                                            | Superseded by |
+|-------------------------------------------------|---------------|
+| `roc_sphi_est_centered.stan`                    | `roc_sphi_est.stan` with `noncentered=0` |
+| `roc_sphi_est_noncentered.stan`                 | `roc_sphi_est.stan` with `noncentered=1` |
+| `roc_mixture_sphi_geomean_soft_noncentered.stan`| `roc_mixture_sphi_geomean_soft.stan` with `noncentered=1` |
+| `roc_mixture_sphi_centered.stan`                | geomean_soft variant preferred |
+| `roc_mixture_sphi_noncentered.stan`             | geomean_soft variant preferred |
+| `roc_mixture_sphi_ordered.stan`                 | geomean_soft variant preferred |
+| `roc_mixture_sphi_centered_smooth.stan`         | geomean_soft variant preferred |
+| `roc_mixture_sphi_geomean.stan`                 | geomean_soft variant preferred |
+
+### Unified binary: noncentered data flag
+
+Both `roc_sphi_est.stan` and `roc_mixture_sphi_geomean_soft.stan` cover
+centered and non-centered parameterizations in a single compiled binary via:
+
+```stan
+data { int<lower=0,upper=1> noncentered; ... }
+parameters { vector[G] latent_phi; ... }
+transformed parameters {
+    vector[G] log_phi = noncentered ? (mphi + sphi * latent_phi) : latent_phi;
+}
+```
+
+When `noncentered=0`: `latent_phi` IS `log_phi` (centered).
+When `noncentered=1`: `latent_phi` is z-score; `log_phi` reconstructed in
+transformed parameters.
+
+No recompile needed to switch parameterizations -- just change the YAML.
 
 ### Centered vs non-centered: which one to pick
 
-**Use centered (default) for the typical workload.**
+**Use centered (default).** It is the empirically-validated choice at
+production G.
 
-At G in the thousands with normal codon counts per gene, the data strongly
-informs each log_phi[g].  Centered mixes well in that data-informative
-regime.  Non-centered creates a (sphi, z_phi) coupling the chain has to
-navigate and -- empirically -- hurts dM/dEta ESS dramatically:
+At G=1000 (sim S288c) centered wins on all parameters:
 
 | At G=1000 sphi=1 (sim S288c) | dM median ESS | dEta median ESS | sphi ESS_bulk |
 |---|---:|---:|---:|
 | centered                | 3097          | 365             | 91            |
 | non-centered            | 7             | 7               | 7             |
 
-Non-centered earns its keep only in the **data-sparse** regime where the
-prior dominates and Neal's funnel kicks in: very small G, genes with few
-codons, or known small sphi posterior.
+At G=2000 (real S288c mixture-LN cross-validation, 2026-05-25/26):
+- Centered: E-BFMI < 0.3 on all 4 chains (sigma1 funnel).
+- Non-centered: E-BFMI < 0.3 on 1/4 chains (improved), but chain 1
+  mode-flipped entirely (R-hat 1.44-1.76, sep CI includes negative).
 
-The wrapper (`fit.stan.R`) defaults to centered.  Set
-`fit.parameterization: noncentered` in the YAML to override.
+Conclusion: Stan HMC cannot reliably cross-validate the ROC mixture-LN
+model regardless of parameterization.  The posterior is genuinely
+multi-modal (label-switching + phi-dEta coupling); NC fixes the sigma1
+funnel but introduces mode-flip sensitivity.  Native MCMC is authoritative
+for the mixture model.
+
+Non-centered is appropriate only in the data-sparse regime (very small G,
+few codons per gene, or known small sphi posterior).
 
 ## Threading (reduce_sum)
 
-All five models have the per-gene loop wrapped in `reduce_sum` for
-within-chain parallelism via Stan's TBB backend.  Compile with
-`STAN_THREADS=true` and pass `threads_per_chain > 1` to enable:
+All models have the per-gene loop wrapped in `reduce_sum` for within-chain
+parallelism via Stan's TBB backend.  **All binaries are always compiled with
+`STAN_THREADS=true`** -- `threads_per_chain` is a runtime parameter, not a
+compile-time choice.
 
 ```r
-mod <- cmdstan_model("roc_basic.stan",
+mod <- cmdstan_model("roc_sphi_est.stan",
                      cpp_options = list(stan_threads = TRUE),
-                     exe_file = "stan/build/feat-hmc-stan-reduce-sum-XXXXXXXX-th/roc_basic")
+                     exe_file = "stan/build/feat-hmc-stan-reduce-sum-XXXXXXXX-th/roc_sphi_est")
 
 fit <- mod$sample(data = data.list,
                   threads_per_chain = 4,
@@ -96,11 +139,11 @@ sometimes faster for small G.
 The wrapper compiles each model to:
 
 ```
-stan/build/<branch>-<short_sha>[-dirty][-th]/<model_name>
+stan/build/<branch>-<short_sha>-th/<model_name>
 ```
 
 so multiple branch / commit versions can coexist.  Build paths are
-git-ignored.
+git-ignored.  The `-th` suffix is always present (STAN_THREADS always on).
 
 ## Hyperprior conventions
 
@@ -117,7 +160,7 @@ fit:
     sigma2.prior.scale: 1   # half-normal(0, 1) on sigma2
 ```
 
-mu2 is DERIVED from the mean(phi) = 1 constraint (PHI_CONSTRAINT_MEAN),
+mu2 is DERIVED from the geomean(phi) = 1 constraint (PHI_CONSTRAINT_GEOMEAN),
 not free.  Label-switching guard `mu2 >= mu1` is in the model block.
 
 ## Data layout
