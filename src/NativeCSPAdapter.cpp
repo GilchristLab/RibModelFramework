@@ -27,11 +27,16 @@
 #include <stdexcept>
 #include <sstream>
 
-NativeCSPAdapter::NativeCSPAdapter(double a, double w, double bw)
+NativeCSPAdapter::NativeCSPAdapter(double a, double w,
+                                   double t2, double t4, double t6,
+                                   double bw)
     : aggressiveness(a),
       adjustFactorLow(1.0 - a),
       adjustFactorHigh(1.0 + a),
       prevWeight(w),
+      arTarget2codon(t2),
+      arTarget4codon(t4),
+      arTarget6codon(t6),
       arBandHalfWidth(bw)
 {
     if (!(a > 0.0 && a < 1.0)) {
@@ -42,6 +47,21 @@ NativeCSPAdapter::NativeCSPAdapter(double a, double w, double bw)
     if (!(w > 0.0 && w < 1.0)) {
         std::ostringstream o;
         o << "NativeCSPAdapter: prev.weight must be in (0, 1); got " << w;
+        throw std::invalid_argument(o.str());
+    }
+    if (!(t2 > 0.0 && t2 < 1.0)) {
+        std::ostringstream o;
+        o << "NativeCSPAdapter: ar.target.2codon must be in (0, 1); got " << t2;
+        throw std::invalid_argument(o.str());
+    }
+    if (!(t4 > 0.0 && t4 < 1.0)) {
+        std::ostringstream o;
+        o << "NativeCSPAdapter: ar.target.4codon must be in (0, 1); got " << t4;
+        throw std::invalid_argument(o.str());
+    }
+    if (!(t6 > 0.0 && t6 < 1.0)) {
+        std::ostringstream o;
+        o << "NativeCSPAdapter: ar.target.6codon must be in (0, 1); got " << t6;
         throw std::invalid_argument(o.str());
     }
     if (!(bw > 0.0 && bw < 0.5)) {

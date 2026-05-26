@@ -75,14 +75,20 @@
 class NativeCSPAdapter : public CSPAdaptationStrategy {
 public:
     // Canonical defaults -- single source of truth for constructor and factory.
-    static constexpr double kDefaultAggressiveness  = 0.2;
-    static constexpr double kDefaultPrevWeight      = 0.6;
-    static constexpr double kDefaultARBandHalfWidth = 0.05;
+    static constexpr double kDefaultAggressiveness   = 0.2;
+    static constexpr double kDefaultPrevWeight       = 0.6;
+    static constexpr double kDefaultARTarget2codon   = 0.35;   // RGG 1997 d=2
+    static constexpr double kDefaultARTarget4codon   = 0.27;   // d=4,6 merged
+    static constexpr double kDefaultARTarget6codon   = 0.234;  // RGG 1997 d>=7
+    static constexpr double kDefaultARBandHalfWidth  = 0.05;
 
     explicit NativeCSPAdapter(
-        double aggressiveness  = kDefaultAggressiveness,
-        double prevWeight      = kDefaultPrevWeight,
-        double arBandHalfWidth = kDefaultARBandHalfWidth);
+        double aggressiveness   = kDefaultAggressiveness,
+        double prevWeight       = kDefaultPrevWeight,
+        double arTarget2codon   = kDefaultARTarget2codon,
+        double arTarget4codon   = kDefaultARTarget4codon,
+        double arTarget6codon   = kDefaultARTarget6codon,
+        double arBandHalfWidth  = kDefaultARBandHalfWidth);
     ~NativeCSPAdapter() override = default;
 
     void update(const CSPAdaptContext& ctx) override;
@@ -90,38 +96,47 @@ public:
 
     double getAggressiveness()   const { return aggressiveness; }
     double getPrevWeight()       const { return prevWeight; }
+    double getARTarget2codon()   const { return arTarget2codon; }
+    double getARTarget4codon()   const { return arTarget4codon; }
+    double getARTarget6codon()   const { return arTarget6codon; }
     double getARBandHalfWidth()  const { return arBandHalfWidth; }
 
     std::unique_ptr<CSPAdaptationStrategy> clone() const override {
         return std::unique_ptr<CSPAdaptationStrategy>(
-            new NativeCSPAdapter(aggressiveness, prevWeight, arBandHalfWidth));
+            new NativeCSPAdapter(aggressiveness, prevWeight,
+                                 arTarget2codon, arTarget4codon, arTarget6codon,
+                                 arBandHalfWidth));
     }
 
 private:
-    // Theory-driven optimal AR for dimension d (Roberts-Gelman-Gilks 1997 /
-    // Roberts & Rosenthal 2001).  Not user-tunable -- call targetARFor(d).
-    // Ile (d=4) merged with 4-codon group (d=6) at 0.27: gap is only 0.01.
-    static double targetARFor(unsigned d) {
-        if      (d <= 1) return 0.44;    // unused in standard ROC
-        else if (d == 2) return 0.35;
-        else if (d == 3) return 0.32;    // unused in standard ROC
-        else if (d <= 6) return 0.27;    // d=4 (Ile) merged with d=5,6
-        else             return 0.234;
+    // Returns the optimal AR for the codon class implied by proposal dimension d.
+    // Targets are user-configurable (YAML: ar.target.2codon etc.); defaults from
+    // Roberts-Gelman-Gilks 1997 / Roberts & Rosenthal 2001.
+    // Ile (3-codon, d=4) merged with 4-codon group: gap of 0.01 is below any
+    // practical half-width.  d<=1 and d==3 are hardcoded (unused in ROC/PANSE).
+    double targetARFor(unsigned d) const {
+        if      (d <= 1) return 0.44;          // unused in standard ROC
+        else if (d == 2) return arTarget2codon;
+        else if (d == 3) return 0.32;          // unused in standard ROC
+        else if (d <= 6) return arTarget4codon; // Ile (d=4) + 4-codon (d=6)
+        else             return arTarget6codon; // 6-codon Leu/Arg (d=10)
     }
 
     // Returns [targetARFor(d) - arBandHalfWidth, targetARFor(d) + arBandHalfWidth].
     std::pair<double, double> targetBandFor(unsigned d) const {
-        double target = targetARFor(d);
-        return std::make_pair(
-            std::max(0.0, target - arBandHalfWidth),
-            std::min(1.0, target + arBandHalfWidth));
+        double t = targetARFor(d);
+        return std::make_pair(std::max(0.0, t - arBandHalfWidth),
+                              std::min(1.0, t + arBandHalfWidth));
     }
 
     double aggressiveness;    // a in (0,1)
     double adjustFactorLow;   // 1 - a
     double adjustFactorHigh;  // 1 + a
     double prevWeight;        // w in (0,1)
-    double arBandHalfWidth;   // bw in (0,0.5)
+    double arTarget2codon;    // optimal AR for 2-codon AAs
+    double arTarget4codon;    // optimal AR for Ile + 4-codon AAs
+    double arTarget6codon;    // optimal AR for 6-codon AAs (Leu, Arg)
+    double arBandHalfWidth;   // half-width of [target-bw, target+bw]
 };
 
 #endif // NATIVE_CSP_ADAPTER_H

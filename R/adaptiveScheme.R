@@ -78,12 +78,21 @@
 #' @export
 AdaptiveScheme.Native <- function(aggressiveness     = 0.2,
                                   prev.weight        = 0.6,
+                                  ar.target.2codon   = 0.35,
+                                  ar.target.4codon   = 0.27,
+                                  ar.target.6codon   = 0.234,
                                   ar.band.half.width = 0.05) {
     stopifnot(
         is.numeric(aggressiveness), length(aggressiveness) == 1L,
         is.finite(aggressiveness), aggressiveness > 0, aggressiveness < 1,
         is.numeric(prev.weight), length(prev.weight) == 1L,
         is.finite(prev.weight), prev.weight > 0, prev.weight < 1,
+        is.numeric(ar.target.2codon), length(ar.target.2codon) == 1L,
+        is.finite(ar.target.2codon), ar.target.2codon > 0, ar.target.2codon < 1,
+        is.numeric(ar.target.4codon), length(ar.target.4codon) == 1L,
+        is.finite(ar.target.4codon), ar.target.4codon > 0, ar.target.4codon < 1,
+        is.numeric(ar.target.6codon), length(ar.target.6codon) == 1L,
+        is.finite(ar.target.6codon), ar.target.6codon > 0, ar.target.6codon < 1,
         is.numeric(ar.band.half.width), length(ar.band.half.width) == 1L,
         is.finite(ar.band.half.width), ar.band.half.width > 0, ar.band.half.width < 0.5
     )
@@ -91,6 +100,9 @@ AdaptiveScheme.Native <- function(aggressiveness     = 0.2,
         list(scheme = "native",
              params = list(aggressiveness     = aggressiveness,
                            prev.weight        = prev.weight,
+                           ar.target.2codon   = ar.target.2codon,
+                           ar.target.4codon   = ar.target.4codon,
+                           ar.target.6codon   = ar.target.6codon,
                            ar.band.half.width = ar.band.half.width)),
         class = c("AdaptiveScheme.Native", "AdaptiveScheme")
     )

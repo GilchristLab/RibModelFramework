@@ -55,20 +55,29 @@ std::unique_ptr<CSPAdaptationStrategy> makeCSPAdapter(
         // Defaults drawn from NativeCSPAdapter class constants (single source).
         double aggressiveness = NativeCSPAdapter::kDefaultAggressiveness;
         double prev_weight    = NativeCSPAdapter::kDefaultPrevWeight;
+        double ar_t2          = NativeCSPAdapter::kDefaultARTarget2codon;
+        double ar_t4          = NativeCSPAdapter::kDefaultARTarget4codon;
+        double ar_t6          = NativeCSPAdapter::kDefaultARTarget6codon;
         double ar_band_hw     = NativeCSPAdapter::kDefaultARBandHalfWidth;
         for (const auto& kv : params) {
-            if      (kv.first == "aggressiveness")     aggressiveness = kv.second;
-            else if (kv.first == "prev.weight")        prev_weight    = kv.second;
-            else if (kv.first == "ar.band.half.width") ar_band_hw     = kv.second;
+            if      (kv.first == "aggressiveness")      aggressiveness = kv.second;
+            else if (kv.first == "prev.weight")         prev_weight    = kv.second;
+            else if (kv.first == "ar.target.2codon")    ar_t2          = kv.second;
+            else if (kv.first == "ar.target.4codon")    ar_t4          = kv.second;
+            else if (kv.first == "ar.target.6codon")    ar_t6          = kv.second;
+            else if (kv.first == "ar.band.half.width")  ar_band_hw     = kv.second;
             else {
                 std::ostringstream o;
                 o << "scheme 'native' got unexpected param '" << kv.first
-                  << "'; allowed: aggressiveness, prev.weight, ar.band.half.width";
+                  << "'; allowed: aggressiveness, prev.weight, "
+                     "ar.target.2codon, ar.target.4codon, ar.target.6codon, "
+                     "ar.band.half.width";
                 throw std::invalid_argument(o.str());
             }
         }
         return std::unique_ptr<CSPAdaptationStrategy>(
-            new NativeCSPAdapter(aggressiveness, prev_weight, ar_band_hw));
+            new NativeCSPAdapter(aggressiveness, prev_weight,
+                                 ar_t2, ar_t4, ar_t6, ar_band_hw));
     }
 
     if (name == "andrieu_thoms") {
