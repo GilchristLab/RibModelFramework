@@ -52,22 +52,25 @@ std::unique_ptr<CSPAdaptationStrategy> makeCSPAdapter(
         //   aggressiveness in (0, 1)  -- scale factor (1 +/- a); default 0.2
         //   prev.weight    in (0, 1)  -- cov-blend weight on prior cov;
         //                                default 0.6 (legacy 0.6/0.4 blend)
-        double aggressiveness = 0.2;
-        double prev_weight    = 0.6;
+        double aggressiveness   = 0.2;
+        double prev_weight      = 0.6;
+        double band_half_width  = 0.05;
         for (const auto& kv : params) {
             if (kv.first == "aggressiveness") {
                 aggressiveness = kv.second;
             } else if (kv.first == "prev.weight") {
                 prev_weight = kv.second;
+            } else if (kv.first == "band.half.width") {
+                band_half_width = kv.second;
             } else {
                 std::ostringstream o;
                 o << "scheme 'native' got unexpected param '" << kv.first
-                  << "'; allowed: aggressiveness, prev.weight";
+                  << "'; allowed: aggressiveness, prev.weight, band.half.width";
                 throw std::invalid_argument(o.str());
             }
         }
         return std::unique_ptr<CSPAdaptationStrategy>(
-            new NativeCSPAdapter(aggressiveness, prev_weight));
+            new NativeCSPAdapter(aggressiveness, prev_weight, band_half_width));
     }
 
     if (name == "andrieu_thoms") {

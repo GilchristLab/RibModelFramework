@@ -27,11 +27,12 @@
 #include <stdexcept>
 #include <sstream>
 
-NativeCSPAdapter::NativeCSPAdapter(double a, double w)
+NativeCSPAdapter::NativeCSPAdapter(double a, double w, double bw)
     : aggressiveness(a),
       adjustFactorLow(1.0 - a),
       adjustFactorHigh(1.0 + a),
-      prevWeight(w)
+      prevWeight(w),
+      bandHalfWidth(bw)
 {
     if (!(a > 0.0 && a < 1.0)) {
         std::ostringstream o;
@@ -41,6 +42,11 @@ NativeCSPAdapter::NativeCSPAdapter(double a, double w)
     if (!(w > 0.0 && w < 1.0)) {
         std::ostringstream o;
         o << "NativeCSPAdapter: prevWeight must be in (0, 1); got " << w;
+        throw std::invalid_argument(o.str());
+    }
+    if (!(bw > 0.0 && bw < 0.5)) {
+        std::ostringstream o;
+        o << "NativeCSPAdapter: band.half.width must be in (0, 0.5); got " << bw;
         throw std::invalid_argument(o.str());
     }
 }

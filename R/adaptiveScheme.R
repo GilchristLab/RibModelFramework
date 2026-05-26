@@ -76,20 +76,25 @@
 #' s3 <- AdaptiveScheme.Native(aggressiveness = 0.1, prev.weight = 0.4) # faster shape adapt
 #' print(s3)
 #' @export
-AdaptiveScheme.Native <- function(aggressiveness = 0.2,
-                                  prev.weight    = 0.6) {
+AdaptiveScheme.Native <- function(aggressiveness  = 0.2,
+                                  prev.weight     = 0.6,
+                                  band.half.width = 0.05) {
     stopifnot(
         is.numeric(aggressiveness), length(aggressiveness) == 1L,
         is.finite(aggressiveness),
         aggressiveness > 0, aggressiveness < 1,
         is.numeric(prev.weight), length(prev.weight) == 1L,
         is.finite(prev.weight),
-        prev.weight > 0, prev.weight < 1
+        prev.weight > 0, prev.weight < 1,
+        is.numeric(band.half.width), length(band.half.width) == 1L,
+        is.finite(band.half.width),
+        band.half.width > 0, band.half.width < 0.5
     )
     structure(
         list(scheme = "native",
-             params = list(aggressiveness = aggressiveness,
-                           prev.weight    = prev.weight)),
+             params = list(aggressiveness  = aggressiveness,
+                           prev.weight     = prev.weight,
+                           band.half.width = band.half.width)),
         class = c("AdaptiveScheme.Native", "AdaptiveScheme")
     )
 }
