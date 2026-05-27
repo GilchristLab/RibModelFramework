@@ -17,6 +17,12 @@ importFrom(grDevices, adjustcolor, rgb)
 importFrom(graphics , mtext, title)
 importFrom(coda, as.mcmc, mcmc, mcmc.list, geweke.diag, geweke.plot, gelman.diag, effectiveSize)
 
+# RFP/phi filtering utility
+importFrom(dplyr, filter, group_by, summarize, select, mutate, left_join, n, pull)
+importFrom(tidyr, pivot_wider)
+importFrom(rlang, .data)
+importFrom(magrittr, "%>%")
+
 S3method(length, Rcpp_Genome)
 S3method(summary, Rcpp_Genome)
 S3method(writeParameterObject, Rcpp_ROCParameter)
@@ -97,10 +103,15 @@ export(
 
 ##
 "acfMCMC",
-"acfCSP"
+"acfCSP",
+
+## Diagnostics
+"assertChainsMoving",
+
+## RFP/phi filtering utility
+"filterRFPData"
 
 )
-
 
 
 
@@ -110,8 +121,14 @@ export(
 # docs/csp-adaptation-api.md and R/adaptiveScheme.R.
 export(AdaptiveScheme.Native)
 export(AdaptiveScheme.AndrieuThoms)
+export(AdaptiveScheme.Vihola2012)
 export(schemes.available)
 export(is.AdaptiveScheme)
 export(adaptive.scheme.diagnostics)
 S3method(print,  AdaptiveScheme)
 S3method(format, AdaptiveScheme)
+
+# DIC helpers (added 2026-05-20)
+export(dic.var)
+export(dic.classic)
+export(setParameterToPosteriorMean)

@@ -781,6 +781,10 @@ void ROCParameter::proposeCodonSpecificParameter()
 			iidProposed.push_back(randNorm(0.0, 1.0));
 		}
 
+		// Per-step buffer for adapters that need Z (Vihola2012 / RAM).
+		// Native and AndrieuThoms ignore this; cost is O(d) per AA per step.
+		pushStepZ(SequenceSummary::AAToAAIndex(aa), iidProposed);
+
 		std::vector<double> covaryingNums;
 		covaryingNums = covarianceMatrix[SequenceSummary::AAToAAIndex(aa)].transformIidNumbersIntoCovaryingNumbers(iidProposed);
 		for (unsigned i = 0; i < numMutationCategories; i++)

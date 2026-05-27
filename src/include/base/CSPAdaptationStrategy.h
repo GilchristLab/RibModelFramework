@@ -29,6 +29,14 @@
  *
  * Mutable refs (std_csp, covarianceMatrix) are the only state the strategy
  * may modify.  Strategy writes only the [aaStart, aaEnd) slice of std_csp.
+ *
+ * stepZBuffer / stepAlphaBuffer are READ-ONLY per-step buffers populated by
+ * the MCMC propose/accept-reject path during the fire window; consumed by
+ * adapters that need per-proposal direction + acceptance probability
+ * (Vihola2012 / RAM).  Existing schemes (native, andrieu_thoms) ignore
+ * them.  Buffers are cleared per-AA by Parameter after the adapter runs.
+ * Both vectors have the same length (one alpha per Z); Z vectors have dim
+ * = numCodons*(numMutCategories + numSelCategories) for this AA.
  */
 struct CSPAdaptContext {
     unsigned aaIndex;
@@ -52,6 +60,10 @@ struct CSPAdaptContext {
     std::vector<double>& std_csp;
     CovarianceMatrix& covarianceMatrix;
     Trace& traces;
+    // Per-step buffers (read-only, Vihola2012 only).  May be empty for
+    // adapters that don't consume them or in unit-test paths.
+    const std::vector<std::vector<double>>& stepZBuffer;
+    const std::vector<double>&              stepAlphaBuffer;
 };
 
 class CSPAdaptationStrategy {

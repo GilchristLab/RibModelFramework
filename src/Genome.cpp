@@ -18,9 +18,9 @@ using namespace Rcpp;
  * Blank constructor for Gene class. Sets the sequence, id, and
  * description fields to empty strings.
 */
-Genome::Genome()
+Genome::Genome() : prev_genome_size(0), totalRFPCount(0)
 {
-	//ctor
+	//ctor -- initialize scalar members; vector members self-init to empty.
 }
 
 
@@ -32,6 +32,7 @@ Genome& Genome::operator=(const Genome& rhs)
 	numGenesWithPhi = rhs.numGenesWithPhi;
 	RFPCountColumnNames = rhs.RFPCountColumnNames;
 	prev_genome_size = rhs.prev_genome_size;
+	totalRFPCount = rhs.totalRFPCount;
 	//assignment operator
 	return *this;
 }
@@ -975,6 +976,10 @@ void Genome::clear()
 Genome Genome::getGenomeForGeneIndices(std::vector <unsigned> indices, bool simulated)
 {
 	Genome genome;
+	// Preserve Genome-level RFP bookkeeping needed by PANSE
+	// (totalRFPCount feeds Parameter::Y which is the partition-function
+	// denominator U = partitionFunction / Y in PANSEModel.cpp:200-201).
+	genome.RFPCountColumnNames = this->RFPCountColumnNames;
 
 	for (unsigned i = 0; i < indices.size(); i++)
 	{
@@ -988,7 +993,12 @@ Genome Genome::getGenomeForGeneIndices(std::vector <unsigned> indices, bool simu
 		}
 		else
 		{
-			simulated ? genome.addGene(simulatedGenes[indices[i]], true) : genome.addGene(genes[indices[i]], false);
+			if (simulated) {
+				genome.addGene(simulatedGenes[indices[i]], true);
+			} else {
+				genome.addGene(genes[indices[i]], false);
+				genome.totalRFPCount += genes[indices[i]].geneData.getSumTotalRFPCount(0);
+			}
 		}
 	}
 
@@ -1117,6 +1127,9 @@ Gene& Genome::getGeneById(std::string ID, bool simulated)
 Genome Genome::getGenomeForGeneIndicesR(std::vector <unsigned> indices, bool simulated)
 {
 	Genome genome;
+	// Preserve Genome-level RFP bookkeeping needed by PANSE (see
+	// getGenomeForGeneIndices above for the rationale).
+	genome.RFPCountColumnNames = this->RFPCountColumnNames;
 
 	for (unsigned i = 0; i < indices.size(); i++)
 	{
@@ -1129,7 +1142,12 @@ Genome Genome::getGenomeForGeneIndicesR(std::vector <unsigned> indices, bool sim
 		}
 		else
 		{
-			simulated ? genome.addGene(simulatedGenes[indices[i]-1], true) : genome.addGene(genes[indices[i]-1], false);
+			if (simulated) {
+				genome.addGene(simulatedGenes[indices[i]-1], true);
+			} else {
+				genome.addGene(genes[indices[i]-1], false);
+				genome.totalRFPCount += genes[indices[i]-1].geneData.getSumTotalRFPCount(0);
+			}
 		}
 	}
 

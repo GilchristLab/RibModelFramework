@@ -27,14 +27,46 @@
 #include <stdexcept>
 #include <sstream>
 
-NativeCSPAdapter::NativeCSPAdapter(double a)
+NativeCSPAdapter::NativeCSPAdapter(double a, double w,
+                                   double t2, double t4, double t6,
+                                   double bw)
     : aggressiveness(a),
       adjustFactorLow(1.0 - a),
-      adjustFactorHigh(1.0 + a)
+      adjustFactorHigh(1.0 + a),
+      prevWeight(w),
+      arTarget2codon(t2),
+      arTarget4codon(t4),
+      arTarget6codon(t6),
+      arBandHalfWidth(bw)
 {
     if (!(a > 0.0 && a < 1.0)) {
         std::ostringstream o;
         o << "NativeCSPAdapter: aggressiveness must be in (0, 1); got " << a;
+        throw std::invalid_argument(o.str());
+    }
+    if (!(w > 0.0 && w < 1.0)) {
+        std::ostringstream o;
+        o << "NativeCSPAdapter: prev.weight must be in (0, 1); got " << w;
+        throw std::invalid_argument(o.str());
+    }
+    if (!(t2 > 0.0 && t2 < 1.0)) {
+        std::ostringstream o;
+        o << "NativeCSPAdapter: ar.target.2codon must be in (0, 1); got " << t2;
+        throw std::invalid_argument(o.str());
+    }
+    if (!(t4 > 0.0 && t4 < 1.0)) {
+        std::ostringstream o;
+        o << "NativeCSPAdapter: ar.target.4codon must be in (0, 1); got " << t4;
+        throw std::invalid_argument(o.str());
+    }
+    if (!(t6 > 0.0 && t6 < 1.0)) {
+        std::ostringstream o;
+        o << "NativeCSPAdapter: ar.target.6codon must be in (0, 1); got " << t6;
+        throw std::invalid_argument(o.str());
+    }
+    if (!(bw > 0.0 && bw < 0.5)) {
+        std::ostringstream o;
+        o << "NativeCSPAdapter: ar.band.half.width must be in (0, 0.5); got " << bw;
         throw std::invalid_argument(o.str());
     }
 }
@@ -65,8 +97,8 @@ void NativeCSPAdapter::update(const CSPAdaptContext& ctx) {
         *ctx.traces.getCodonSpecificParameterTrace(),
         ctx.aa, ctx.samplesSinceLastAdapt, ctx.lastSample);
     CovarianceMatrix covprev = ctx.covarianceMatrix;
-    covprev = (covprev * 0.6);
-    covcurr = (covcurr * 0.4);
+    covprev = (covprev * prevWeight);
+    covcurr = (covcurr * (1.0 - prevWeight));
     ctx.covarianceMatrix = covprev + covcurr;
 
     // 2) Asymmetric scale update: shrink on low acceptance, grow on high.

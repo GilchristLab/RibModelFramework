@@ -241,6 +241,15 @@ class Parameter {
 		double getSynthesisRateProposalWidth(unsigned geneIndex, unsigned mixtureElement);
 		void proposeSynthesisRateLevels(); //TODO: test
 		void setSynthesisRate(double phi, unsigned geneIndex, unsigned mixtureElement);
+
+		// Bulk setter for the full per-category synthesis rate state.  Used
+		// by loadParameterObject() to restore currentSynthesisRateLevel from
+		// saved .Rdata so that getSynthesisRate() and any C++ method that
+		// reads it (e.g. ROCModel::calculateLogLikelihood) work after load.
+		// Validates outer size matches numSynthesisRateCategories and inner
+		// sizes match the bound genome's gene count; throws on mismatch.
+		void setCurrentSynthesisRateLevel(std::vector<std::vector<double>> levels);
+
 		void updateSynthesisRate(unsigned geneIndex); //TODO: test
 		void updateSynthesisRate(unsigned geneIndex, unsigned mixtureElement); //TODO: test
 		unsigned getNumAcceptForSynthesisRate(unsigned expressionCategory, unsigned geneIndex); //Only for unit testing
@@ -314,10 +323,31 @@ class Parameter {
 
 		// Convenience accessor for R-side diagnostics: returns the
 		// canonical lowercase snake_case name of the scheme currently
-		// in effect (e.g. "native", "andrieu_thoms").
+		// in effect (e.g. "native", "andrieu_thoms", "vihola_2012").
 		std::string getCSPAdaptationSchemeName() const {
 		    return cspAdapter ? cspAdapter->name() : std::string("native");
 		}
+
+		// Per-step buffers for adapters that need per-proposal Z and alpha
+		// (e.g. Vihola2012CSPAdapter / RAM).  Existing schemes (native,
+		// andrieu_thoms) ignore these.  Buffers accumulate during the fire
+		// window and are cleared per-AA after the adapter consumes them.
+		//
+		// Layout:
+		//   stepZBuffer[aaIndex][step] = iid N(0, I_d) vector used for the
+		//                                proposal at that step (dim = d for
+		//                                that AA = numCodons*(numMut+numSel))
+		//   stepAlphaBuffer[aaIndex][step] = MH accept probability
+		//                                    min(1, exp(log_alpha)) for that
+		//                                    step (in [0, 1])
+		//
+		// Sizes are kept in sync (one alpha per Z) -- adapter consumes pairs.
+		// See docs/csp-adaptation-api.md and RAM_DESIGN.md.
+		void pushStepZ(unsigned aaIndex, const std::vector<double>& z);
+		void pushStepAlpha(unsigned aaIndex, double alpha);
+		const std::vector<std::vector<double>>& getStepZBuffer(unsigned aaIndex) const;
+		const std::vector<double>& getStepAlphaBuffer(unsigned aaIndex) const;
+		void clearStepBuffers(unsigned aaIndex);
 
 
 		//Posterior, Variance, and Estimates Functions: TODO: test
@@ -476,6 +506,15 @@ class Parameter {
 
 		std::vector<unsigned> numAcceptForCodonSpecificParameters;
 		std::string mutationSelectionState; //TODO: Probably needs to be renamed
+
+		// Per-step buffers for adapters that need per-proposal Z + alpha
+		// (Vihola2012 / RAM).  Resized to maxGrouping in initParameterSet().
+		// stepZBuffer[aaIdx] is a vector of per-step iid-normal vectors of
+		// dim = numCodons*(numMutCategories + numSelCategories) for that AA.
+		// stepAlphaBuffer[aaIdx] is a parallel vector of MH accept
+		// probabilities.  Both cleared per-AA at adapt-fire time.
+		std::vector<std::vector<std::vector<double>>> stepZBuffer;
+		std::vector<std::vector<double>>              stepAlphaBuffer;
 
         //<Alpha or Lambda or Mutation or Selection < Mixture < Codon >>>
 		std::vector<std::vector<std::vector<double>>> proposedCodonSpecificParameter;

@@ -1726,6 +1726,13 @@ extractBaseInfo <- function(parameter){
   curMixAssignment <- parameter$getMixtureAssignment()
   lastIteration <- parameter$getLastIteration()
   grouplist <- parameter$getGroupList()
+  # Per-category, per-gene phi at the last MCMC iteration.  Preserving
+  # this lets loadParameterObject restore the C++-side
+  # currentSynthesisRateLevel so getSynthesisRate() and methods that
+  # read it (e.g. ROCModel$calculateLogLikelihood) work after load.
+  # ~8 bytes * numGenes * numCategories; negligible vs. trace size.
+  currentSynthesisRateLevel <- tryCatch(parameter$getSynthesisRate(),
+                                        error = function(e) NULL)
   
   synthesisOffsetAcceptRatTrace <- trace$getSynthesisOffsetAcceptanceRateTrace()
   synthesisOffsetTrace <- trace$getSynthesisOffsetTrace()
@@ -1754,7 +1761,8 @@ extractBaseInfo <- function(parameter){
                   synthesisOffsetTrace = synthesisOffsetTrace,
                   synthesisOffsetAcceptRatTrace = synthesisOffsetAcceptRatTrace,
                   observedSynthesisNoiseTrace = observedSynthesisNoiseTrace,
-                  withPhi = withPhi
+                  withPhi = withPhi,
+                  currentSynthesisRateLevel = currentSynthesisRateLevel
   )
   return(varList)
 }
@@ -2114,6 +2122,20 @@ setBaseInfo <- function(parameter, files)
   parameter$setMixtureAssignment(tempEnv$paramBase$curMixAssignment) #want the last in the file sequence
   parameter$setLastIteration(lastIteration)
   parameter$setGroupList(grouplist)
+
+  # Restore currentSynthesisRateLevel if the .Rdata was written with it
+  # (added 2026-05; older files won't have this and the field will be
+  # NULL -- in that case the C++ state stays at its construction-time
+  # default, and getSynthesisRate-dependent methods are unsafe until
+  # the caller initializes phi some other way).
+  csrl <- tempEnv$paramBase$currentSynthesisRateLevel
+  if (!is.null(csrl) && length(csrl) > 0L) {
+      tryCatch(parameter$setCurrentSynthesisRateLevel(csrl),
+               error = function(e) {
+                   warning("could not restore currentSynthesisRateLevel: ",
+                           conditionMessage(e))
+               })
+  }
   
   trace <- parameter$getTraceObject()
   trace$setStdDevSynthesisRateTraces(stdDevSynthesisRateTraces)

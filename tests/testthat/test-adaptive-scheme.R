@@ -10,12 +10,13 @@ library(testthat)
 library(AnaCoDa)
 
 
-test_that("schemes.available() returns native + andrieu_thoms", {
+test_that("schemes.available() returns native + andrieu_thoms + vihola_2012", {
     s <- schemes.available()
     expect_type(s, "character")
     expect_true("native"        %in% s)
     expect_true("andrieu_thoms" %in% s)
-    expect_equal(length(s), 2L)
+    expect_true("vihola_2012"   %in% s)
+    expect_equal(length(s), 3L)
 })
 
 
@@ -45,6 +46,39 @@ test_that("AdaptiveScheme.Native() rejects out-of-range aggressiveness", {
     expect_error(AdaptiveScheme.Native(Inf))
     expect_error(AdaptiveScheme.Native(c(0.1, 0.2)))
     expect_error(AdaptiveScheme.Native("0.2"))
+})
+
+
+test_that("AdaptiveScheme.Native() default has prev.weight = 0.6", {
+    s <- AdaptiveScheme.Native()
+    expect_equal(s$params$prev.weight, 0.6)
+})
+
+
+test_that("AdaptiveScheme.Native() accepts numeric prev.weight in (0, 1)", {
+    expect_equal(AdaptiveScheme.Native(prev.weight = 0.4)$params$prev.weight, 0.4)
+    expect_equal(AdaptiveScheme.Native(prev.weight = 0.8)$params$prev.weight, 0.8)
+    expect_equal(AdaptiveScheme.Native(prev.weight = 0.95)$params$prev.weight, 0.95)
+})
+
+
+test_that("AdaptiveScheme.Native() rejects out-of-range prev.weight", {
+    expect_error(AdaptiveScheme.Native(prev.weight =  0.0))    # closed lower
+    expect_error(AdaptiveScheme.Native(prev.weight =  1.0))    # closed upper
+    expect_error(AdaptiveScheme.Native(prev.weight = -0.1))
+    expect_error(AdaptiveScheme.Native(prev.weight =  1.5))
+    expect_error(AdaptiveScheme.Native(prev.weight =  NA_real_))
+    expect_error(AdaptiveScheme.Native(prev.weight =  NaN))
+    expect_error(AdaptiveScheme.Native(prev.weight =  Inf))
+    expect_error(AdaptiveScheme.Native(prev.weight =  c(0.4, 0.6)))
+    expect_error(AdaptiveScheme.Native(prev.weight =  "0.6"))
+})
+
+
+test_that("AdaptiveScheme.Native() accepts both knobs independently", {
+    s <- AdaptiveScheme.Native(aggressiveness = 0.1, prev.weight = 0.8)
+    expect_equal(s$params$aggressiveness, 0.1)
+    expect_equal(s$params$prev.weight,    0.8)
 })
 
 
@@ -102,9 +136,50 @@ test_that("AdaptiveScheme.AndrieuThoms() boundary cases that should pass", {
 })
 
 
+test_that("AdaptiveScheme.Vihola2012() defaults pass and have expected fields", {
+    s <- AdaptiveScheme.Vihola2012()
+    expect_s3_class(s, c("AdaptiveScheme.Vihola2012", "AdaptiveScheme"))
+    expect_equal(s$scheme, "vihola_2012")
+    expect_equal(s$params$target, 0.234)
+    expect_equal(s$params$gamma,  0.7)
+    expect_true(is.AdaptiveScheme(s))
+})
+
+
+test_that("AdaptiveScheme.Vihola2012() rejects out-of-range target", {
+    expect_error(AdaptiveScheme.Vihola2012(target =  0.0))
+    expect_error(AdaptiveScheme.Vihola2012(target =  1.0))
+    expect_error(AdaptiveScheme.Vihola2012(target = -0.1))
+    expect_error(AdaptiveScheme.Vihola2012(target =  1.5))
+    expect_error(AdaptiveScheme.Vihola2012(target =  NA_real_))
+    expect_error(AdaptiveScheme.Vihola2012(target =  NaN))
+    expect_error(AdaptiveScheme.Vihola2012(target =  Inf))
+    expect_error(AdaptiveScheme.Vihola2012(target =  c(0.2, 0.3)))
+    expect_error(AdaptiveScheme.Vihola2012(target =  "0.234"))
+})
+
+
+test_that("AdaptiveScheme.Vihola2012() rejects out-of-range gamma", {
+    expect_error(AdaptiveScheme.Vihola2012(gamma = 0.5))    # closed lower
+    expect_error(AdaptiveScheme.Vihola2012(gamma = 1.01))
+    expect_error(AdaptiveScheme.Vihola2012(gamma = 0))
+    expect_error(AdaptiveScheme.Vihola2012(gamma = NA_real_))
+    expect_error(AdaptiveScheme.Vihola2012(gamma = c(0.7, 0.8)))
+})
+
+
+test_that("AdaptiveScheme.Vihola2012() boundary cases that should pass", {
+    expect_s3_class(AdaptiveScheme.Vihola2012(gamma = 1.0),
+                    "AdaptiveScheme.Vihola2012")
+    expect_s3_class(AdaptiveScheme.Vihola2012(target = 0.001, gamma = 0.501),
+                    "AdaptiveScheme.Vihola2012")
+})
+
+
 test_that("is.AdaptiveScheme distinguishes constructed objects from non-scheme objects", {
     expect_true(is.AdaptiveScheme(AdaptiveScheme.Native()))
     expect_true(is.AdaptiveScheme(AdaptiveScheme.AndrieuThoms()))
+    expect_true(is.AdaptiveScheme(AdaptiveScheme.Vihola2012()))
     expect_false(is.AdaptiveScheme(list()))
     expect_false(is.AdaptiveScheme(NULL))
     expect_false(is.AdaptiveScheme(0.234))
@@ -144,6 +219,10 @@ test_that(".scheme.name.to.constructor maps known names to constructors", {
     fn2 <- AnaCoDa:::.scheme.name.to.constructor("andrieu_thoms")
     expect_true(is.function(fn2))
     expect_s3_class(fn2(target = 0.3), "AdaptiveScheme.AndrieuThoms")
+
+    fn3 <- AnaCoDa:::.scheme.name.to.constructor("vihola_2012")
+    expect_true(is.function(fn3))
+    expect_s3_class(fn3(target = 0.3), "AdaptiveScheme.Vihola2012")
 })
 
 
@@ -228,6 +307,34 @@ test_that("setCSPAdaptationScheme accepts native + aggressiveness", {
 })
 
 
+test_that("setCSPAdaptationScheme accepts native + prev.weight", {
+    p <- new("Rcpp_ROCParameter")
+    p$setCSPAdaptationScheme("native", list("prev.weight" = 0.8))
+    expect_equal(p$getCSPAdaptationSchemeName(), "native")
+})
+
+
+test_that("setCSPAdaptationScheme accepts native + aggressiveness + prev.weight", {
+    p <- new("Rcpp_ROCParameter")
+    p$setCSPAdaptationScheme("native",
+                             list(aggressiveness = 0.2, "prev.weight" = 0.8))
+    expect_equal(p$getCSPAdaptationSchemeName(), "native")
+})
+
+
+test_that("setCSPAdaptationScheme rejects out-of-range prev.weight at C++ layer", {
+    p <- new("Rcpp_ROCParameter")
+    expect_error(p$setCSPAdaptationScheme("native", list("prev.weight" = 0.0)),
+                 regexp = "prevWeight|prev.weight")
+    expect_error(p$setCSPAdaptationScheme("native", list("prev.weight" = 1.0)),
+                 regexp = "prevWeight|prev.weight")
+    expect_error(p$setCSPAdaptationScheme("native", list("prev.weight" = -0.1)),
+                 regexp = "prevWeight|prev.weight")
+    expect_error(p$setCSPAdaptationScheme("native", list("prev.weight" = 1.5)),
+                 regexp = "prevWeight|prev.weight")
+})
+
+
 test_that("setCSPAdaptationScheme rejects out-of-range aggressiveness at C++ layer", {
     p <- new("Rcpp_ROCParameter")
     expect_error(p$setCSPAdaptationScheme("native", list(aggressiveness = 0.0)),
@@ -236,6 +343,45 @@ test_that("setCSPAdaptationScheme rejects out-of-range aggressiveness at C++ lay
                  regexp = "aggressiveness")
     expect_error(p$setCSPAdaptationScheme("native", list(aggressiveness = -0.1)),
                  regexp = "aggressiveness")
+})
+
+
+test_that("setCSPAdaptationScheme switches to vihola_2012", {
+    p <- new("Rcpp_ROCParameter")
+    p$setCSPAdaptationScheme("vihola_2012",
+                             list(target = 0.234, gamma = 0.7))
+    expect_equal(p$getCSPAdaptationSchemeName(), "vihola_2012")
+})
+
+
+test_that("setCSPAdaptationScheme rejects out-of-range vihola_2012 params at C++ layer", {
+    p <- new("Rcpp_ROCParameter")
+    expect_error(p$setCSPAdaptationScheme(
+        "vihola_2012", list(target = 2.0, gamma = 0.7)),
+        regexp = "target")
+    expect_error(p$setCSPAdaptationScheme(
+        "vihola_2012", list(target = 0.234, gamma = 0.5)),  # closed lower
+        regexp = "gamma")
+    expect_error(p$setCSPAdaptationScheme(
+        "vihola_2012", list(target = 0.234, gamma = 1.1)),
+        regexp = "gamma")
+})
+
+
+test_that("setCSPAdaptationScheme rejects missing required params for vihola_2012", {
+    p <- new("Rcpp_ROCParameter")
+    expect_error(p$setCSPAdaptationScheme("vihola_2012", list()),
+                 regexp = "requires param")
+    expect_error(p$setCSPAdaptationScheme("vihola_2012", list(target = 0.234)),
+                 regexp = "requires param")
+})
+
+
+test_that("setCSPAdaptationScheme rejects extra params for vihola_2012", {
+    p <- new("Rcpp_ROCParameter")
+    expect_error(p$setCSPAdaptationScheme(
+        "vihola_2012", list(target = 0.234, gamma = 0.7, bogus = 1.0)),
+        regexp = "unexpected param")
 })
 
 

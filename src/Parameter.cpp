@@ -126,6 +126,8 @@ Parameter::Parameter(unsigned _maxGrouping)
 	std_stdDevSynthesisRate = 0.1;
 	maxGrouping = _maxGrouping;
 	numAcceptForCodonSpecificParameters.resize(maxGrouping, 0u);
+	stepZBuffer.assign(maxGrouping, std::vector<std::vector<double>>{});
+	stepAlphaBuffer.assign(maxGrouping, std::vector<double>{});
 
 	// Phi prior defaults: legacy single LogNormal, mean=1 anchor.
 	phiPriorType = PHI_PRIOR_SINGLE_LN;
@@ -240,6 +242,8 @@ Parameter& Parameter::operator=(const Parameter& rhs)
 	categoryProbabilities = rhs.categoryProbabilities;
 	traces = rhs.traces;
 	numAcceptForCodonSpecificParameters = rhs.numAcceptForCodonSpecificParameters;
+	stepZBuffer = rhs.stepZBuffer;
+	stepAlphaBuffer = rhs.stepAlphaBuffer;
 	std_csp = rhs.std_csp;
 	covarianceMatrix = rhs.covarianceMatrix;
 
@@ -354,6 +358,8 @@ void Parameter::initParameterSet(std::vector<double> _stdDevSynthesisRate, unsig
 	numAcceptForStdDevSynthesisRate = 0u;
 	std_csp.resize(numParam, 0.1);
 	numAcceptForCodonSpecificParameters.resize(maxGrouping, 0u);
+	stepZBuffer.assign(maxGrouping, std::vector<std::vector<double>>{});
+	stepAlphaBuffer.assign(maxGrouping, std::vector<double>{});
 	// proposal bias and std for phi values
 	bias_phi = 0;
 
@@ -1544,6 +1550,35 @@ void Parameter::setSynthesisRate(double phi, unsigned geneIndex, unsigned mixtur
 }
 
 
+void Parameter::setCurrentSynthesisRateLevel(std::vector<std::vector<double>> levels)
+{
+	// If we already have allocated state, enforce dimension match (so a
+	// caller can't accidentally swap genomes underneath the trace).  If
+	// we have no state yet (e.g., parameter was loaded via the no-arg
+	// ctor and has not yet been initialized), accept the input as the
+	// first-time allocation.
+	if (!currentSynthesisRateLevel.empty())
+	{
+		if (levels.size() != currentSynthesisRateLevel.size())
+		{
+			my_printError("ERROR: setCurrentSynthesisRateLevel got % categories but expected %.\n",
+			              (unsigned)levels.size(), (unsigned)currentSynthesisRateLevel.size());
+			return;
+		}
+		for (unsigned i = 0u; i < levels.size(); i++)
+		{
+			if (levels[i].size() != currentSynthesisRateLevel[i].size())
+			{
+				my_printError("ERROR: setCurrentSynthesisRateLevel category % has % genes but expected %.\n",
+				              i, (unsigned)levels[i].size(), (unsigned)currentSynthesisRateLevel[i].size());
+				return;
+			}
+		}
+	}
+	currentSynthesisRateLevel = levels;
+}
+
+
 void Parameter::updateSynthesisRate(unsigned geneIndex)
 {
 	for (unsigned category = 0; category < numSynthesisRateCategories; category++)
@@ -1986,12 +2021,17 @@ void Parameter::adaptCodonSpecificParameterProposalWidth(unsigned adaptationWidt
       CSPAdaptContext ctx{
         aaIndex, aa, aaStart, aaEnd,
         acceptanceLevel, adaptationWidth, lastSample, samplesSinceLastAdapt,
-        std_csp, covarianceMatrix[aaIndex], traces
+        std_csp, covarianceMatrix[aaIndex], traces,
+        getStepZBuffer(aaIndex), getStepAlphaBuffer(aaIndex)
       };
       cspAdapter->update(ctx);
     }
 
     numAcceptForCodonSpecificParameters[aaIndex] = 0u;
+    // Clear per-step buffers AFTER the adapter ran so it can consume them.
+    // Cleared even when !adapt so the buffers do not grow unbounded across
+    // post-warmup iterations where the adapter is no longer called.
+    clearStepBuffers(aaIndex);
   }
 }
 
@@ -2005,6 +2045,54 @@ void Parameter::setCSPAdapter(std::unique_ptr<CSPAdaptationStrategy> adapter)
     return;
   }
   cspAdapter = std::move(adapter);
+}
+
+
+// ---------------------------------------------------------------------------
+// Per-step Z + alpha buffers for adapters that need per-proposal data
+// (Vihola2012 / RAM).  Defensive grow-on-access keeps the call sites in
+// proposeCodonSpecificParameter and acceptRejectCodonSpecificParameter from
+// having to know about initParameterSet sizing.
+// ---------------------------------------------------------------------------
+void Parameter::pushStepZ(unsigned aaIndex, const std::vector<double>& z)
+{
+    if (stepZBuffer.size() <= aaIndex) {
+        stepZBuffer.resize(aaIndex + 1u, std::vector<std::vector<double>>{});
+    }
+    stepZBuffer[aaIndex].push_back(z);
+}
+
+void Parameter::pushStepAlpha(unsigned aaIndex, double alpha)
+{
+    if (stepAlphaBuffer.size() <= aaIndex) {
+        stepAlphaBuffer.resize(aaIndex + 1u, std::vector<double>{});
+    }
+    stepAlphaBuffer[aaIndex].push_back(alpha);
+}
+
+const std::vector<std::vector<double>>&
+Parameter::getStepZBuffer(unsigned aaIndex) const
+{
+    // Caller is responsible for not running past maxGrouping; we return a
+    // const ref to the empty back-stop vector to avoid out-of-range UB at
+    // unit-test edges.
+    static const std::vector<std::vector<double>> EMPTY;
+    if (aaIndex >= stepZBuffer.size()) return EMPTY;
+    return stepZBuffer[aaIndex];
+}
+
+const std::vector<double>&
+Parameter::getStepAlphaBuffer(unsigned aaIndex) const
+{
+    static const std::vector<double> EMPTY;
+    if (aaIndex >= stepAlphaBuffer.size()) return EMPTY;
+    return stepAlphaBuffer[aaIndex];
+}
+
+void Parameter::clearStepBuffers(unsigned aaIndex)
+{
+    if (aaIndex < stepZBuffer.size())     stepZBuffer[aaIndex].clear();
+    if (aaIndex < stepAlphaBuffer.size()) stepAlphaBuffer[aaIndex].clear();
 }
 
 

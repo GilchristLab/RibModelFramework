@@ -58,23 +58,104 @@
 #'   (preserves the legacy 0.8 / 1.2 behavior).
 #'   Recommended: 0.1 (gentle), 0.2 (default), 0.3 (aggressive).
 #'
+#' @param prev.weight  Single scalar in (0, 1) controlling the cov-blend
+#'   mixture between the prior proposal cov and the sample cov estimated
+#'   over the recent adaptation window:
+#'     `covarianceMatrix <- prev.weight * prev + (1 - prev.weight) * sample_cov`.
+#'   Default 0.6 (preserves the legacy 0.6 / 0.4 blend).  Smaller values
+#'   give faster cov-shape adaptation at the cost of higher shape
+#'   variance; larger values give smoother shape estimates that lag the
+#'   chain.  Independent of `aggressiveness`: scale and shape are
+#'   controlled separately.
+#'
 #' @return An object of S3 class `c("AdaptiveScheme.Native", "AdaptiveScheme")`.
 #' @seealso [AdaptiveScheme.AndrieuThoms()], [schemes.available()].
 #' @examples
-#' s <- AdaptiveScheme.Native()                     # default 0.2
-#' s2 <- AdaptiveScheme.Native(aggressiveness = 0.3) # 0.7 / 1.3
-#' print(s2)
+#' s  <- AdaptiveScheme.Native()                                       # legacy defaults
+#' s2 <- AdaptiveScheme.Native(aggressiveness = 0.3)                   # 0.7 / 1.3
+#' s3 <- AdaptiveScheme.Native(aggressiveness = 0.1, prev.weight = 0.4) # faster shape adapt
+#' print(s3)
 #' @export
-AdaptiveScheme.Native <- function(aggressiveness = 0.2) {
+AdaptiveScheme.Native <- function(aggressiveness     = 0.2,
+                                  prev.weight        = 0.6,
+                                  ar.target.2codon   = 0.35,
+                                  ar.target.4codon   = 0.27,
+                                  ar.target.6codon   = 0.234,
+                                  ar.band.half.width = 0.05) {
     stopifnot(
         is.numeric(aggressiveness), length(aggressiveness) == 1L,
-        is.finite(aggressiveness),
-        aggressiveness > 0, aggressiveness < 1
+        is.finite(aggressiveness), aggressiveness > 0, aggressiveness < 1,
+        is.numeric(prev.weight), length(prev.weight) == 1L,
+        is.finite(prev.weight), prev.weight > 0, prev.weight < 1,
+        is.numeric(ar.target.2codon), length(ar.target.2codon) == 1L,
+        is.finite(ar.target.2codon), ar.target.2codon > 0, ar.target.2codon < 1,
+        is.numeric(ar.target.4codon), length(ar.target.4codon) == 1L,
+        is.finite(ar.target.4codon), ar.target.4codon > 0, ar.target.4codon < 1,
+        is.numeric(ar.target.6codon), length(ar.target.6codon) == 1L,
+        is.finite(ar.target.6codon), ar.target.6codon > 0, ar.target.6codon < 1,
+        is.numeric(ar.band.half.width), length(ar.band.half.width) == 1L,
+        is.finite(ar.band.half.width), ar.band.half.width > 0, ar.band.half.width < 0.5
     )
     structure(
         list(scheme = "native",
-             params = list(aggressiveness = aggressiveness)),
+             params = list(aggressiveness     = aggressiveness,
+                           prev.weight        = prev.weight,
+                           ar.target.2codon   = ar.target.2codon,
+                           ar.target.4codon   = ar.target.4codon,
+                           ar.target.6codon   = ar.target.6codon,
+                           ar.band.half.width = ar.band.half.width)),
         class = c("AdaptiveScheme.Native", "AdaptiveScheme")
+    )
+}
+
+
+#' Construct the Vihola 2012 (RAM) CSP adaptive proposal-width scheme.
+#'
+#' @description Robust Adaptive Metropolis (RAM) per Vihola, M. (2012),
+#'   "Robust adaptive Metropolis algorithm with coerced acceptance rate",
+#'   Statistics and Computing 22:997-1008, Algorithm 1.  Per AA, per MH
+#'   step, applies a rank-1 update to the proposal covariance that drives
+#'   the per-step acceptance rate toward `target`:
+#'
+#'     eta_t   = min(1, d * (t+1)^(-gamma))
+#'     sigma_t = eta_t * (alpha_t - target)
+#'     C_{t+1} = C_t + (sigma_t / |Z_t|^2) * v_t v_t^T
+#'
+#'   where v_t is the proposal direction at step t and d is the
+#'   per-AA dimensionality.  Unlike AndrieuThoms (scalar SD only), VAM
+#'   adapts the proposal SHAPE.  Unlike Native (windowed multiplicative),
+#'   VAM is state-dependent per step.  Within-window batching: the
+#'   Cholesky used by the proposal path is held fixed for the W steps
+#'   in each fire window, then refreshed once; equivalent to per-step
+#'   Vihola for adaptive_width=1, an approximation for larger W.
+#'
+#' @param target  Coerced acceptance rate (alpha_star).  Must be in (0, 1).
+#'   Default 0.234 (Gelman et al optimal-d).
+#' @param gamma   Step-size decay exponent.  Must be in (0.5, 1.0] for the
+#'   diminishing-adaptation theorem.  Vihola recommends 2/3 or 1.
+#'   Default 0.7.
+#'
+#' @return An object of S3 class `c("AdaptiveScheme.Vihola2012",
+#'   "AdaptiveScheme")`.
+#' @seealso [AdaptiveScheme.Native()], [AdaptiveScheme.AndrieuThoms()],
+#'   [schemes.available()].
+#' @examples
+#' s <- AdaptiveScheme.Vihola2012(target = 0.234, gamma = 0.7)
+#' print(s)
+#' @export
+AdaptiveScheme.Vihola2012 <- function(target = 0.234, gamma = 0.7) {
+    stopifnot(
+        is.numeric(target), length(target) == 1L, is.finite(target),
+        target > 0, target < 1,
+        is.numeric(gamma),  length(gamma)  == 1L, is.finite(gamma),
+        gamma > 0.5, gamma <= 1.0
+    )
+    structure(
+        list(
+            scheme = "vihola_2012",
+            params = list(target = target, gamma = gamma)
+        ),
+        class = c("AdaptiveScheme.Vihola2012", "AdaptiveScheme")
     )
 }
 
@@ -136,7 +217,7 @@ AdaptiveScheme.AndrieuThoms <- function(target = 0.234, alpha = 0.7,
 #' @examples
 #' schemes.available()
 #' @export
-schemes.available <- function() c("native", "andrieu_thoms")
+schemes.available <- function() c("native", "andrieu_thoms", "vihola_2012")
 
 
 #' Test whether an object was constructed by one of the AdaptiveScheme
@@ -157,7 +238,8 @@ is.AdaptiveScheme <- function(x) inherits(x, "AdaptiveScheme")
     stopifnot(is.character(name), length(name) == 1L, !is.na(name))
     map <- list(
         native        = AdaptiveScheme.Native,
-        andrieu_thoms = AdaptiveScheme.AndrieuThoms
+        andrieu_thoms = AdaptiveScheme.AndrieuThoms,
+        vihola_2012   = AdaptiveScheme.Vihola2012
     )
     fn <- map[[name]]
     if (is.null(fn)) {

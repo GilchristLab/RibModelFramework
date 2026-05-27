@@ -5,6 +5,9 @@
 #include "../Genome.h"
 #include "Parameter.h"
 
+#include <cmath>
+#include <limits>
+
 class Model
 {
     private:
@@ -32,6 +35,19 @@ class Model
 
 		virtual double calculateAllPriors(bool proposed=false) = 0;
 		virtual bool checkValues(bool proposed=false);
+
+		// Full L(data | theta) at the bound Parameter's current state.
+		// ROCModel overrides with the real per-AA per-gene sum.  Default
+		// returns NaN so non-ROC models keep whatever the in-loop trace
+		// writer produced (MCMCAlgorithm::run treats NaN as "leave the
+		// trace value untouched").  Lets MCMCAlgorithm populate
+		// likelihoodTrace via a known-correct primitive without altering
+		// the existing accept/reject path's tested math -- fixes the
+		// uninitialized-maxValue4 bug in
+		// acceptRejectSynthesisRateLevelForAllGenes for ROC.
+		virtual double calculateLogLikelihood(Genome& /*genome*/) {
+			return std::numeric_limits<double>::quiet_NaN();
+		}
 
 
 
@@ -161,6 +177,19 @@ class Model
 		virtual bool getParameterTypeFixed(std::string csp_parameters) = 0;
 		virtual bool isShared(std::string csp_parameters) = 0;
 		std::vector<std::string> getParameterTypeList();
+
+		// Push a per-step MH acceptance probability into the Parameter's
+		// per-AA buffer.  Called once per AA per MH step from
+		// MCMCAlgorithm::acceptRejectCodonSpecificParameter.  Only consumed
+		// by adapters that need per-proposal alpha (Vihola2012 / RAM).
+		// alpha is clamped to [0, 1] -- callers may pass min(1, exp(log_a)).
+		//
+		// VIRTUAL: subclasses (ROCModel, FONSEModel, PAModel, PANSEModel)
+		// each shadow the base Model::parameter with their own typed
+		// Parameter pointer.  The base implementation is a no-op (its
+		// parameter pointer is nullptr post-setParameter); each subclass
+		// must override to reach its actual typed parameter object.
+		virtual void recordCSPStepAlpha(std::string grouping, double alpha);
 
 
 		virtual void fillMatrices(Genome& genome);
