@@ -7,16 +7,21 @@
  *
  *   noncentered = 0  (centered, default):
  *     latent_phi[g] IS log_phi[g].
- *     Mixture prior: log_phi ~ p*N(mu1,sigma1) + (1-p)*N(mu2,sigma2)
+ *     Mixture prior: log_phi ~ p*N(mu1,sigma1) + (1-p)*N(mu1+sep,sigma2)
  *     Best when data strongly anchors each gene (G >= 1000).
  *
  *   noncentered = 1:
  *     latent_phi[g] is z_phi[g] anchored on component 1.
  *     log_phi[g] = mu1 + sigma1 * z_phi[g]   (transformed parameter)
  *     Mixture prior in z-space: z_phi ~ p*N(0,1) + (1-p)*N(delta, ratio)
- *       where delta = (mu2-mu1)/sigma1, ratio = sigma2/sigma1
+ *       where delta = sep/sigma1, ratio = sigma2/sigma1
  *     Removes (log_phi, sigma1) Neal's funnel for the bulk component.
  *     Use when centered has E-BFMI < 0.3 or R-hat > 1.1 on sigma1.
+ *
+ * Label-switching prevention: mu2 is reparametrized as mu1 + sep where
+ * sep > 0 is a constrained parameter with an informative prior.  This
+ * replaces the old quadratic penalty (which had zero gradient in the valid
+ * region and failed to prevent warmup mode-flips).
  *
  * Soft geomean constraint in both variants:
  *   log(geomean(phi)) = p*mu1 + (1-p)*mu2 ~ N(0, geomean_constraint_sd)
@@ -105,8 +110,8 @@ data {
     real<lower=0> p_beta;
     real         mu1_prior_mean;
     real<lower=0> mu1_prior_sd;
-    real         mu2_prior_mean;
-    real<lower=0> mu2_prior_sd;
+    real         sep_prior_mean;
+    real<lower=0> sep_prior_sd;
     real<lower=0> sigma1_prior_scale;
     real<lower=0> sigma2_prior_scale;
 
@@ -119,8 +124,6 @@ data {
 transformed data {
     array[G] int gene_indices;
     for (g in 1:G) gene_indices[g] = g;
-
-    real PENALTY_STRENGTH = 1.0e3;
 }
 
 parameters {
@@ -130,21 +133,23 @@ parameters {
     vector[G] latent_phi;
     real<lower=0, upper=1> p;
     real mu1;
-    real mu2;
+    real<lower=0> sep;   // mu2 - mu1; constrained positive to prevent label-switching
     real<lower=0> sigma1;
     real<lower=0> sigma2;
 }
 
 transformed parameters {
+    real mu2 = mu1 + sep;
+
     // log_phi: identity when centered; derived from z_phi when non-centered.
     vector[G] log_phi = noncentered ? (mu1 + sigma1 * latent_phi) : latent_phi;
     vector<lower=0>[G] phi = exp(log_phi);
 
-    real log_geomean_phi = p * mu1 + (1.0 - p) * mu2;
+    real log_geomean_phi = mu1 + (1.0 - p) * sep;
 
     // Component-2 location and scale in z-space (used only when noncentered=1;
     // computed unconditionally to avoid branching in transformed parameters).
-    real delta = (mu2 - mu1) / sigma1;
+    real delta = sep / sigma1;
     real ratio = sigma2 / sigma1;
 }
 
@@ -152,15 +157,12 @@ model {
     // Hyperpriors
     p      ~ beta(p_alpha, p_beta);
     mu1    ~ normal(mu1_prior_mean, mu1_prior_sd);
-    mu2    ~ normal(mu2_prior_mean, mu2_prior_sd);
+    sep    ~ normal(sep_prior_mean, sep_prior_sd);  // <lower=0> enforces mu2>mu1
     sigma1 ~ normal(0, sigma1_prior_scale);
     sigma2 ~ normal(0, sigma2_prior_scale);
 
     // Soft geomean(phi)=1 constraint
     log_geomean_phi ~ normal(0, geomean_constraint_sd);
-
-    // Label-switching guard (smooth quadratic penalty on mu1 > mu2).
-    target += -PENALTY_STRENGTH * square(fmax(0, mu1 - mu2));
 
     // dM, dEta priors
     dM   ~ normal(dM_prior_mean, dM_prior_sd);
