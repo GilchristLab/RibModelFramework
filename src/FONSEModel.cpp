@@ -278,6 +278,18 @@ void FONSEModel::calculateLogLikelihoodRatioForHyperParameters(Genome &genome, u
 				- calculateLogLikelihoodRatioPerAA(*gene, curAA, mutation, selection, phi, a1_current));
 		}
 	}
+	// sphi prior: N(sphiPriorMu, sphiPriorSd)
+	double sphiSd = parameter->getSphiPriorSd();
+	if (sphiSd > 0.0)
+	{
+		double sphiMu = parameter->getSphiPriorMu();
+		for (unsigned i = 0u; i < selectionCategory; i++)
+		{
+			lpr_sphi += Parameter::densityNorm(proposedStdDevSynthesisRate[i], sphiMu, sphiSd, true)
+				      - Parameter::densityNorm(currentStdDevSynthesisRate[i], sphiMu, sphiSd, true);
+		}
+	}
+
 	logProbabilityRatio[0] = lpr_sphi;
 	logProbabilityRatio[1] = lpr_a1;
 	if (withPhi)

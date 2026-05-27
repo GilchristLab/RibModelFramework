@@ -129,6 +129,9 @@ class Parameter {
 		unsigned getNumAcceptForStdDevSynthesisRate(); //Only for unit testing.
 		void updateStdDevSynthesisRate(); //TODO: test
 		double getStdCspForIndex(unsigned i); //Only for unit testing.
+		void setSphiPrior(double mu, double sd);
+		double getSphiPriorMu();
+		double getSphiPriorSd();
 
 
 		// Phi prior type / mixture-LN storage (task #12a). Defaults preserve
@@ -530,6 +533,8 @@ class Parameter {
 		double bias_stdDevSynthesisRate; //NOTE: Currently, this value is always set to 0.0
 		double std_stdDevSynthesisRate;
 		unsigned numAcceptForStdDevSynthesisRate;
+		double sphiPriorMu;
+		double sphiPriorSd;
 		std::vector<double> std_csp;
 
 		// Phi prior selection (task #12). Default values map to legacy behavior:
