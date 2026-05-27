@@ -23,8 +23,19 @@
  * replaces the old quadratic penalty (which had zero gradient in the valid
  * region and failed to prevent warmup mode-flips).
  *
- * Soft geomean constraint in both variants:
- *   log(geomean(phi)) = p*mu1 + (1-p)*mu2 ~ N(0, geomean_constraint_sd)
+ * Phi-scale anchor: data flag `anchor_phi` selects the convention.
+ *   anchor_phi = 0  (default, backward compatible):
+ *     Soft geomean(phi)=1 constraint:
+ *       log(geomean(phi)) = p*mu1 + (1-p)*mu2 ~ N(0, geomean_constraint_sd)
+ *     mu1 prior is the user-supplied N(mu1_prior_mean, mu1_prior_sd).
+ *   anchor_phi = 1:
+ *     Anchor the BULK component (component 1) at median(phi)=1:
+ *       mu1 ~ N(0, mphi_prior_sd)
+ *     No constraint on the overall mixture geomean.  Recommended when the
+ *     research question is about the upper-component genes specifically;
+ *     bulk-anchored mu1 makes cross-genome dEta comparisons cleaner.
+ *     NOTE: the wrapper sets mu1_prior_mean=0 and mu1_prior_sd=mphi_prior_sd
+ *     when anchor_phi=1; the Stan model just toggles the geomean constraint.
  *
  * THREADING: compile with cpp_options=list(stan_threads=TRUE) and pass
  * threads_per_chain > 1 to enable reduce_sum parallelism.
@@ -118,6 +129,8 @@ data {
     real<lower=0> geomean_constraint_sd;
 
     int<lower=0, upper=1> noncentered;  // 0=centered (default), 1=non-centered
+    int<lower=0, upper=1> anchor_phi;   // 0=soft geomean(phi)=1 constraint (default), 1=bulk-component median(phi)=1 via mu1 prior
+    real<lower=0> mphi_prior_sd;        // unused in this Stan file (wrapper baked it into mu1_prior_sd when anchor_phi=1); kept for symmetry with single-LN model
     int<lower=1> grainsize;
 }
 
@@ -161,8 +174,12 @@ model {
     sigma1 ~ normal(0, sigma1_prior_scale);
     sigma2 ~ normal(0, sigma2_prior_scale);
 
-    // Soft geomean(phi)=1 constraint
-    log_geomean_phi ~ normal(0, geomean_constraint_sd);
+    // Soft geomean(phi)=1 constraint -- only active in anchor_phi=0 (default) mode.
+    // When anchor_phi=1, the bulk-anchor mu1~N(0, mphi_prior_sd) (set by the
+    // wrapper via mu1_prior_mean/sd) replaces the geomean constraint.
+    if (anchor_phi == 0) {
+        log_geomean_phi ~ normal(0, geomean_constraint_sd);
+    }
 
     // dM, dEta priors
     dM   ~ normal(dM_prior_mean, dM_prior_sd);

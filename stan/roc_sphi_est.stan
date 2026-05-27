@@ -17,7 +17,15 @@
  *     Removes Neal's funnel in (log_phi, sphi) for data-sparse fits.
  *     Use when centered has poor sphi ESS or chains stuck at small sphi.
  *
- * mphi convention: mphi = -sphi^2/2 (mean(phi)=1, matching v.3 pipeline).
+ * Phi-scale anchor: data flag `anchor_phi` selects the convention.
+ *   anchor_phi = 0  (default, backward compatible):
+ *     mphi = -sphi^2/2  (mean(phi) = 1 in expectation, v.3 convention)
+ *   anchor_phi = 1:
+ *     mphi is a sampled parameter (mphi_param) with soft prior
+ *       mphi ~ Normal(0, mphi_prior_sd)
+ *     so median(phi) = exp(mphi) is softly anchored near 1.  Recommended
+ *     for cross-genome phi comparability; also collapses the (dEta, phi)
+ *     scale ridge that mean-anchored sphi alone leaves under-determined.
  *
  * THREADING: compile with cpp_options=list(stan_threads=TRUE) and pass
  * threads_per_chain > 1 to $sample() to enable reduce_sum parallelism.
@@ -68,6 +76,8 @@ data {
     real<lower=0> sphi_prior_sd;        // half-normal scale for sphi prior
 
     int<lower=0, upper=1> noncentered;  // 0=centered (default), 1=non-centered
+    int<lower=0, upper=1> anchor_phi;   // 0=mean(phi)=1 via mphi=-sphi^2/2 (default), 1=median(phi)=1 via soft prior on mphi
+    real<lower=0> mphi_prior_sd;        // SD of soft median anchor prior; ignored when anchor_phi=0
     int<lower=1> grainsize;
 }
 
@@ -82,10 +92,13 @@ parameters {
     // latent_phi[g] = log_phi[g] when centered, z_phi[g] when non-centered.
     vector[G] latent_phi;
     real<lower=0> sphi;
+    real mphi_param;                    // used only when anchor_phi=1; phantom otherwise
 }
 
 transformed parameters {
-    real mphi = -0.5 * sphi * sphi;
+    // mphi: derived from sphi (anchor_phi=0, mean=1 convention) or sampled
+    // via mphi_param (anchor_phi=1, soft median=1 anchor).
+    real mphi = (anchor_phi == 1) ? mphi_param : -0.5 * sphi * sphi;
     // log_phi: identity when centered; derived from z_phi when non-centered.
     vector[G] log_phi = noncentered ? (mphi + sphi * latent_phi) : latent_phi;
     vector<lower=0>[G] phi = exp(log_phi);
@@ -95,6 +108,16 @@ model {
     dM   ~ normal(dM_prior_mean, dM_prior_sd);
     dEta ~ normal(dEta_prior_mean, dEta_prior_sd);
     sphi ~ normal(0, sphi_prior_sd);    // half-normal via lower=0 constraint
+
+    // Phi-scale anchor prior on mphi_param.  When anchor_phi=1, this softly
+    // pins median(phi) = exp(mphi) near 1.  When anchor_phi=0, mphi_param
+    // is a phantom (unused in transformed parameters) -- we still give it a
+    // wide proper prior so the posterior stays proper.
+    if (anchor_phi == 1) {
+        mphi_param ~ normal(0, mphi_prior_sd);
+    } else {
+        mphi_param ~ normal(0, 1);      // phantom; never enters mphi or likelihood
+    }
 
     // Phi prior: centered form uses the lognormal prior directly on log_phi;
     // non-centered form places std_normal on the latent z_phi.
