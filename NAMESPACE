@@ -17,6 +17,12 @@ importFrom(grDevices, adjustcolor, rgb)
 importFrom(graphics , mtext, title)
 importFrom(coda, as.mcmc, mcmc, mcmc.list, geweke.diag, geweke.plot, gelman.diag, effectiveSize)
 
+# RFP/phi filtering utility
+importFrom(dplyr, filter, group_by, summarize, select, mutate, left_join, n, pull)
+importFrom(tidyr, pivot_wider)
+importFrom(rlang, .data)
+importFrom(magrittr, "%>%")
+
 S3method(length, Rcpp_Genome)
 S3method(summary, Rcpp_Genome)
 S3method(writeParameterObject, Rcpp_ROCParameter)
@@ -97,7 +103,13 @@ export(
 
 ##
 "acfMCMC",
-"acfCSP"
+"acfCSP",
+
+## Diagnostics
+"assertChainsMoving",
+
+## RFP/phi filtering utility
+"filterRFPData"
 
 )
 

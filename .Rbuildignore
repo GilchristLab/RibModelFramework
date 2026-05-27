@@ -27,3 +27,29 @@
 
 # R prototypes (exploratory, not part of the package)
 ^prototypes$
+# RStudio project files
+^.*\.Rproj$
+^\.Rproj\.user$
+
+# Documentation source
+^README\.Rmd$
+
+# CRAN submission notes
+^cran-comments\.md$
+^NEWS\.md$
+
+# CI configuration
+^\.travis\.yml$
+
+# Build artifacts
+^.*\.tar\.gz$
+
+# Filesystem leftovers
+^\.nfs
+
+# Claude Code files
+^\.claude$
+^CLAUDE\.md$
+
+# Local git hooks
+^\.githooks$
