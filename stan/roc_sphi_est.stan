@@ -73,7 +73,8 @@ data {
     vector<lower=0>[K] dM_prior_sd;
     vector[K] dEta_prior_mean;
     vector<lower=0>[K] dEta_prior_sd;
-    real<lower=0> sphi_prior_sd;        // half-normal scale for sphi prior
+    real          sphi_prior_mean;      // prior mean for sphi (default 0 = half-normal at 0)
+    real<lower=0> sphi_prior_sd;        // SD for sphi prior; lower=0 truncates to positive
 
     int<lower=0, upper=1> noncentered;  // 0=centered (default), 1=non-centered
     int<lower=0, upper=1> anchor_phi;   // 0=mean(phi)=1 via mphi=-sphi^2/2 (default), 1=median(phi)=1 via soft prior on mphi
@@ -107,7 +108,7 @@ transformed parameters {
 model {
     dM   ~ normal(dM_prior_mean, dM_prior_sd);
     dEta ~ normal(dEta_prior_mean, dEta_prior_sd);
-    sphi ~ normal(0, sphi_prior_sd);    // half-normal via lower=0 constraint
+    sphi ~ normal(sphi_prior_mean, sphi_prior_sd);  // truncated to positive via lower=0 constraint
 
     // Phi-scale anchor prior on mphi_param.  When anchor_phi=1, this softly
     // pins median(phi) = exp(mphi) near 1.  When anchor_phi=0, mphi_param
