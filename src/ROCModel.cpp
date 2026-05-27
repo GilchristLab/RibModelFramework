@@ -328,6 +328,18 @@ void ROCModel::calculateLogLikelihoodRatioForHyperParameters(Genome &genome, uns
 			   - Parameter::densityLogNorm(phi, currentMphi[mixture], currentStdDevSynthesisRate[mixture], true);
 	}
 
+	// sphi prior: N(sphiPriorMu, sphiPriorSd)
+	double sphiSd = parameter->getSphiPriorSd();
+	if (sphiSd > 0.0)
+	{
+		double sphiMu = parameter->getSphiPriorMu();
+		for (unsigned i = 0u; i < selectionCategory; i++)
+		{
+			lpr += Parameter::densityNorm(proposedStdDevSynthesisRate[i], sphiMu, sphiSd, true)
+				 - Parameter::densityNorm(currentStdDevSynthesisRate[i], sphiMu, sphiSd, true);
+		}
+	}
+
 	// TODO: USE CONSTANTS INSTEAD OF 0
 	logProbabilityRatio[0] = lpr;
 

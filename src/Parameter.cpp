@@ -60,6 +60,8 @@ Parameter::Parameter()
 	stdDevSynthesisRate_proposed.resize(1);
 	numAcceptForStdDevSynthesisRate = 0u;
 	bias_stdDevSynthesisRate = 0.0;
+	sphiPriorMu = 1.4;
+	sphiPriorSd = 0.05;
 	bias_phi = 0.0;
 	numMutationCategories = 0u;
 	numSelectionCategories = 0u;
@@ -117,6 +119,8 @@ Parameter::Parameter(unsigned _maxGrouping)
 	stdDevSynthesisRate_proposed.resize(1);
 	numAcceptForStdDevSynthesisRate = 0u;
 	bias_stdDevSynthesisRate = 0.0;
+	sphiPriorMu = 1.4;
+	sphiPriorSd = 0.05;
 	bias_phi = 0.0;
 	numMutationCategories = 0u;
 	numSelectionCategories = 0u;
@@ -1468,6 +1472,23 @@ void Parameter::updateStdDevSynthesisRate()
 		stdDevSynthesisRate[i] = stdDevSynthesisRate_proposed[i];
 	}
 	numAcceptForStdDevSynthesisRate++;
+}
+
+
+void Parameter::setSphiPrior(double mu, double sd)
+{
+	sphiPriorMu = mu;
+	sphiPriorSd = sd;
+}
+
+double Parameter::getSphiPriorMu()
+{
+	return sphiPriorMu;
+}
+
+double Parameter::getSphiPriorSd()
+{
+	return sphiPriorSd;
 }
 
 

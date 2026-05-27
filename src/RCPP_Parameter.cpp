@@ -308,6 +308,9 @@ RCPP_MODULE(Parameter_mod)
 
 		.method("fixSphi",&Parameter::fixStdDevSynthesis)
 		.method("setStdDevSynthesisRate",&Parameter::setStdDevSynthesisRate)
+		.method("setSphiPrior",&Parameter::setSphiPrior)
+		.method("getSphiPriorMu",&Parameter::getSphiPriorMu)
+		.method("getSphiPriorSd",&Parameter::getSphiPriorSd)
 
 		// Phi prior selection + mixture-LN parameters (task #12a).
 		.method("getPhiPriorType", &Parameter::getPhiPriorType)
