@@ -2300,16 +2300,16 @@ loadPAParameterObject <- function(parameter, files)
         }
       }
     }else{
-      
+
       curAlphaTrace <- tempEnv$alphaTrace
       curLambdaPrimeTrace <- tempEnv$lambdaPrimeTrace
-      
-      combineThreeDimensionalTrace(alphaTrace, curAlphaTrace, max)
-      combineThreeDimensionalTrace(lambdaPrimeTrace, curLambdaPrimeTrace, max)
+
+      alphaTrace <- combineThreeDimensionalTrace(alphaTrace, curAlphaTrace, max)
+      lambdaPrimeTrace <- combineThreeDimensionalTrace(lambdaPrimeTrace, curLambdaPrimeTrace, max)
     }
   }#end of for loop (files)
-  
-  
+
+
   parameter$currentAlphaParameter <- tempEnv$currentAlpha
   parameter$proposedAlphaParameter <- tempEnv$proposedAlpha
   parameter$currentLambdaPrimeParameter <- tempEnv$currentLambdaPrime
@@ -2364,14 +2364,14 @@ loadPANSEParameterObject <- function(parameter, files)
       }
       nseSpecificAcceptanceRateTrace <- tempEnv$nseSpecificAcceptRatTrace
     }else{
-      
+
       curAlphaTrace <- tempEnv$alphaTrace
       curLambdaPrimeTrace <- tempEnv$lambdaPrimeTrace
       curNSERateTrace <- tempEnv$NSERateTrace
 
-      combineThreeDimensionalTrace(alphaTrace, curAlphaTrace, max)
-      combineThreeDimensionalTrace(lambdaPrimeTrace, curLambdaPrimeTrace, max)
-      combineThreeDimensionalTrace(NSERateTrace, curNSERateTrace, max)
+      alphaTrace <- combineThreeDimensionalTrace(alphaTrace, curAlphaTrace, max)
+      lambdaPrimeTrace <- combineThreeDimensionalTrace(lambdaPrimeTrace, curLambdaPrimeTrace, max)
+      NSERateTrace <- combineThreeDimensionalTrace(NSERateTrace, curNSERateTrace, max)
     }
   }#end of for loop (files)
   
@@ -2430,13 +2430,15 @@ loadFONSEParameterObject <- function(parameter, files)
     }else{
       curCodonSpecificParameterTraceMut <- tempEnv$mutationTrace
       curCodonSpecificParameterTraceSel <- tempEnv$selectionTrace
-      
-      
-      combineThreeDimensionalTrace(codonSpecificParameterTraceMut, curCodonSpecificParameterTraceMut, max)
-      combineThreeDimensionalTrace(codonSpecificParameterTraceSel, curCodonSpecificParameterTraceSel, max)
+
+
+      codonSpecificParameterTraceMut <- combineThreeDimensionalTrace(
+          codonSpecificParameterTraceMut, curCodonSpecificParameterTraceMut, max)
+      codonSpecificParameterTraceSel <- combineThreeDimensionalTrace(
+          codonSpecificParameterTraceSel, curCodonSpecificParameterTraceSel, max)
     }#end of if-else
   }#end of for loop (files)
-  
+
   trace <- parameter$getTraceObject()
   trace$setCodonSpecificParameterTrace(codonSpecificParameterTraceMut, 0)
   trace$setCodonSpecificParameterTrace(codonSpecificParameterTraceSel, 1)
