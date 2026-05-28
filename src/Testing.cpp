@@ -1920,6 +1920,86 @@ int testGenome(std::string testFileDir)
     else
         error = 0; //Reset for next function.
 
+    //-----------------------------------------------------------//
+    //------ getGenomeForGeneIndices totalRFPCount Preservation -//
+    //-----------------------------------------------------------//
+    // Regression test for the uninitialized-totalRFPCount bug (issue #421):
+    // Genome::Genome() left totalRFPCount uninitialized and the subsetter
+    // never recomputed it, silently breaking PANSE Alpha/Lambda likelihoods.
+    // operator== does not compare totalRFPCount, so the existing tests above
+    // could not catch this -- we have to read the field directly.
+
+    // ROC-style (fasta only, no RFP data): totalRFPCount must be exactly 0
+    // both before and after subsetting (covers the uninitialized-ctor bug).
+    {
+        Genome rocGenome;
+        rocGenome.addGene(g1, false);
+        rocGenome.addGene(g2, false);
+        rocGenome.addGene(g3, false);
+        rocGenome.addGene(g4, false);
+        std::vector<unsigned> idxAll = {0, 1, 2, 3};
+        Genome rocSubset = rocGenome.getGenomeForGeneIndices(idxAll, false);
+
+        if (rocSubset.getSumRFP() != 0u)
+        {
+            my_printError("Error in testGenome: getGenomeForGeneIndices "
+                          "ROC-style subset has non-zero totalRFPCount "
+                          "(%) -- default ctor or subsetter is leaking "
+                          "uninitialized memory.\n",
+                          (unsigned long)rocSubset.getSumRFP());
+            error = 1;
+            globalError = 1;
+        }
+    }
+
+    // PANSE-style (positional RFP data): totalRFPCount of the subset must
+    // equal the sum of the per-gene RFP totals at the indexed positions.
+    {
+        Genome panseGenome;
+        panseGenome.readRFPData(testFileDir + "/" + "readRFPData.csv", false);
+        unsigned long originalSum = panseGenome.getSumRFP();
+
+        // All-indices subset must preserve the total.
+        std::vector<unsigned> idxAll;
+        for (unsigned i = 0; i < (unsigned)panseGenome.getGenomeSize(false); i++)
+            idxAll.push_back(i);
+        Genome panseSubsetAll = panseGenome.getGenomeForGeneIndices(idxAll, false);
+        if (panseSubsetAll.getSumRFP() != originalSum)
+        {
+            my_printError("Error in testGenome: getGenomeForGeneIndices "
+                          "PANSE-style all-indices subset totalRFPCount = %, "
+                          "expected % (original).\n",
+                          (unsigned long)panseSubsetAll.getSumRFP(),
+                          originalSum);
+            error = 1;
+            globalError = 1;
+        }
+
+        // Partial subset (first gene only) must equal that gene's RFP total.
+        if (panseGenome.getGenomeSize(false) >= 1)
+        {
+            std::vector<unsigned> idxFirst = {0};
+            Genome panseSubsetFirst = panseGenome.getGenomeForGeneIndices(idxFirst, false);
+            unsigned long firstGeneSum =
+                panseGenome.getGene(0u, false).geneData.getSumTotalRFPCount(0);
+            if (panseSubsetFirst.getSumRFP() != firstGeneSum)
+            {
+                my_printError("Error in testGenome: getGenomeForGeneIndices "
+                              "PANSE-style partial subset totalRFPCount = %, "
+                              "expected % (sum of first gene).\n",
+                              (unsigned long)panseSubsetFirst.getSumRFP(),
+                              firstGeneSum);
+                error = 1;
+                globalError = 1;
+            }
+        }
+    }
+
+    if (!error)
+        my_print("Genome getGenomeForGeneIndices totalRFPCount preservation --- Pass\n");
+    else
+        error = 0; //Reset for next function.
+
     //--------------------------------//
     //------ readFasta Function ------//
     //--------------------------------//
