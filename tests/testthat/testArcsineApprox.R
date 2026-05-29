@@ -185,3 +185,89 @@ test_that("arcsine LL ratio sign agrees with exact at n=20 (threshold boundary):
 test_that("arcsine LL differs from exact LL on same genome (methods are distinct)", {
   expect_false(isTRUE(all.equal(ll_exact, ll_true, tolerance = 1e-6)))
 })
+
+# ======================================================================
+# Section 4 -- genomeToStanData() shape and consistency checks
+# ======================================================================
+
+context("genomeToStanData: Stan data list preparation")
+
+stan_d <- genomeToStanData(genome)
+
+test_that("genomeToStanData returns the required fields", {
+  required <- c("G", "A", "K", "aa_start", "aa_end", "y_k", "N_ga",
+                "approx_min_n",
+                "dM_prior_mean", "dM_prior_sd",
+                "dEta_prior_mean", "dEta_prior_sd",
+                "sphi_prior_mean", "sphi_prior_sd",
+                "noncentered", "anchor_phi", "mphi_prior_sd",
+                "grainsize")
+  expect_true(all(required %in% names(stan_d)))
+})
+
+test_that("A = 19 and K = 40 (standard genetic code, ROCParameter::groupList)", {
+  expect_equal(stan_d$A, 19L)
+  expect_equal(stan_d$K, 40L)
+})
+
+test_that("y_k has shape G x K and is integer", {
+  expect_equal(dim(stan_d$y_k), c(stan_d$G, 40L))
+  expect_true(is.integer(stan_d$y_k))
+})
+
+test_that("N_ga has shape G x A and is integer", {
+  expect_equal(dim(stan_d$N_ga), c(stan_d$G, 19L))
+  expect_true(is.integer(stan_d$N_ga))
+})
+
+test_that("aa_start[1] = 1 and aa_end[A] = K = 40", {
+  expect_equal(stan_d$aa_start[1], 1L)
+  expect_equal(stan_d$aa_end[stan_d$A], 40L)
+})
+
+test_that("aa ranges are non-empty and cover [1, K] without gaps", {
+  # Each AA has at least one non-reference codon
+  expect_true(all(stan_d$aa_end >= stan_d$aa_start))
+  # Ranges tile [1, K] exactly (no overlaps, no gaps)
+  expect_equal(sum(stan_d$aa_end - stan_d$aa_start + 1L), 40L)
+})
+
+test_that("non-ref codon counts are <= total AA counts (conservation)", {
+  K   <- stan_d$K
+  A   <- stan_d$A
+  for (a in seq_len(A)) {
+    ks       <- stan_d$aa_start[a]:stan_d$aa_end[a]
+    nonref_g <- rowSums(stan_d$y_k[, ks, drop = FALSE])
+    expect_true(all(nonref_g <= stan_d$N_ga[, a]),
+                info = sprintf("AA index %d: non-ref counts exceed N_ga", a))
+  }
+})
+
+test_that("prior parameter vectors are length K", {
+  K <- stan_d$K
+  expect_equal(length(stan_d$dM_prior_mean),   K)
+  expect_equal(length(stan_d$dM_prior_sd),     K)
+  expect_equal(length(stan_d$dEta_prior_mean), K)
+  expect_equal(length(stan_d$dEta_prior_sd),   K)
+})
+
+test_that("approx_min_n defaults to 20L (integer)", {
+  expect_identical(stan_d$approx_min_n, 20L)
+})
+
+test_that("scalar prior expansion works correctly", {
+  d2 <- genomeToStanData(genome, dM_prior_sd = 0.5)
+  expect_true(all(d2$dM_prior_sd == 0.5))
+  expect_equal(length(d2$dM_prior_sd), 40L)
+})
+
+test_that("length-K prior vector is accepted as-is", {
+  custom_mean <- seq(-1, 1, length.out = 40L)
+  d3 <- genomeToStanData(genome, dM_prior_mean = custom_mean)
+  expect_equal(d3$dM_prior_mean, custom_mean)
+})
+
+test_that("wrong-length prior vector raises an error", {
+  expect_error(genomeToStanData(genome, dM_prior_sd = rep(1, 5)),
+               regexp = "length")
+})
