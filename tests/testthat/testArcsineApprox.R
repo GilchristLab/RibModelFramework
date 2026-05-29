@@ -271,3 +271,100 @@ test_that("wrong-length prior vector raises an error", {
   expect_error(genomeToStanData(genome, dM_prior_sd = rep(1, 5)),
                regexp = "length")
 })
+
+# ======================================================================
+# Section 5 -- dM prior from SCUO and genomeToStanInit()
+# ======================================================================
+
+context("genomeToStanData: SCUO-based dM prior")
+
+# Pre-compute SCUO once (reused across tests)
+scuo_vals <- calculateSCUO(genome)$SCUO
+
+test_that("dM.prior='scuo' (default) gives non-zero dM_prior_mean", {
+  # At least some dM priors should be non-zero when estimated from data
+  expect_false(all(stan_d$dM_prior_mean == 0))
+  expect_equal(length(stan_d$dM_prior_mean), 40L)
+  expect_true(all(is.finite(stan_d$dM_prior_mean)))
+})
+
+test_that("dM.prior='flat' gives all-zero dM_prior_mean", {
+  d_flat <- genomeToStanData(genome, dM.prior = "flat")
+  expect_true(all(d_flat$dM_prior_mean == 0))
+})
+
+test_that("explicit dM_prior_mean overrides dM.prior", {
+  custom <- rep(0.5, 40L)
+  d_ov   <- genomeToStanData(genome, dM_prior_mean = custom, dM.prior = "scuo")
+  expect_equal(d_ov$dM_prior_mean, custom)
+})
+
+test_that("pre-computed scuo arg gives same result as internal computation", {
+  d_pre  <- genomeToStanData(genome, scuo = scuo_vals)
+  d_auto <- genomeToStanData(genome)
+  expect_equal(d_pre$dM_prior_mean, d_auto$dM_prior_mean)
+})
+
+test_that("SCUO-based dM prior has correct sign: rare codons get positive dM", {
+  # dM_k = log(count_ref) - log(count_k).
+  # Reference codons (e.g. GCT for Ala) tend to be most common in low-expression
+  # genes, so most non-ref codons should have positive dM (= lower usage than ref).
+  # Not all will be positive (mutation patterns vary by AA), but the median should be.
+  expect_gt(median(stan_d$dM_prior_mean), 0)
+})
+
+context("genomeToStanInit: phi initialisation")
+
+stan_init <- genomeToStanInit(genome, stan_d, scuo = scuo_vals)
+
+test_that("genomeToStanInit returns the required parameter fields", {
+  required <- c("dM", "dEta", "latent_phi", "sphi", "mphi_param")
+  expect_true(all(required %in% names(stan_init)))
+})
+
+test_that("latent_phi has length G", {
+  expect_equal(length(stan_init$latent_phi), stan_d$G)
+})
+
+test_that("dM and dEta init are zero vectors of length K", {
+  expect_equal(stan_init$dM,   rep(0, stan_d$K))
+  expect_equal(stan_init$dEta, rep(0, stan_d$K))
+})
+
+test_that("SCUO init is NOT all zeros (uses actual codon bias)", {
+  expect_false(all(stan_init$latent_phi == 0))
+})
+
+test_that("SCUO init latent_phi is centered near 0 (mean close to 0)", {
+  expect_lt(abs(mean(stan_init$latent_phi)), 0.5)
+})
+
+test_that("SCUO init sd ~ sphi.init (default 1.0)", {
+  # With G=8 the sd won't be exactly 1, but should be in a reasonable range
+  expect_gt(sd(stan_init$latent_phi), 0.3)
+  expect_lt(sd(stan_init$latent_phi), 3.0)
+})
+
+test_that("phi.init='uniform' gives latent_phi = 0 everywhere", {
+  init_u <- genomeToStanInit(genome, stan_d, phi.init = "uniform")
+  expect_equal(init_u$latent_phi, rep(0.0, stan_d$G))
+})
+
+test_that("numeric phi.init vector is accepted and log-transformed", {
+  phi_vec  <- rep(2.0, stan_d$G)   # all genes at phi=2
+  init_phi <- genomeToStanInit(genome, stan_d, phi.init = phi_vec)
+  # All genes same phi -> after centering, latent_phi = 0
+  expect_equal(init_phi$latent_phi, rep(0.0, stan_d$G), tolerance = 1e-10)
+})
+
+test_that("pre-computed scuo gives same init as internal computation", {
+  init_pre  <- genomeToStanInit(genome, stan_d, scuo = scuo_vals)
+  init_auto <- genomeToStanInit(genome, stan_d)
+  expect_equal(init_pre$latent_phi, init_auto$latent_phi)
+})
+
+test_that("sphi.init controls the spread of latent_phi", {
+  init_narrow <- genomeToStanInit(genome, stan_d, scuo = scuo_vals, sphi.init = 0.5)
+  init_wide   <- genomeToStanInit(genome, stan_d, scuo = scuo_vals, sphi.init = 2.0)
+  expect_lt(sd(init_narrow$latent_phi), sd(init_wide$latent_phi))
+})

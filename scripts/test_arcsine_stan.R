@@ -53,23 +53,25 @@ genome <- initializeGenomeObject(file = genome_file)
 G      <- genome$getGenomeSize(FALSE)
 cat("Genes:", G, "\n")
 
+# Compute SCUO once; reused for both dM prior and phi init
+t_scuo <- system.time(scuo <- calculateSCUO(genome)$SCUO)["elapsed"]
+cat(sprintf("SCUO computed in %.1f s  range=[%.3f, %.3f]\n",
+            t_scuo, min(scuo), max(scuo)))
+
+# genomeToStanData: uses SCUO-estimated dM_prior_mean (dM.prior="scuo" default)
 d <- genomeToStanData(
   genome,
-  approx_min_n    = 20L,
-  noncentered     = 0L,    # centered parameterization
-  anchor_phi      = 0L,    # mean(phi) = 1 via mphi = -sphi^2/2
-  dM_prior_mean   = 0.0,
-  dM_prior_sd     = 1.0,
-  dEta_prior_mean = 0.0,
-  dEta_prior_sd   = 1.0,
-  sphi_prior_mean = 0.0,   # half-normal at 0
-  sphi_prior_sd   = 2.0,
-  grainsize       = 1L
+  scuo         = scuo,   # reuse pre-computed SCUO
+  approx_min_n = 20L,
+  noncentered  = 0L,
+  anchor_phi   = 0L
 )
 
 cat("A =", d$A, "  K =", d$K, "  approx_min_n =", d$approx_min_n, "\n")
 pct_arcsine <- mean(d$N_ga >= d$approx_min_n) * 100
 cat(sprintf("Gene/AA pairs using arcsine branch: %.1f%%\n", pct_arcsine))
+cat(sprintf("dM_prior_mean range: [%.3f, %.3f]  (from low-SCUO genes)\n",
+            min(d$dM_prior_mean), max(d$dM_prior_mean)))
 cat("\n")
 
 # --------------------------------------------------------------------------
@@ -137,23 +139,16 @@ sep()
 cat("STAGE 4: optimize() -- MAP\n")
 sep()
 
-# Zero init: dM=0, dEta=0 -> uniform codon probs; latent_phi=0 -> phi=1 for all genes.
-# Stan encodes sphi on log scale (lower=0 constraint), so init=0 -> sphi=exp(0)=1.
-# Keeps the optimizer in the well-behaved interior; random U(-2,2) init can push
-# some p_k near 1 and trigger the cross-gradient singularity.
-init_zero <- list(list(
-  dM         = rep(0, d$K),
-  dEta       = rep(0, d$K),
-  latent_phi = rep(0, d$G),
-  sphi       = 1.0,
-  mphi_param = 0.0
-))
+# SCUO-based init: latent_phi proportional to log(SCUO), centered and scaled.
+# dM=0, dEta=0 gives uniform codon probs at the start; phi varies by gene from
+# codon bias -- already in the right ballpark without any MCMC.
+scuo_init <- genomeToStanInit(genome, d, scuo = scuo)
 
 t_opt <- system.time({
   fit_opt <- tryCatch(
     mod$optimize(
       data        = d,
-      init        = init_zero,
+      init        = list(scuo_init),
       threads     = threads,
       iter        = 5000L,
       algorithm   = "lbfgs",
@@ -210,7 +205,7 @@ t_vi <- system.time({
   fit_vi <- tryCatch(
     mod$variational(
       data           = d,
-      init           = init_zero,
+      init           = list(scuo_init),
       threads        = threads,
       algorithm      = "meanfield",
       iter           = 20000L,
@@ -269,7 +264,7 @@ t_hmc <- system.time({
   fit_hmc <- tryCatch(
     mod$sample(
       data             = d,
-      init             = init_zero,
+      init             = list(scuo_init),
       chains           = 1L,
       iter_warmup      = 300L,
       iter_sampling    = 200L,
