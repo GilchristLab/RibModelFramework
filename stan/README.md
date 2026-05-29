@@ -42,6 +42,7 @@ The two backends are alternatives, not replacements.
 | `roc_basic.stan`                          | fixed   | centered only (no funnel when sphi fixed) |
 | `roc_sphi_est.stan`                       | sampled | unified: centered + NC via `noncentered` data flag |
 | `roc_mixture_sphi_geomean_soft.stan`      | mixture | unified: centered + NC via `noncentered` data flag; geomean(phi)=1 |
+| `roc_arcsine.stan`                        | sampled | hybrid arcsine/exact likelihood; intended as warm-start for exact models |
 
 **Legacy files (retained for reference, not called by fit.stan.R):**
 
@@ -162,6 +163,86 @@ fit:
 
 mu2 is DERIVED from the geomean(phi) = 1 constraint (PHI_CONSTRAINT_GEOMEAN),
 not free.  Label-switching guard `mu2 >= mu1` is in the model block.
+
+## Arcsine approximation (`roc_arcsine.stan`)
+
+### What it is
+
+A variance-stabilising replacement for the exact multinomial log-likelihood.
+For each (gene g, AA group a) pair with total codon count N:
+
+```
+N == 0              -> skip
+N >= approx_min_n   -> arcsine:  sum_{k=non-ref} -2N*(asin(sqrt(c_k/N)) - asin(sqrt(p_k)))^2
+N <  approx_min_n   -> exact:    sum_k c_k * log(p_k)
+```
+
+Only K_a - 1 non-reference codons are summed in the arcsine branch.  Using
+all K_a terms would double-count: for K=2, `asin(sqrt(x)) + asin(sqrt(1-x)) = pi/2`
+identically, so the K-th arcsine term is a linear function of the first K-1.
+
+### Threshold
+
+The threshold `approx_min_n` (default 20) is on the **total observed count
+N = sum(c_k)**, not on N/K (average expected count per cell).  This is correct
+because the arcsine transform's variance `1/(4N)` depends only on N, not on the
+individual probabilities p_k.  The standard multinomial normal-approximation
+condition (N*p_k >= 5 per cell) is the wrong criterion here.
+
+The threshold is on fixed data -- never on a parameter -- so it creates no
+gradient discontinuity for HMC.
+
+### Error properties
+
+The arcsine approximation introduces a **constant systematic bias in LL ratios**
+of approximately 15-25% (empirically ~20% for typical ROC parameters and
+skewed codon distributions).  Key properties:
+
+- **Does NOT decrease with N** when count proportions c_k/N are held fixed.
+  Both delta_exact and delta_arcsine scale linearly with N; their ratio is
+  fixed by the arcsin-vs-log curvature difference at the observed proportions.
+- **Posterior modes are preserved**: the MLE is identical for both methods
+  (maximum at p_k = c_k/N).  Point estimates (MAP, posterior mean) agree
+  within ~15% of sphi across runs.
+- **Posteriors are distorted**: the arcsine likelihood is shallower than the
+  exact multinomial, effectively tempering the likelihood by ~1/1.2.  CIs
+  from arcsine alone are not trustworthy.
+- **Sign of LL ratios is always preserved**: both methods agree on which
+  parameter move is an improvement.
+
+### Intended use: warm-start, not final inference
+
+The arcsine model is designed as a **fast first stage** for the two-stage
+workflow:
+
+```
+Stage 1:  roc_arcsine.stan  ->  optimize() or variational()  [seconds-minutes]
+          Produces: posterior mean and covariance for (dM, dEta, phi, sphi)
+
+Stage 2:  roc_sphi_est.stan ->  sample()  [minutes-hours]
+          Initialize chains at Stage 1 posterior mean
+          Pass Stage 1 covariance as initial mass matrix
+          -> dramatically shorter warmup
+```
+
+The arcsine Gaussian structure is also directly suitable for Stan's ADVI
+(Automatic Differentiation Variational Inference): the quadratic form
+`-2N*(asin(sqrt(phat)) - asin(sqrt(p)))^2` is approximately Gaussian in the
+parameters, making ADVI's mean-field Gaussian family a good match.  The ELBO
+(Evidence Lower Bound) is the objective ADVI maximizes; it benefits from the
+near-Gaussian likelihood surface.
+
+### Benchmark (G=2000, 5000 iterations, AnaCoDa MH-MCMC)
+
+The arcsine is **not** faster for standard MH-MCMC: it adds exp/sqrt/asin
+operations on top of the same `calculateLogCodonProbabilityVector` call.
+The speedup comes only from Stan's gradient-based samplers and VI methods.
+
+```
+AnaCoDa MH:  exact=26 ms/iter, arcsine=45 ms/iter  (arcsine 1.7x slower)
+Stan HMC:    both expected comparable per-iter; arcsine may adapt faster
+Stan ADVI:   arcsine enables closed-form ELBO; expect 10-100x speedup over HMC
+```
 
 ## Data layout
 
