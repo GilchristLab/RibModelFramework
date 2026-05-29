@@ -258,6 +258,66 @@ if (any(!is.finite(dM_vi)))    { cat("FAIL: NaN/Inf in dM ADVI draws\n");   ok_v
 if (ok_vi) cat("PASS: variational() returned sane draws\n")
 
 # --------------------------------------------------------------------------
+# 6. sample() -- HMC gradient check (1 chain, short run)
+# --------------------------------------------------------------------------
+sep()
+cat("STAGE 6: sample() -- HMC gradient check\n")
+sep()
+cat("1 chain, warmup=300, sampling=200, threads_per_chain=", threads, "\n")
+
+t_hmc <- system.time({
+  fit_hmc <- tryCatch(
+    mod$sample(
+      data             = d,
+      init             = init_zero,
+      chains           = 1L,
+      iter_warmup      = 300L,
+      iter_sampling    = 200L,
+      threads_per_chain = threads,
+      refresh          = 100,
+      show_messages    = TRUE
+    ),
+    error = function(e) e
+  )
+})["elapsed"]
+
+if (inherits(fit_hmc, "error")) {
+  cat("FAIL:", conditionMessage(fit_hmc), "\n")
+  quit(status = 1)
+}
+
+cat(sprintf("\nHMC wall time: %.1f s\n", t_hmc))
+
+diag       <- fit_hmc$diagnostic_summary(quiet = TRUE)
+n_div      <- sum(diag$num_divergent)
+n_max_td   <- sum(diag$num_max_treedepth)
+ebfmi      <- diag$ebfmi
+
+cat(sprintf("Divergences:      %d  (want 0 or very few)\n", n_div))
+cat(sprintf("Max treedepth:    %d\n", n_max_td))
+cat(sprintf("E-BFMI:           %.3f  (want > 0.3)\n", ebfmi))
+
+draws_hmc  <- fit_hmc$draws(format = "df")
+sphi_hmc   <- draws_hmc$sphi
+phi_hmc    <- as.numeric(unlist(draws_hmc[, paste0("phi_out[", 1:min(d$G, 10), "]")]))
+
+sphi_summ  <- fit_hmc$summary("sphi")
+cat(sprintf("sphi:  mean=%.4f  sd=%.4f  rhat=%.3f  ess_bulk=%.0f\n",
+            sphi_summ$mean, sphi_summ$sd,
+            sphi_summ$rhat, sphi_summ$ess_bulk))
+cat(sprintf("phi geomean (HMC sample): %.3f\n",
+            exp(mean(log(phi_hmc[phi_hmc > 0])))))
+
+ok_hmc <- TRUE
+if (n_div > 10)              { cat("WARN: many divergences\n") }
+if (ebfmi < 0.3)             { cat("WARN: low E-BFMI (", round(ebfmi,3), ")\n") }
+if (sphi_summ$rhat > 1.1)    { cat("WARN: high R-hat for sphi\n") }
+if (any(!is.finite(sphi_hmc))){ cat("FAIL: NaN/Inf in sphi HMC draws\n"); ok_hmc <- FALSE }
+if (any(sphi_hmc <= 0))       { cat("FAIL: sphi <= 0 in HMC draws\n");    ok_hmc <- FALSE }
+if (ok_hmc) cat("PASS: sample() completed with finite draws\n")
+cat("\n")
+
+# --------------------------------------------------------------------------
 # Summary
 # --------------------------------------------------------------------------
 sep()
@@ -269,8 +329,10 @@ cat(sprintf("  Compile:      %.1f s\n", t_compile))
 cat(sprintf("  optimize():   %.1f s   lp*=%.1f   sphi=%.4f\n", t_opt, lp_opt, sphi_opt))
 cat(sprintf("  variational():%.1f s   sphi mean=%.4f  sd=%.4f\n",
             t_vi, mean(sphi_vi), sd(sphi_vi)))
+cat(sprintf("  sample():     %.1f s   sphi mean=%.4f  divs=%d  E-BFMI=%.3f\n",
+            t_hmc, mean(sphi_hmc), n_div, ebfmi))
 cat(sprintf("  Threads:      %d\n", threads))
 
-all_ok <- ok_opt && ok_vi
+all_ok <- ok_opt && ok_vi && ok_hmc
 cat(sprintf("\nOverall: %s\n", if (all_ok) "PASS" else "FAIL"))
 if (!all_ok) quit(status = 1)
