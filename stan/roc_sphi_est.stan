@@ -79,6 +79,34 @@ data {
     int<lower=0, upper=1> noncentered;  // 0=centered (default), 1=non-centered
     int<lower=0, upper=1> anchor_phi;   // 0=mean(phi)=1 via mphi=-sphi^2/2 (default), 1=median(phi)=1 via soft prior on mphi
     real<lower=0> mphi_prior_sd;        // SD of soft median anchor prior; ignored when anchor_phi=0
+
+    // Scale-anchored selection (phi-dEta ridge reparameterization).
+    //   deta_scale_anchor = 0 (default): dEta enters the likelihood directly.
+    //   deta_scale_anchor = 1: the sampled `dEta` vector is interpreted as dS
+    //     (selection at the anchor phi level) and the likelihood uses
+    //     dEta_eff = dS * exp(-(mphi - deta_anchor_ref)).  The likelihood only
+    //     ever uses the product dEta*phi and phi = exp(mphi + dev), so the
+    //     global level mphi cancels out of that product and dS is decorrelated
+    //     from mphi -- collapsing the dominant dEta-phi scale ridge.  REQUIRES
+    //     anchor_phi=1 so mphi is an explicit (sampled) parameter tracking the
+    //     global phi level (with anchor_phi=0, mphi=-sphi^2/2 does not track
+    //     the free mean(log_phi) drift, so the ridge is only partly removed).
+    int<lower=0, upper=1> deta_scale_anchor;
+    real deta_anchor_ref;               // reference mphi level dS anchors at; ignored when deta_scale_anchor=0
+
+    // Phi-centering (dM-dEta intercept-slope decorrelation).  The likelihood
+    //   eta_{g,c} = -dM_c - dEta_c * phi_g
+    // is a per-codon regression of eta on phi with intercept -dM_c and slope
+    // -dEta_c; an uncentered predictor (phi_g ~ 1-4, not 0) makes intercept
+    // and slope strongly collinear (measured corr(dM_c,dEta_c) ~ -0.4 on every
+    // codon).  Subtracting a center c decorrelates them:
+    //   eta_{g,c} = -dM_c - dEta_eff_c * (phi_g - c)
+    // Here the sampled `dM` is the intercept AT phi=c; the dM prior is applied
+    // to the reconstructed intercept-at-0, dM_at0 = dM - dEta_eff*c, so an
+    // informative dM prior (scuo_low/encp_low) keeps its meaning and is not
+    // biased by c.  deta_phi_center = 0 disables centering (backward compatible).
+    // Composes independently with deta_scale_anchor.
+    real deta_phi_center;
     int<lower=1> grainsize;
 }
 
@@ -103,11 +131,28 @@ transformed parameters {
     // log_phi: identity when centered; derived from z_phi when non-centered.
     vector[G] log_phi = noncentered ? (mphi + sphi * latent_phi) : latent_phi;
     vector<lower=0>[G] phi = exp(log_phi);
+
+    // Effective selection used in the likelihood.  When deta_scale_anchor=1
+    // the sampled `dEta` is dS and dEta_eff rescales it by exp(-(mphi-ref))
+    // so the mphi dependence cancels in the dEta_eff*phi product (see data
+    // block).  When 0, dEta_eff == dEta (backward compatible).
+    vector[K] dEta_eff = (deta_scale_anchor == 1)
+        ? dEta * exp(-(mphi - deta_anchor_ref))
+        : dEta;
+
+    // Phi-centering: predictor used in the likelihood, and the intercept-at-0
+    // (dM_at0) that the dM prior is placed on.  deta_phi_center=0 => phi_eff
+    // == phi and dM_at0 == dM (identical to the un-centered model).
+    vector[G] phi_eff = phi - deta_phi_center;
+    vector[K] dM_at0  = dM - dEta_eff * deta_phi_center;
 }
 
 model {
-    dM   ~ normal(dM_prior_mean, dM_prior_sd);
-    dEta ~ normal(dEta_prior_mean, dEta_prior_sd);
+    // Prior on the intercept-at-phi=0 so an informative dM prior keeps its
+    // meaning under centering (dM_at0 == dM when deta_phi_center=0).  The map
+    // (dM,dEta) -> (dM_at0,dEta) is a unit-Jacobian shear, so no correction.
+    dM_at0 ~ normal(dM_prior_mean, dM_prior_sd);
+    dEta   ~ normal(dEta_prior_mean, dEta_prior_sd);
     sphi ~ normal(sphi_prior_mean, sphi_prior_sd);  // truncated to positive via lower=0 constraint
 
     // Phi-scale anchor prior on mphi_param.  When anchor_phi=1, this softly
@@ -130,5 +175,5 @@ model {
 
     target += reduce_sum(partial_sum, gene_indices, grainsize,
                          A, aa_start, aa_end, y_k, N_ga,
-                         dM, dEta, phi);
+                         dM, dEta_eff, phi_eff);
 }
