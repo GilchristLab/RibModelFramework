@@ -10,9 +10,10 @@ class ROCModel : public Model
 		ROCParameter *parameter;
 
 		// Likelihood approximation method: 0 = exact multinomial, 1 = hybrid arcsine.
-		// approxMinExpected: minimum average expected count per synonymous codon
-		// (n / numCodons) required to apply the arcsine approximation; falls back
-		// to exact multinomial below this threshold.
+		// approxMinExpected: minimum total observed codon count n = sum(c_i) required
+		// to apply the arcsine approximation.  The arcsine variance 1/(4n) depends
+		// only on n, not on the individual cell probabilities p_i, so the threshold
+		// is on n alone.  Falls back to exact multinomial below this value.
 		int approxMethod;
 		double approxMinExpected;
 
@@ -32,7 +33,7 @@ class ROCModel : public Model
 
 		//Constructors & Destructors:
 		ROCModel(bool _withPhi = false, bool _fix_sEpsilon = false,
-		         int _approxMethod = 0, double _approxMinExpected = 5.0);
+		         int _approxMethod = 0, double _approxMinExpected = 20.0);
 		virtual ~ROCModel();
 
 		std::string type = "ROC";

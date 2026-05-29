@@ -20,11 +20,13 @@
 #'   fallback otherwise.  The arcsine approximation is at least as accurate as the normal
 #'   approximation and is valid down to average expected counts of ~2--3.
 #'
-#' @param approx.min.expected (ROC only, used when \code{approx != FALSE}) Minimum average
-#'   expected count per synonymous codon (\eqn{n / K}) required to apply the arcsine
-#'   approximation.  Amino acid / gene combinations below this threshold fall back to the
-#'   exact multinomial.  Default is \code{5.0}; lower values (e.g. \code{2.0}) extend
-#'   coverage at the cost of somewhat larger approximation error.
+#' @param approx.min.expected (ROC only, used when \code{approx != FALSE}) Minimum total
+#'   observed codon count \eqn{n = \sum c_i} for an amino acid in a gene required to
+#'   apply the arcsine approximation.  The arcsine variance \eqn{1/(4n)} depends only
+#'   on \eqn{n}, not on the individual category probabilities, so the threshold is on
+#'   \eqn{n} alone (not \eqn{n/K}).  Amino acid / gene combinations below this threshold
+#'   fall back to the exact multinomial.  Default is \code{20}; typical valid range is
+#'   10--30 depending on the desired accuracy.
 #'
 #' @return This function returns the model object created.
 #'
@@ -70,7 +72,7 @@
 
 initializeModelObject <- function(parameter, model = "ROC", with.phi = FALSE,
                                   fix.observation.noise = FALSE, rfp.count.column = 1,
-                                  approx = FALSE, approx.min.expected = 5.0) {
+                                  approx = FALSE, approx.min.expected = 20.0) {
   if (model == "ROC") {
     approx_int <- .approxToInt(approx)
     c.model <- new(ROCModel, with.phi, fix.observation.noise, approx_int, approx.min.expected)

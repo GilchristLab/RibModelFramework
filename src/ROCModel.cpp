@@ -25,12 +25,14 @@ ROCModel::~ROCModel()
 
 double ROCModel::calculateLogLikelihoodPerAAPerGene(unsigned numCodons, int codonCount[], double mutation[], double selection[], double phiValue)
 {
-	// Dispatch to arcsine approximation when enabled and the average expected
-	// count per synonymous codon is at or above the configured threshold.
+	// Dispatch to arcsine approximation when enabled and the total observed
+	// codon count n meets the threshold.  The arcsine transform's accuracy
+	// depends on n alone (not n/K), because the variance 1/(4n) does not
+	// depend on the category probabilities p_i.  Default approxMinExpected=20.
 	if (approxMethod == APPROX_HYBRID_ARCSINE) {
 		int n = 0;
 		for (unsigned i = 0; i < numCodons; i++) n += codonCount[i];
-		if (n > 0 && (double)n / numCodons >= approxMinExpected)
+		if ((double)n >= approxMinExpected)
 			return calculateLogLikelihoodPerAAPerGeneArcsine(numCodons, codonCount, mutation, selection, phiValue, n);
 	}
 
