@@ -24,6 +24,18 @@
  *     sphi2  <= sphi1 / ratio_min   (sampled via sphi_ratio in (0, 1/ratio_min])
  *     p      >= p_min               (>= 1 - p is the tail weight)
  *
+ * Hyperpriors are non-zero-centered Normals (NOT half-normals at zero):
+ *
+ *     sphi1      ~ N(sphi1_prior_mean,      sphi1_prior_sd)        (matches single-LN sphi prior)
+ *     mphi2      ~ N(mphi2_prior_mean,      mphi2_prior_sd)
+ *     sphi_ratio ~ N(sphi_ratio_prior_mean, sphi_ratio_prior_sd)   (centered in the allowed interval)
+ *
+ * Each is truncated by its <lower=>/<upper=> bound in the parameters block.
+ * The wrapper sets the priors from either YAML defaults (e.g. 1.4, 0.05 for
+ * sphi1 matching the single-LN convention) or the single-LN posterior
+ * summary (when phi.prior.single.ln.reference is set), per the hybrid rule
+ * agreed for task #14.
+ *
  * See analysis/02x_Dual.LN.ROC.MCMC.Fits/notes/component1-anchored-dual-LN.md
  * (Lokiarchaeota repo) for design rationale and YAML schema.
  *
@@ -131,14 +143,26 @@ data {
 
     // ---- Single-LN posterior reference (wrapper precomputes from manifest) ----
     real q_log;                            // mphi_s + qnorm(tail_quantile) * sphi_s
-    real<lower=0> mphi2_prior_scale;       // half-normal scale on (mphi2 - q_log)
+    real mphi2_prior_mean;                 // location of Normal prior on mphi2 (truncated to >= q_log)
+    real<lower=0> mphi2_prior_sd;          // SD of Normal prior on mphi2
 
-    // ---- Bulk-component (component 1) hyperprior ----
-    real<lower=0> sphi1_prior_scale;       // half-normal scale on sphi1
+    // ---- Bulk-component (component 1) hyperprior on sphi1 ----
+    // Non-zero-centered Normal matching the single-LN sphi prior convention.
+    // Default in the wrapper: inherit YAML sphi.prior.mean / sphi.prior.sd
+    // (e.g., 1.4 / 0.05) or pull from single-LN posterior summary when
+    // phi.prior.single.ln.reference is set.  Truncated to positive by the
+    // <lower=0> declaration on sphi1 in the parameters block.
+    real<lower=0> sphi1_prior_mean;        // e.g. 1.4 (YAML default) or sphi_s (single-LN posterior mean)
+    real<lower=0> sphi1_prior_sd;          // e.g. 0.05 (YAML default) or single-LN posterior SD on sphi
 
     // ---- Scale-ratio constraint: sphi_ratio = sphi2 / sphi1 ----
     real<lower=0, upper=1> inv_ratio_min;  // = 1 / ratio_min (e.g. 0.2 for ratio_min=5)
-    real<lower=0> sphi_ratio_prior_scale;  // half-normal scale on sphi_ratio
+    // Non-zero-centered Normal prior on sphi_ratio.  Default mean is at the
+    // midpoint of the allowed interval (inv_ratio_min/2); default sd allows
+    // most of the interval to be explored.  NOT half-normal at 0 (which would
+    // wrongly favor sphi2 -> 0).
+    real<lower=0> sphi_ratio_prior_mean;   // e.g. inv_ratio_min/2
+    real<lower=0> sphi_ratio_prior_sd;     // e.g. inv_ratio_min/2
 
     // ---- Bulk weight constraint: p in [p_min, 1] ----
     real<lower=0, upper=1> p_min;          // e.g. 0.95
@@ -181,12 +205,15 @@ transformed parameters {
 }
 
 model {
-    // Hyperpriors.  Bounded declarations produce truncated densities; the
-    // truncation factors are constants and do not affect MCMC posterior shape.
+    // Hyperpriors.  All <lower=> / <upper=> bounds in `parameters` truncate
+    // the densities below; the truncation factors are constants and do not
+    // affect MCMC posterior shape.  All priors are non-zero-centered Normals
+    // (NOT half-normals at zero) because the bulk's biological prior knowledge
+    // points to a specific location, not "near zero".
     p          ~ beta(p_alpha, p_beta);
-    sphi1      ~ normal(0, sphi1_prior_scale);          // half-normal via <lower=0>
-    sphi_ratio ~ normal(0, sphi_ratio_prior_scale);     // half-normal on (0, inv_ratio_min]
-    mphi2      ~ normal(q_log, mphi2_prior_scale);      // truncated to mphi2 >= q_log
+    sphi1      ~ normal(sphi1_prior_mean, sphi1_prior_sd);
+    sphi_ratio ~ normal(sphi_ratio_prior_mean, sphi_ratio_prior_sd);
+    mphi2      ~ normal(mphi2_prior_mean, mphi2_prior_sd);
 
     // CSP priors (vectorized; outside reduce_sum since vector ops already
     // benefit from Stan's vectorization).
