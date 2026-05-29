@@ -60,8 +60,12 @@ Parameter::Parameter()
 	stdDevSynthesisRate_proposed.resize(1);
 	numAcceptForStdDevSynthesisRate = 0u;
 	bias_stdDevSynthesisRate = 0.0;
+	// sphi prior is OFF by default; calculateLogLikelihoodRatioForHyperParameters
+	// gates on `sphiPriorSd > 0.0`, so sd=0.0 means no prior.  Callers opt in
+	// via setSphiPrior(mu, sd); see RCPP_Parameter.cpp.  Mu's default value is
+	// a placeholder; it is ignored unless setSphiPrior is called with sd>0.
 	sphiPriorMu = 1.4;
-	sphiPriorSd = 0.05;
+	sphiPriorSd = 0.0;
 	bias_phi = 0.0;
 	numMutationCategories = 0u;
 	numSelectionCategories = 0u;
@@ -119,8 +123,12 @@ Parameter::Parameter(unsigned _maxGrouping)
 	stdDevSynthesisRate_proposed.resize(1);
 	numAcceptForStdDevSynthesisRate = 0u;
 	bias_stdDevSynthesisRate = 0.0;
+	// sphi prior is OFF by default; calculateLogLikelihoodRatioForHyperParameters
+	// gates on `sphiPriorSd > 0.0`, so sd=0.0 means no prior.  Callers opt in
+	// via setSphiPrior(mu, sd); see RCPP_Parameter.cpp.  Mu's default value is
+	// a placeholder; it is ignored unless setSphiPrior is called with sd>0.
 	sphiPriorMu = 1.4;
-	sphiPriorSd = 0.05;
+	sphiPriorSd = 0.0;
 	bias_phi = 0.0;
 	numMutationCategories = 0u;
 	numSelectionCategories = 0u;
