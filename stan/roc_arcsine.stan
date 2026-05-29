@@ -90,11 +90,21 @@ functions {
                 if (N >= approx_min_n) {
                     /* ---- Arcsine approximation --------------------------------
                      * Sum K_a - 1 marginal binomial arcsine terms.
-                     * Reference codon excluded; see file header for rationale. */
+                     * Reference codon excluded; see file header for rationale.
+                     *
+                     * p_k is clamped to (1e-12, 1-1e-12) to prevent a gradient
+                     * singularity.  The cross-gradient d/d(eta_j)[arcsine_k term]
+                     * for j != k is proportional to p_j * sqrt(p_k) / sqrt(1-p_k),
+                     * which diverges as p_k -> 1.  The diagonal gradient cancels
+                     * via the softmax Jacobian and is always finite, but the cross
+                     * terms do not.  Clamping at 1e-12 keeps gradients bounded
+                     * everywhere without affecting inference at reasonable parameter
+                     * values (p_k = 1-1e-12 corresponds to a logit of ~27). */
                     real N_r = N;
                     for (k in 1:n_nonref) {
                         real phat = y_k[g, s - 1 + k] * 1.0 / N_r;
-                        real p_k  = exp(eta_full[k + 1] - log_Z);
+                        real p_k  = fmin(1.0 - 1e-12, fmax(1e-12,
+                                         exp(eta_full[k + 1] - log_Z)));
                         real diff = asin(sqrt(phat)) - asin(sqrt(p_k));
                         lp += -2.0 * N_r * diff ^ 2;
                     }
