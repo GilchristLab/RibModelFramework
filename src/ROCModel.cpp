@@ -6,11 +6,13 @@
 //--------------------------------------------------//
 
 
-ROCModel::ROCModel(bool _withPhi, bool _fix_sEpsilon) : Model()
+ROCModel::ROCModel(bool _withPhi, bool _fix_sEpsilon, int _approxMethod, double _approxMinExpected) : Model()
 {
 	parameter = 0;
 	withPhi = _withPhi;
 	fix_sEpsilon = _fix_sEpsilon;
+	approxMethod = _approxMethod;
+	approxMinExpected = _approxMinExpected;
 	parameter_types = {"Evolutionary"};
 }
 
@@ -23,16 +25,50 @@ ROCModel::~ROCModel()
 
 double ROCModel::calculateLogLikelihoodPerAAPerGene(unsigned numCodons, int codonCount[], double mutation[], double selection[], double phiValue)
 {
+	// Dispatch to arcsine approximation when enabled and the average expected
+	// count per synonymous codon is at or above the configured threshold.
+	if (approxMethod == APPROX_HYBRID_ARCSINE) {
+		int n = 0;
+		for (unsigned i = 0; i < numCodons; i++) n += codonCount[i];
+		if (n > 0 && (double)n / numCodons >= approxMinExpected)
+			return calculateLogLikelihoodPerAAPerGeneArcsine(numCodons, codonCount, mutation, selection, phiValue, n);
+	}
+
+	// Exact multinomial log-likelihood.
 	double logLikelihood = 0.0;
-	// calculate codon probabilities
 	double logCodonProbabilities[6];
 	calculateLogCodonProbabilityVector(numCodons, mutation, selection, phiValue, logCodonProbabilities);
-
-	// calculate likelihood for current AA for this combination of selection and mutation category
 	for (unsigned i = 0; i < numCodons; i++)
 	{
 		if (codonCount[i] == 0) continue;
 		logLikelihood += logCodonProbabilities[i] * codonCount[i];
+	}
+	return logLikelihood;
+}
+
+
+double ROCModel::calculateLogLikelihoodPerAAPerGeneArcsine(unsigned numCodons, int codonCount[], double mutation[], double selection[], double phiValue, int n)
+{
+	// Variance-stabilising arcsine approximation to the multinomial log-likelihood.
+	//
+	// For each marginal Binomial(n, p_i), the transformed observation
+	//   y_i = arcsin(sqrt(c_i / n))
+	// is approximately N(arcsin(sqrt(p_i)), 1/(4n)), giving the quadratic:
+	//   logL_i = -2n * (arcsin(sqrt(c_i/n)) - arcsin(sqrt(p_i)))^2
+	//
+	// Only K-1 codons are summed (reference codon is dropped) to avoid
+	// double-counting the constraint sum(c_i) = n.
+	double logLikelihood = 0.0;
+	double n_d = (double)n;
+
+	double logP[6];
+	calculateLogCodonProbabilityVector(numCodons, mutation, selection, phiValue, logP);
+
+	for (unsigned i = 0; i < numCodons - 1; i++) {
+		double p_i   = std::exp(logP[i]);
+		double phat  = codonCount[i] / n_d;
+		double diff  = std::asin(std::sqrt(phat)) - std::asin(std::sqrt(p_i));
+		logLikelihood += -2.0 * n_d * diff * diff;
 	}
 	return logLikelihood;
 }

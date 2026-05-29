@@ -32,6 +32,8 @@ RCPP_MODULE(Model_mod)
 	class_<ROCModel>( "ROCModel" )
 		.derives<Model>("Model")
 		.constructor<bool, bool>()
+		.constructor<bool, bool, int>()
+		.constructor<bool, bool, int, double>()
 		//.finalizer(&roc_finalizer)
 		.method("CalculateProbabilitiesForCodons", &ROCModel::CalculateProbabilitiesForCodons,
 		        "Calculated codon probabilities. Input is one element shorter than output")
