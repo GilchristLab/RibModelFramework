@@ -368,3 +368,90 @@ test_that("sphi.init controls the spread of latent_phi", {
   init_wide   <- genomeToStanInit(genome, stan_d, scuo = scuo_vals, sphi.init = 2.0)
   expect_lt(sd(init_narrow$latent_phi), sd(init_wide$latent_phi))
 })
+
+
+# ======================================================================
+# Section 6: adviToWarmStart() -- init + inv_metric from ADVI fit
+# ======================================================================
+# Build a synthetic ADVI-like draws data frame to test adviToWarmStart()
+# without running actual Stan. We need a data.frame with columns matching
+# what mod$variational()$draws(format="df") would return.
+
+local({
+  G_s <- stan_d$G   # 8
+  K_s <- stan_d$K   # 40
+  N   <- 50L        # synthetic draw count
+
+  set.seed(42L)
+  # check.names=FALSE preserves "[" in column names (data.frame() would
+  # otherwise mangle them to e.g. "dM.1." via make.names())
+  synth_draws <- data.frame(
+    matrix(rnorm(N * K_s, mean = 0.5, sd = 0.3), nrow = N,
+           dimnames = list(NULL, paste0("dM[", 1:K_s, "]"))),
+    matrix(rnorm(N * K_s, mean = 0.0, sd = 1.5), nrow = N,
+           dimnames = list(NULL, paste0("dEta[", 1:K_s, "]"))),
+    matrix(rnorm(N * G_s, mean = 0.0, sd = 0.8), nrow = N,
+           dimnames = list(NULL, paste0("latent_phi[", 1:G_s, "]"))),
+    sphi       = abs(rnorm(N, mean = 1.3, sd = 0.15)),
+    mphi_param = rnorm(N, mean = -0.5, sd = 0.1),
+    check.names = FALSE
+  )
+
+  # Mock fit object with $draws() method
+  mock_fit <- list(draws = function(format = "df") synth_draws)
+
+  ws <<- adviToWarmStart(mock_fit, stan_d)
+})
+
+test_that("adviToWarmStart returns init and inv_metric", {
+  expect_named(ws, c("init", "inv_metric"))
+})
+
+test_that("init has all required parameter fields", {
+  expect_named(ws$init, c("dM", "dEta", "latent_phi", "sphi", "mphi_param"),
+               ignore.order = TRUE)
+})
+
+test_that("init field lengths match data dimensions", {
+  expect_length(ws$init$dM,         stan_d$K)
+  expect_length(ws$init$dEta,       stan_d$K)
+  expect_length(ws$init$latent_phi, stan_d$G)
+  expect_length(ws$init$sphi,       1L)
+  expect_length(ws$init$mphi_param, 1L)
+})
+
+test_that("inv_metric length is 2K + G + 2", {
+  expect_length(ws$inv_metric, 2L * stan_d$K + stan_d$G + 2L)
+})
+
+test_that("all inv_metric values are strictly positive", {
+  expect_true(all(ws$inv_metric > 0))
+})
+
+test_that("all init values are finite", {
+  expect_true(all(is.finite(ws$init$dM)))
+  expect_true(all(is.finite(ws$init$dEta)))
+  expect_true(all(is.finite(ws$init$latent_phi)))
+  expect_true(is.finite(ws$init$sphi))
+  expect_true(is.finite(ws$init$mphi_param))
+})
+
+test_that("init$sphi is positive", {
+  expect_gt(ws$init$sphi, 0)
+})
+
+test_that("inv_metric dEta block (K values) is wider than dM block", {
+  K_s    <- stan_d$K
+  dM_var   <- ws$inv_metric[seq_len(K_s)]
+  dEta_var <- ws$inv_metric[K_s + seq_len(K_s)]
+  # dEta draws had sd=1.5, dM draws had sd=0.3 -> dEta vars should be larger
+  expect_gt(mean(dEta_var), mean(dM_var))
+})
+
+test_that("sphi inv_metric entry is var(log(sphi)), not var(sphi)", {
+  # The sphi entry is at position 2K + G + 1
+  K_s <- stan_d$K; G_s <- stan_d$G
+  sphi_metric_idx <- 2L * K_s + G_s + 1L
+  # Should be small (log-scale variance), not on the raw scale
+  expect_lt(ws$inv_metric[sphi_metric_idx], 1.0)
+})

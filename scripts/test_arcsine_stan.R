@@ -246,6 +246,25 @@ cat(sprintf("phi  geomean (ADVI): %.3f  (should be ~1 for anchor_phi=0)\n",
 # Compare MAP vs ADVI means
 cat(sprintf("\nsphi: MAP=%.4f  ADVI_mean=%.4f\n", sphi_opt, mean(sphi_vi)))
 
+# Extract warm-start init + inv_metric from ADVI for use in Stage 2 (exact HMC).
+# inv_metric gives HMC a pre-estimated diagonal mass matrix so it needs fewer
+# warmup iterations to reach good scaling -- especially valuable for dEta.
+ws <- adviToWarmStart(fit_vi, d)
+cat(sprintf("inv_metric: length=%d  (2K+G+2 = %d)\n",
+            length(ws$inv_metric), 2L * d$K + d$G + 2L))
+cat(sprintf("inv_metric dM   : median=%.4f  range=[%.4f, %.4f]\n",
+            median(ws$inv_metric[seq_len(d$K)]),
+            min(ws$inv_metric[seq_len(d$K)]),
+            max(ws$inv_metric[seq_len(d$K)])))
+cat(sprintf("inv_metric dEta : median=%.4f  range=[%.4f, %.4f]\n",
+            median(ws$inv_metric[d$K + seq_len(d$K)]),
+            min(ws$inv_metric[d$K + seq_len(d$K)]),
+            max(ws$inv_metric[d$K + seq_len(d$K)])))
+cat(sprintf("inv_metric phi  : median=%.4f  (across G=%d genes)\n",
+            median(ws$inv_metric[(2L * d$K + 1L):(2L * d$K + d$G)]), d$G))
+cat(sprintf("inv_metric sphi : %.4f  (log-scale variance)\n",
+            ws$inv_metric[2L * d$K + d$G + 1L]))
+
 ok_vi <- TRUE
 if (any(!is.finite(sphi_vi)))  { cat("FAIL: NaN/Inf in sphi ADVI draws\n"); ok_vi <- FALSE }
 if (any(sphi_vi <= 0))          { cat("FAIL: sphi <= 0 in ADVI draws\n");    ok_vi <- FALSE }
