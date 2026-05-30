@@ -236,6 +236,102 @@ genomeToStanInit <- function(genome, data,
 }
 
 
+#' Build a warm-start init list and diagonal inv_metric from an ADVI fit
+#'
+#' Extracts posterior means (for the init point) and unconstrained marginal
+#' variances (for the diagonal inverse mass matrix) from a Stan ADVI fit.
+#' Pass the result to \code{mod$sample()} to give HMC a pre-estimated mass
+#' matrix, reducing the warmup iterations needed for good scaling.
+#'
+#' @section Why inv_metric matters:
+#' Stan's HMC adapts a mass matrix during warmup.  Starting from a good
+#' diagonal estimate (ADVI marginal variances in unconstrained space) means
+#' the sampler is already well-scaled on the first leapfrog step.  For
+#' parameters with large variance, such as dEta under the dEta-phi ridge,
+#' this can substantially reduce the number of max-treedepth proposals in
+#' early warmup.
+#'
+#' @section Unconstrained transforms:
+#' \code{sphi} has a \code{lower=0} constraint; Stan maps it to unconstrained
+#' space as \eqn{x = \log(\text{sphi})}, so its unconstrained variance is
+#' \eqn{\text{Var}(\log(\text{sphi}_{\text{draws}}))}.  All other parameters
+#' (\code{dM}, \code{dEta}, \code{latent\_phi}, \code{mphi\_param}) are
+#' unconstrained and their ADVI variances are used directly.
+#'
+#' @section Stan parameter ordering:
+#' The returned \code{inv_metric} vector follows Stan's internal unconstrained
+#' parameter ordering for \code{roc_arcsine.stan} and \code{roc_sphi_est.stan}:
+#' \code{dM[1..K]}, \code{dEta[1..K]}, \code{latent\_phi[1..G]},
+#' \code{sphi}, \code{mphi\_param}.
+#'
+#' @param fit A \code{CmdStanVB} object from \code{mod$variational()}.
+#' @param data The Stan data list returned by \code{\link{genomeToStanData}}.
+#'
+#' @return A named list:
+#'   \describe{
+#'     \item{init}{Named list of parameter starting values (posterior means in
+#'       constrained space).  Pass as \code{mod$sample(init = list(result$init))}.}
+#'     \item{inv_metric}{Numeric vector of unconstrained parameter variances
+#'       (diagonal inverse mass matrix).  Pass as
+#'       \code{mod$sample(inv_metric = result$inv_metric)}.}
+#'   }
+#'
+#' @seealso \code{\link{genomeToStanData}}, \code{\link{genomeToStanInit}}
+#'
+#' @examples
+#' \dontrun{
+#' d    <- genomeToStanData(genome, scuo = scuo)
+#' init <- genomeToStanInit(genome, d, scuo = scuo)
+#' fit_vi <- mod_arcsine$variational(data = d, init = list(init), threads = 4L)
+#' ws     <- adviToWarmStart(fit_vi, d)
+#' # Stage 2: exact HMC warm-started from ADVI
+#' fit_hmc <- mod_exact$sample(data    = d,
+#'                              init    = list(ws$init),
+#'                              inv_metric = ws$inv_metric,
+#'                              chains  = 4L, ...)
+#' }
+#'
+#' @export
+adviToWarmStart <- function(fit, data) {
+  draws <- fit$draws(format = "df")
+  G <- data$G
+  K <- data$K
+
+  dM_cols     <- paste0("dM[",         1:K, "]")
+  dEta_cols   <- paste0("dEta[",       1:K, "]")
+  lphi_cols   <- paste0("latent_phi[", 1:G, "]")
+
+  # ---- posterior means (constrained space) for init ----------------------
+  dM_mean     <- as.numeric(colMeans(draws[, dM_cols,   drop = FALSE]))
+  dEta_mean   <- as.numeric(colMeans(draws[, dEta_cols, drop = FALSE]))
+  lphi_mean   <- as.numeric(colMeans(draws[, lphi_cols, drop = FALSE]))
+  sphi_mean   <- mean(draws[["sphi"]])
+  mphi_mean   <- mean(draws[["mphi_param"]])
+
+  init <- list(
+    dM         = dM_mean,
+    dEta       = dEta_mean,
+    latent_phi = lphi_mean,
+    sphi       = sphi_mean,
+    mphi_param = mphi_mean
+  )
+
+  # ---- unconstrained variances for inv_metric ----------------------------
+  # dM, dEta, latent_phi, mphi_param: already unconstrained -> var directly
+  # sphi: lower=0 -> Stan unconstrained = log(sphi) -> var(log(draws))
+  dM_var   <- as.numeric(apply(draws[, dM_cols,   drop = FALSE], 2L, var))
+  dEta_var <- as.numeric(apply(draws[, dEta_cols, drop = FALSE], 2L, var))
+  lphi_var <- as.numeric(apply(draws[, lphi_cols, drop = FALSE], 2L, var))
+  sphi_var <- var(log(draws[["sphi"]]))
+  mphi_var <- var(draws[["mphi_param"]])
+
+  # Stan parameter order: dM[1..K], dEta[1..K], latent_phi[1..G], sphi, mphi_param
+  inv_metric <- c(dM_var, dEta_var, lphi_var, sphi_var, mphi_var)
+
+  list(init = init, inv_metric = inv_metric)
+}
+
+
 # -------------------------------------------------------------------------
 # Internal helpers
 # -------------------------------------------------------------------------
