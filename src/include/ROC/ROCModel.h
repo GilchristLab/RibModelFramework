@@ -9,13 +9,31 @@ class ROCModel : public Model
     private:
 		ROCParameter *parameter;
 
+		// Likelihood approximation method: 0 = exact multinomial, 1 = hybrid arcsine.
+		// approxMinExpected: minimum total observed codon count n = sum(c_i) required
+		// to apply the arcsine approximation.  The arcsine variance 1/(4n) depends
+		// only on n, not on the individual cell probabilities p_i, so the threshold
+		// is on n alone.  Falls back to exact multinomial below this value.
+		int approxMethod;
+		double approxMinExpected;
+
 		double calculateLogLikelihoodPerAAPerGene(unsigned numCodons, int codonCount[], double mutation[], double selection[], double phiValue);
+		// Arcsine-transform approximation to the multinomial log-likelihood.
+		// Uses K-1 marginal binomials (drops reference codon) to avoid double-counting
+		// the constraint sum(c_i) = n.  Each cell i contributes:
+		//   -2n * (arcsin(sqrt(c_i/n)) - arcsin(sqrt(p_i)))^2
+		double calculateLogLikelihoodPerAAPerGeneArcsine(unsigned numCodons, int codonCount[], double mutation[], double selection[], double phiValue, int n);
 		double calculateMutationPrior(std::string grouping, bool proposed = false); // TODO add to FONSE as well? // cedric
-		double calculateSelectionPrior(std::string grouping, bool proposed = false); 
+		double calculateSelectionPrior(std::string grouping, bool proposed = false);
 		void obtainCodonCount(SequenceSummary *sequenceSummary, std::string curAA, int codonCount[]);
     public:
+		// Approximation method constants (passed as approxMethod to constructor).
+		static const int APPROX_EXACT          = 0;
+		static const int APPROX_HYBRID_ARCSINE = 1;
+
 		//Constructors & Destructors:
-		ROCModel(bool _withPhi = false, bool _fix_sEpsilon = false);
+		ROCModel(bool _withPhi = false, bool _fix_sEpsilon = false,
+		         int _approxMethod = 0, double _approxMinExpected = 20.0);
 		virtual ~ROCModel();
 
 		std::string type = "ROC";
