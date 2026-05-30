@@ -4,22 +4,51 @@
 \alias{AdaptiveScheme.Native}
 \title{Construct the native (in-house) CSP adaptive proposal-width scheme.}
 \usage{
-AdaptiveScheme.Native()
+AdaptiveScheme.Native(
+  aggressiveness = 0.2,
+  prev.weight = 0.6,
+  ar.target.2codon = 0.35,
+  ar.target.4codon = 0.27,
+  ar.target.6codon = 0.234,
+  ar.band.half.width = 0.05
+)
+}
+\arguments{
+\item{aggressiveness}{Single scalar in (0, 1) controlling the scale
+factors: `adjustFactorLow = 1 - aggressiveness`, `adjustFactorHigh
+= 1 + aggressiveness`.  Larger values converge faster but with more
+thrash; smaller values are steadier but slower.  Default 0.2
+(preserves the legacy 0.8 / 1.2 behavior).
+Recommended: 0.1 (gentle), 0.2 (default), 0.3 (aggressive).}
+
+\item{prev.weight}{Single scalar in (0, 1) controlling the cov-blend
+mixture between the prior proposal cov and the sample cov estimated
+over the recent adaptation window:
+  `covarianceMatrix <- prev.weight * prev + (1 - prev.weight) * sample_cov`.
+Default 0.6 (preserves the legacy 0.6 / 0.4 blend).  Smaller values
+give faster cov-shape adaptation at the cost of higher shape
+variance; larger values give smoother shape estimates that lag the
+chain.  Independent of `aggressiveness`: scale and shape are
+controlled separately.}
 }
 \value{
 An object of S3 class `c("AdaptiveScheme.Native", "AdaptiveScheme")`.
 }
 \description{
 The default scheme that has shipped with RibModelFramework
-  since the early days.  Per-AA, on each adapt fire: if acceptance rate
-  is below 0.225, multiply per-codon `std_csp` by 0.8 and blend the
-  proposal covariance toward the sample covariance; if above 0.325,
-  multiply by 1.2; otherwise no change.  Constants are not user-tunable
-  in this scheme.
+  since the early days.  Per-AA, on each adapt fire, if the running
+  acceptance rate is outside a dimensionality-dependent target band
+  (Roberts-Gelman-Gilks 1997 / Roberts & Rosenthal 2001 optimal-AR
+  scaling), the proposal scale is multiplied by `1 - aggressiveness`
+  (when AR is too low) or `1 + aggressiveness` (when too high), and
+  the proposal covariance is blended toward the recent sample
+  covariance.  Target band is theory-driven and not user-tunable.
 }
 \examples{
-s <- AdaptiveScheme.Native()
-print(s)
+s  <- AdaptiveScheme.Native()                                       # legacy defaults
+s2 <- AdaptiveScheme.Native(aggressiveness = 0.3)                   # 0.7 / 1.3
+s3 <- AdaptiveScheme.Native(aggressiveness = 0.1, prev.weight = 0.4) # faster shape adapt
+print(s3)
 }
 \seealso{
 [AdaptiveScheme.AndrieuThoms()], [schemes.available()].
