@@ -37,7 +37,7 @@
  * summary (when phi.prior.single.ln.reference is set), per the hybrid rule
  * agreed for task #14.
  *
- * See analysis/02x_Dual.LN.ROC.MCMC.Fits/notes/component1-anchored-dual-LN.md
+ * See analysis/02x_Dual.LN.ROC.MCMC.Fits/notes/mphi1-implicit-dual-LN.md
  * (Lokiarchaeota repo) for design rationale and YAML schema.
  *
  * Naming convention: mphi / sphi throughout (task #15 phase 1, 2026-05-28).
