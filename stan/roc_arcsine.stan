@@ -62,7 +62,8 @@ functions {
             vector dM,
             vector dEta,
             vector phi,
-            int approx_min_n) {
+            int approx_min_n,
+            array[,] real asin_sqrt_phat) {
 
         real lp = 0;
 
@@ -99,13 +100,15 @@ functions {
                      * via the softmax Jacobian and is always finite, but the cross
                      * terms do not.  Clamping at 1e-12 keeps gradients bounded
                      * everywhere without affecting inference at reasonable parameter
-                     * values (p_k = 1-1e-12 corresponds to a logit of ~27). */
+                     * values (p_k = 1-1e-12 corresponds to a logit of ~27).
+                     *
+                     * asin_sqrt_phat[g, s-1+k] = asin(sqrt(c_k/N)) is precomputed
+                     * in transformed data -- it depends only on fixed data. */
                     real N_r = N;
                     for (k in 1:n_nonref) {
-                        real phat = y_k[g, s - 1 + k] * 1.0 / N_r;
                         real p_k  = fmin(1.0 - 1e-12, fmax(1e-12,
                                          exp(eta_full[k + 1] - log_Z)));
-                        real diff = asin(sqrt(phat)) - asin(sqrt(p_k));
+                        real diff = asin_sqrt_phat[g, s - 1 + k] - asin(sqrt(p_k));
                         lp += -2.0 * N_r * diff ^ 2;
                     }
                 } else {
@@ -150,6 +153,21 @@ data {
 transformed data {
     array[G] int gene_indices;
     for (g in 1:G) gene_indices[g] = g;
+
+    // Precompute asin(sqrt(c_k / N)) -- depends only on fixed data.
+    // Eliminates one asin + sqrt per (gene, non-ref codon) per gradient call.
+    array[G, K] real asin_sqrt_phat;
+    for (g in 1:G) {
+        for (a in 1:A) {
+            int N = N_ga[g, a];
+            int s = aa_start[a];
+            int e = aa_end[a];
+            for (k in 1:(e - s + 1)) {
+                asin_sqrt_phat[g, s - 1 + k] =
+                    (N == 0) ? 0.0 : asin(sqrt(y_k[g, s - 1 + k] * 1.0 / N));
+            }
+        }
+    }
 }
 
 parameters {
@@ -187,7 +205,7 @@ model {
     // ---- Hybrid arcsine / exact likelihood ----------------------------
     target += reduce_sum(partial_sum_hybrid, gene_indices, grainsize,
                          A, aa_start, aa_end, y_k, N_ga,
-                         dM, dEta, phi, approx_min_n);
+                         dM, dEta, phi, approx_min_n, asin_sqrt_phat);
 }
 
 generated quantities {

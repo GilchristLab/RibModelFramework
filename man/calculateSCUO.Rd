@@ -13,12 +13,34 @@ calculateSCUO(genome)
 returns the SCUO value for each gene in genome
 }
 \description{
-\code{calculateSCUO} calulates the SCUO value for each gene in genome. Note that if a codon is absent, this will be treated as NA and will be skipped in final calculation
+\code{calculateSCUO} calulates the SCUO value for each gene in genome.
+Note that if a codon is absent, this will be treated as NA and will be
+skipped in final calculation.  Implements Wan et al. 2004
+(\emph{International Journal of General Systems} 35(1):109-125) where
+SCUO is a composition-weighted sum of per-AA normalized entropy
+differences in [0, 1], with 0 = perfectly uniform usage and 1 = single
+codon per AA.
+}
+\details{
+Bug history: pre-2021 binaries of AnaCoDa shipped a version of this
+R wrapper that was missing the \code{-1*} negation on \code{aa.entropy},
+which inverted the sign of the per-AA normalized entropy difference
+and produced SCUO values in [0, ~2] anti-correlated with the canonical
+formula.  The bug was fixed in commit 8e4f9ce (2021-05-14) and is no
+longer present in any active branch on either GilchristLab or acope3
+upstreams; only the binary matters.  If your \code{calculateSCUO} call
+returns values outside [0, 1], rebuild AnaCoDa from current source.
+The C++ \code{Parameter::calculateSCUO} (used by
+\code{initializeSynthesisRateByGenome}) was never affected.
+
+Quick sanity check: a synthetic gene with perfectly uniform codon usage
+should yield SCUO ~ 0; a gene using a single codon per AA should yield
+SCUO ~ 1.
 }
 \examples{
 
 genome_file <- system.file("extdata", "genome.fasta", package = "AnaCoDa")
- 
+
 ## reading genome
 genome <- initializeGenomeObject(file = genome_file)
 scuo <- calculateSCUO(genome)

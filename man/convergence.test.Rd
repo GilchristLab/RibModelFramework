@@ -6,7 +6,7 @@
 \usage{
 convergence.test(
   object,
-  samples = 10,
+  samples = NULL,
   frac1 = 0.1,
   frac2 = 0.5,
   thin = 1,
@@ -18,9 +18,9 @@ convergence.test(
 \arguments{
 \item{object}{an object of either class Trace or MCMC}
 
-\item{samples}{number of samples at the end of the trace used to determine convergence (< length of trace). 
-Will use as starting point of convergence test. If the MCMC trace
-is of length x, then starting point for convergence test will be x - samples.}
+\item{samples}{number of samples at the end of the trace to use for the convergence test. If \code{NULL} (the default),
+the full trace is used. If \code{samples} exceeds the trace length, it is clamped. Pass an integer to restrict
+the test to the last \code{samples} samples (useful for ignoring early burn-in without re-extracting the trace).}
 
 \item{frac1}{fraction to use from beginning of samples}
 
