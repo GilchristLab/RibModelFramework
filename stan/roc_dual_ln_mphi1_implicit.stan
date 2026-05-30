@@ -1,12 +1,13 @@
 /* ============================================================================
- * roc_dual_ln_comp1.stan
+ * roc_dual_ln_mphi1_implicit.stan
  *
- * Component-1-anchored mixture-LN ROC model (task #14).
+ * Dual-LN mixture ROC model with mphi1 IMPLICIT (task #14).
  *
- * The unit-median(phi) constraint is applied to the BULK component ONLY,
- * not to the full mixture:
+ * mphi1 (the bulk component's location) is NOT a free parameter -- it
+ * is implicit, derived in `transformed parameters` from sphi1 via the
+ * relation that anchors mean(phi | bulk) = 1:
  *
- *     mphi1 = -sphi1^2 / 2      (=> median(phi | comp 1) = 1)
+ *     mphi1 = -sphi1^2 / 2      (=> mean(phi | bulk) = 1 under mphi convention)
  *
  * This makes the bulk's (mphi1, sphi1) directly comparable to a single-LN
  * fit on the same data, and lets a single-LN posterior on sphi serve as
@@ -190,7 +191,7 @@ parameters {
 }
 
 transformed parameters {
-    // Component-1 anchor: median(phi | comp 1) = 1.
+    // mphi1 implicit: derived from sphi1, anchoring mean(phi | bulk) = 1.
     real mphi1 = -0.5 * sphi1 * sphi1;
     real sphi2 = sphi1 * sphi_ratio;
 
