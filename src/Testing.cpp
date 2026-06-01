@@ -3401,120 +3401,6 @@ int testPATrace()
 */
 
 
-/* TODO: Rework or remove!
-int testPAParameter()
-{
-    int error = 0;
-    int globalError = 0;
-
-     * Section 1: 1 function tested in total.
-     * initPAParameterSet Function
-     * and related get/set functions as a consequence of the function setup:
-
-
-    //------------------------------------------//
-    //------ initPAParameterSet Function ------//
-    //------------------------------------------//
-
-     * Initialize parameter:
-     * Arguments: vector <double> stdDevSynthesisRate, unsigned numMixtures, vector <unsigned> geneAssignment,
-     *           vector <vector <unsigned>> mixtureDefinitionMatrix, bool splitSer, string mutationSelectionState
-     *
-     * Thus, let:
-
-
-    Genome genome;
-    //genome.readRFPData("/Users/hollisbui/RibModelDev/data/rfp/rfp.counts.by.codon.and.gene.GSE63789.wt.csv");
-    unsigned numMixtures = 3;
-    std::vector <double> stdDev(numMixtures, 1);
-    unsigned numGenes = genome.getGenomeSize();
-    std::vector <unsigned> geneAssignment(numGenes);
-    if (numMixtures == 1)
-    {
-        for (unsigned i = 0u; i < numGenes; i++)
-        {
-            geneAssignment[i] = 0u;
-        }
-    }
-    else if (numMixtures == 3)
-    {
-        for (unsigned i = 0u; i < numGenes; i++)
-        {
-            if (i < 961) geneAssignment[i] = 0u;
-            else if (i < 1418) geneAssignment[i] = 1u;
-            else geneAssignment[i] = 0u;
-        }
-    }
-    std::vector<std::vector<unsigned>> mixtureDefinitionMatrix;
-    bool splitSer = true;
-    std::string mutationSelectionState = Parameter::allUnique;
-
-    PAParameter parameter(stdDev, numMixtures, geneAssignment, mixtureDefinitionMatrix, splitSer, mutationSelectionState);
-
-     * This constructor in turn calls two functions: initParameterSet() and initPAParameterSet().
-     * initParameterSet should have been tested in testParameter(), above, but we must now
-     * test initPAParameterSet
-     *
-     * Thus, unit testing is done in order of variable changed:
-     * numParam, currentCodonSpecificParameter, proposedCodonSpecificParameter, std_csp, and groupList.
-     * This also introduces a level of uncertainty in what may be wrong, and thus an error in the following
-     * unit testing checks may be a result of the checking function or initParameterSet.
-
-
-    // numParam is set to 61 in initPAParameterSet.
-    unsigned numParam = parameter.getNumParam();
-    if (numParam != 61)
-    {
-        my_printError("Error in initPAParameterSet -- numParam is not set correctly.");
-        my_printError(" Value should be 61 but is instead %.\n", numParam);
-        error = 1;
-        globalError = 1;
-    }
-
-    // TODO: check the changed:
-    // currentCodonSpecificParameter
-    // proposedCodonSpecificParameter
-
-    // std_csp is set to 0.1 for each index in initPAParameterSet.
-    for (unsigned i = 0u; i < numParam; i++)
-    {
-        if (parameter.getStdCspForIndex(i) != 0.1)
-        {
-            my_printError("Error in InitializeSynthesisRate -- std_csp is not set correctly.");
-            my_printError(" Value at index % should be 0.1, but is instead %.\n", i, parameter.getStdCspForIndex(i));
-            error = 1;
-            globalError = 1;
-        }
-    }
-
-    // groupList is set to the same as this temporary group list in initPAParameterSet.
-    std::vector <std::string> tmpGroupList = {"GCA", "GCC", "GCG", "GCT", "TGC", "TGT", "GAC", "GAT", "GAA", "GAG",
-                                              "TTC", "TTT", "GGA", "GGC", "GGG", "GGT", "CAC", "CAT", "ATA", "ATC",
-                                              "ATT", "AAA", "AAG", "CTA", "CTC", "CTG", "CTT", "TTA", "TTG", "ATG",
-                                              "AAC", "AAT", "CCA", "CCC", "CCG", "CCT", "CAA", "CAG", "AGA", "AGG",
-                                              "CGA", "CGC", "CGG", "CGT", "TCA", "TCC", "TCG", "TCT", "ACA", "ACC",
-                                              "ACG", "ACT", "GTA", "GTC", "GTG", "GTT", "TGG", "TAC", "TAT", "AGC",
-                                              "AGT"};
-
-    if (parameter.getGroupList() != tmpGroupList)
-    {
-        my_printError("Error in initPAParameterSet -- groupList is not set correctly.\n");
-        error = 1;
-        globalError = 1;
-    }
-
-    if (!error)
-        my_print("PAParameter initPAParameterSet --- Pass\n");
-    else
-        error = 0; //Reset for next function.
-
-    //parameter.InitializeSynthesisRate(genome, stdDev[0]);
-
-    return globalError;
-}
-*/
-
-
 /* testMCMCAlgorithm (RCPP EXPOSED)
  * Arguments: None
  * Performs Unit Testing on functions within MCMCAlgorithm.cpp
@@ -3750,7 +3636,6 @@ RCPP_MODULE(Test_mod)
 	function("testGenome", &testGenome);
 	function("testParameter", &testParameter);
 	function("testCovarianceMatrix", &testCovarianceMatrix);
-	//function("testPAParameter", &testPAParameter);
 	function("testMCMCAlgorithm", &testMCMCAlgorithm);
 }
 #endif
