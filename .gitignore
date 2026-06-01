@@ -20,6 +20,15 @@ stan/roc_sphi_est_centered
 stan/roc_sphi_est_noncentered
 stan/roc_mixture_sphi_centered
 stan/roc_mixture_sphi_noncentered
+# PANSE compiled model executables (per-host; never commit ELF binaries)
+stan/panse_csp_only
+stan/panse_csp_only_sharednse
+stan/panse_basic
+stan/panse_basic_sharednse
+stan/panse_sphi_est_centered_sharednse
+stan/panse_sphi_est_noncentered_sharednse
+stan/panse_sphi_est_noncentered
+stan/panse_sphi_est_sumzero_sharednse
 # Branch+commit-tagged binaries at stan/build/<branch>-<sha>[-th]/<name>
 stan/build/
 stan/*.hpp
