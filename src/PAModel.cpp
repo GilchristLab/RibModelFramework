@@ -329,7 +329,6 @@ void PAModel::calculateLogLikelihoodRatioForHyperParameters(Genome &genome, unsi
                 }
             }
             logProbabilityRatio[i+1] = lpr;
-            my_print("this should not be here\n");
         }
     }
 }
@@ -992,7 +991,6 @@ double PAModel::calculateLogLikelihood(Genome &genome, std::vector<double> alpha
   double logLikelihood = 0.0;
   unsigned long Y = genome.getSumRFP();
   double U = Z/Y;
-  my_print("U: % Z:% Y:%\n",U,Z,Y);
   // for (unsigned i = 0u; i < genome.getGenomeSize(); i++)
   // {
   //   gene = &genome.getGene(i);
