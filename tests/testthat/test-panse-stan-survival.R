@@ -5,8 +5,7 @@ context("panse-stan: survival term")
 
 test_that("panse-stan: log_psuccess stays <= 0 across the prior grid incl. the q>q* breach (#24)", {
     skip_if_no_cmdstan()
-    mod <- panse_stan_model("panse_sphi_est_noncentered_sharednse")
-    mod$expose_functions(verbose = FALSE)
+    mod <- panse_stan_functions()
 
     # Grid spans published codon range AND well past the breach q* ~ 0.78-0.99,
     # where the OLD 2nd-order Taylor went positive (psuccess > 1). The hybrid
@@ -32,8 +31,7 @@ test_that("panse-stan: log_psuccess stays <= 0 across the prior grid incl. the q
 
 test_that("panse-stan: log_upper_incomplete_gamma matches the R reference (incl. s<=0)", {
     skip_if_no_cmdstan()
-    mod <- panse_stan_model("panse_sphi_est_noncentered_sharednse")
-    mod$expose_functions(verbose = FALSE)
+    mod <- panse_stan_functions()
     cases <- list(c(1 - 1.5, 3.5), c(1 - 2.0, 10), c(0, 5), c(1 - 0.5, 0.2), c(1 - 50, 700))
     for (cs in cases) {
         s <- cs[1]; x <- cs[2]

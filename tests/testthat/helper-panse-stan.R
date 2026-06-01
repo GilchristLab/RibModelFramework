@@ -54,13 +54,33 @@ load_panse_stan_fixture <- function() {
     readRDS(testthat::test_path("fixtures", "panse-stan", "likelihood_fixture.rds"))
 }
 
-# Stan data list ready for the sphi-est models: add sphi_prior_sd, drop the
-# extra (undeclared) phi field that the data-builder attaches.
-panse_stan_data_for_fit <- function(fx, sphi_prior_sd = 2.5) {
+# Stan data list tailored to each model family's data block:
+#   csp_only*  -> phi is FIXED input data
+#   basic*     -> phi is sampled; sphi is FIXED input data
+#   sphi_est*  -> phi & sphi are parameters; needs sphi_prior_sd
+panse_stan_data_for <- function(fx, model, sphi_prior_sd = 2.5) {
     sd <- fx$stan_data
-    sd$sphi_prior_sd <- sphi_prior_sd
     sd$phi <- NULL
+    if (grepl("csp_only", model)) {
+        sd$phi <- as.numeric(fx$truth$phi)
+    } else if (grepl("basic", model)) {
+        sd$sphi <- fx$truth$sphi
+    } else {                                  # sphi_est_*
+        sd$sphi_prior_sd <- sphi_prior_sd
+    }
     sd
+}
+
+# A separate model compiled WITH standalone functions, for expose_functions().
+# (expose_functions fails on a sampling exe loaded from cache.)
+.panse_stan_fn_models <- new.env(parent = emptyenv())
+panse_stan_functions <- function(name = "panse_sphi_est_noncentered_sharednse") {
+    if (!is.null(.panse_stan_fn_models[[name]])) return(.panse_stan_fn_models[[name]])
+    stan_file <- file.path(panse_stan_dir(), paste0(name, ".stan"))
+    m <- cmdstanr::cmdstan_model(stan_file, compile_standalone = TRUE, quiet = TRUE)
+    m$expose_functions(verbose = FALSE)
+    .panse_stan_fn_models[[name]] <- m
+    m
 }
 
 # Build a 1-draw draws_array of the truth parameters for the noncentered

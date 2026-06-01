@@ -8,8 +8,9 @@ context("panse-stan: likelihood")
 test_that("panse-stan: generated-quantities log_lik matches the R reference at truth", {
     skip_if_no_cmdstan()
     fx  <- load_panse_stan_fixture()
-    sd  <- panse_stan_data_for_fit(fx)
-    mod <- panse_stan_model("panse_sphi_est_noncentered_sharednse")
+    mod_name <- "panse_sphi_est_noncentered_sharednse"
+    sd  <- panse_stan_data_for(fx, mod_name)
+    mod <- panse_stan_model(mod_name)
     dr  <- panse_stan_truth_draws(fx)
 
     gq <- mod$generate_quantities(fitted_params = dr, data = sd,

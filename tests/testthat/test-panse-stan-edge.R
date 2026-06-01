@@ -7,7 +7,7 @@ context("panse-stan: edge cases")
 test_that("panse-stan: all-zero counts in a gene give finite log_lik", {
     skip_if_no_cmdstan()
     fx  <- load_panse_stan_fixture()
-    sd  <- panse_stan_data_for_fit(fx)
+    sd  <- panse_stan_data_for(fx, "panse_sphi_est_noncentered_sharednse")
     mod <- panse_stan_model("panse_sphi_est_noncentered_sharednse")
     dr  <- panse_stan_truth_draws(fx)
 
@@ -23,7 +23,7 @@ test_that("panse-stan: all-zero counts in a gene give finite log_lik", {
 test_that("panse-stan: masked positions contribute exactly 0 to log_lik", {
     skip_if_no_cmdstan()
     fx  <- load_panse_stan_fixture()
-    sd  <- panse_stan_data_for_fit(fx)
+    sd  <- panse_stan_data_for(fx, "panse_sphi_est_noncentered_sharednse")
     mod <- panse_stan_model("panse_sphi_est_noncentered_sharednse")
     dr  <- panse_stan_truth_draws(fx)
 
@@ -41,7 +41,7 @@ test_that("panse-stan: masked positions contribute exactly 0 to log_lik", {
 test_that("panse-stan: a single-codon gene is handled (survival has no prior position)", {
     skip_if_no_cmdstan()
     fx  <- load_panse_stan_fixture()
-    sd  <- panse_stan_data_for_fit(fx)
+    sd  <- panse_stan_data_for(fx, "panse_sphi_est_noncentered_sharednse")
     mod <- panse_stan_model("panse_sphi_est_noncentered_sharednse")
     dr  <- panse_stan_truth_draws(fx)
 
