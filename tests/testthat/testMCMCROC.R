@@ -48,15 +48,18 @@ samples <- 10
 thinning <- 10
 adaptiveWidth <- 10
 divergence.iteration <- 0
-# Log posterior values after ROC proposal fix (2026-03-07).
-# NOTE: These values are not perfectly reproducible between runs because
-# Parameter::randNorm() calls R's RNG (via RNGScope/rnorm) from inside
-# OpenMP parallel regions, which R explicitly documents as not thread-safe.
-# Even with ncores=1, this causes ~0.05% run-to-run variance (~500 units).
-# Comparisons therefore use 1% relative tolerance; real regressions would
-# shift values by thousands or produce NaN/Inf.
-# TODO: fix root cause by moving RNG calls out of OpenMP regions (issue #XXX).
-knownLogPosteriorValues <- c(with.phi = -945000, without.phi = -946000)
+# Log posterior values re-baselined after the RNG-determinism fix (2026-06).
+# The per-gene synthesis-rate accept/reject loop and the codon-specific
+# random-scan shuffle now draw from R's RNG (set.seed-controlled) instead of a
+# clock-seeded / OpenMP-shared std engine, so at ncores=1 the chain is
+# bit-reproducible run-to-run and process-to-process on a given platform.
+# Fine-grained likelihood correctness is checked separately in
+# testROCNumerical.R (single deterministic evaluations, cross-platform stable);
+# here we keep a 0.1% relative tolerance on the integration-test log-posterior
+# to absorb floating-point drift across platforms while still catching real
+# (thousands-of-units / NaN / Inf) regressions.
+knownLogPosteriorValues <- c(with.phi = -941686, without.phi = -938975)
+logPosteriorTolerance <- 1e-3
 seedValue <- 446141
 
 ## Note that length of sample object will be samples + 1
@@ -86,7 +89,7 @@ sink()
 test_that("identical MCMC-ROC input with Phi, same log posterior", {
    testLogPosterior <- round(mcmc$getLogPosteriorTrace()[(samples + 1)])
    print(testLogPosterior)
-   expect_equal(knownLogPosteriorValues[["with.phi"]], testLogPosterior, tolerance = 0.01)
+   expect_equal(knownLogPosteriorValues[["with.phi"]], testLogPosterior, tolerance = logPosteriorTolerance)
 })
 
 
@@ -112,15 +115,20 @@ test_that("object can be loaded successfully: mcmc", {
 ## Solution: Load explicitly here
 mcmcLoaded <- loadMCMCObject(file = mcmcSaveFile)
 
-test_that("object trace matches expected length of (samples): mcmc",{
+test_that("object trace matches expected length of (samples + 1): mcmc",{
+  ## Bug #388 (first-element drop on load) is fixed on this main line via the
+  ## load-trace-concatenation work, so a loaded object now retains all
+  ## (samples + 1) elements, matching a freshly run object.
   expect_equal(
-    length(mcmcLoaded$getLogPosteriorTrace()), (samples)) ## note once bug #388 is fixed, replace samples with (samples + 1)
+    length(mcmcLoaded$getLogPosteriorTrace()), (samples + 1))
 })
 
 test_that("object loaded has expected log posterior", {
-   testLogPosterior <- round(mcmcLoaded$getLogPosteriorTrace()[(samples)]) ## note once bug #388 is fixed, replace samples with (samples + 1)
+   ## With #388 fixed, the loaded trace matches the fresh trace element-for-element,
+   ## so the final value is at index (samples + 1) and equals the with.phi baseline.
+   testLogPosterior <- round(mcmcLoaded$getLogPosteriorTrace()[(samples + 1)])
    print(testLogPosterior)
-   expect_equal(knownLogPosteriorValues[["with.phi"]], testLogPosterior, tolerance = 0.01)
+   expect_equal(knownLogPosteriorValues[["with.phi"]], testLogPosterior, tolerance = logPosteriorTolerance)
 })
 
 ### end tests by Elizabeth Barnes and Mike Gilchrist
@@ -146,7 +154,7 @@ sink()
 test_that("identical MCMC-ROC input without Phi, same log posterior", {
   testLogPosterior <- round(mcmc$getLogPosteriorTrace()[(samples + 1)])
   print(testLogPosterior)
-  expect_equal(knownLogPosteriorValues[["without.phi"]], testLogPosterior, tolerance = 0.01)
+  expect_equal(knownLogPosteriorValues[["without.phi"]], testLogPosterior, tolerance = logPosteriorTolerance)
 })
 
 
