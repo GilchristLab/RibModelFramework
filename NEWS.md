@@ -23,6 +23,26 @@
 
 ## BUG FIXES
 
+- **MCMC RNG determinism (behavior change).** `runMCMC()` is now
+  bit-reproducible at `ncores=1` under `set.seed()` for ROC, PA, and
+  PANSE.  Two sources of non-determinism were removed from
+  `MCMCAlgorithm.cpp`: (1) the codon-specific parameter update scan
+  order was shuffled using a wall-clock seed (`std::chrono`), so every
+  run used a different scan order; (2) per-gene Metropolis acceptance
+  thresholds and mixture-assignment draws came from a
+  `std::default_random_engine` that was default-seeded and shared across
+  OpenMP threads (data race).  Both now draw from R's RNG via
+  `Parameter::randUnif` / `Parameter::randExp`, which is controlled by
+  `set.seed()`.  **Downstream impact:** the RNG stream shifts relative
+  to all prior versions; any hardcoded numeric expectations or restart
+  files calibrated against older code should be re-baselined.
+  `ncores > 1` remains nondeterministic (OpenMP FP reduction order).
+
+- **ROC memory leak.** `ROCModel::CalculateProbabilitiesForCodons` heap-
+  allocated a `double[]` buffer that was copied into the return vector
+  but never freed.  Fixed by adding `delete[] codonProb` before the
+  return statement.
+
 - `Parameter::operator=` now copies `lastIteration` and the five
   `restartFile*` build-info fields.  These were silently omitted by
   the explicit assignment operator; the implicit copy ctor handled
