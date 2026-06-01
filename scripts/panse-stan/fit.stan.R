@@ -1,0 +1,702 @@
+#!/usr/bin/env Rscript
+# ============================================================================
+# fit.stan.R -- PANSE Stan/HMC fit driver (YAML-configured).
+#
+# Mirrors the ROC port's adapter.dev/scripts/fit.stan.R (see
+# ~/Repositories/ROC.data.analyses.adaptive-mcmc-dev/...) but with PANSE-
+# specific data prep: the per-position RFP CSR layout from
+# lib/build_panse_stan_data.R instead of ROC's per-AA aggregation.
+#
+# Usage:
+#   Rscript scripts/fit.stan.R runs/<config>.yaml [OPTIONS]
+#
+# Options:
+#   --genes N         Subset to first N genes (for smoke tests).
+#   --warmup N        Override stan.warmup from YAML.
+#   --sampling N      Override stan.sampling from YAML.
+#   --chains N        Override stan.chains from YAML.
+#   --threads N       Override stan.threads_per_chain from YAML.
+#   --adapt-delta X   Override stan.adapt_delta from YAML (default 0.9).
+#   --out DIR         Override output directory (default Output/<name>-stan).
+#   --init-mode MODE  Init strategy for CSP + phi parameters:
+#                     fixed          -- all chains start from init CSV values
+#                     rmf-posterior  -- per-chain jitter from RMF posterior means
+#                                       + SDs; validates Stan agrees with RMF
+#                     scuo           -- CSP from init CSVs (fixed); phi from
+#                                       SCUO ranks via scuo_to_log_phi().
+#                                       Best cold-start choice; independent of
+#                                       any prior fit.  init.phi.file still
+#                                       required to define the gene set.
+#                     warm-start     -- posterior medians + inv_metric from a
+#                                       prior Stan fit.  Requires
+#                                       fit.warm_start_from in YAML.  Handles
+#                                       shared-NSE -> per-codon NSE expansion.
+#   --lib-loc DIR     Prepend DIR to R's .libPaths() (e.g. for AnaCoDa).
+#   --no-compile      Don't try to recompile; require precompiled exe.
+#   --dry-run         Build data list, print summary, but skip sampling.
+#   -h, --help        Show this message.
+#
+# The Stan model is selected by config$fit$model:
+#   csp-only           -> stan/panse_csp_only.stan        (v0)
+#   basic              -> stan/panse_basic.stan           (v1)
+#   sphi-est+centered  -> stan/panse_sphi_est_centered.stan
+#   sphi-est+noncentered -> stan/panse_sphi_est_noncentered.stan
+#
+# Output layout (under Output/<name>-stan/):
+#   panse-stan-fit.rds            cmdstanr fit object + metadata
+#   stan-data.rds                 the assembled Stan data list
+#   stan-summary.rds              fit$summary() pre-computed
+#   stan-csv/                     raw cmdstan CSV files
+#   config.yaml                   the resolved config (snapshot)
+# ============================================================================
+
+`%||%` <- function(a, b) if (!is.null(a)) a else b
+
+args <- commandArgs(trailingOnly = TRUE)
+if (length(args) == 0L || any(args %in% c("-h", "--help"))) {
+    cat("Usage: Rscript fit.stan.R runs/<config>.yaml [OPTIONS]\n")
+    cat("Run with --help for full options.\n")
+    quit(status = if (length(args) == 0L) 1 else 0)
+}
+
+opts <- list(
+    config_path  = NULL,
+    lib_loc      = NULL,    # extra R lib path (prepended to .libPaths)
+    genes        = NULL,
+    warmup       = NULL,
+    sampling     = NULL,
+    chains       = NULL,
+    threads      = NULL,
+    adapt_delta  = NULL,
+    out_dir      = NULL,
+    init_mode    = NULL,    # 'paper-inits' (default) or 'rmf-posterior'
+    no_log_lik   = FALSE,   # if TRUE, override stan_data$emit_log_lik <- 0L
+    no_compile   = FALSE,
+    dry_run      = FALSE
+)
+i <- 1L
+while (i <= length(args)) {
+    a <- args[[i]]
+    if      (a == "--lib-loc")      { opts$lib_loc     <- args[[i + 1L]];             i <- i + 2L }
+    else if (a == "--genes")        { opts$genes       <- as.integer(args[[i + 1L]]); i <- i + 2L }
+    else if (a == "--warmup")       { opts$warmup      <- as.integer(args[[i + 1L]]); i <- i + 2L }
+    else if (a == "--sampling")     { opts$sampling    <- as.integer(args[[i + 1L]]); i <- i + 2L }
+    else if (a == "--chains")       { opts$chains      <- as.integer(args[[i + 1L]]); i <- i + 2L }
+    else if (a == "--threads")      { opts$threads     <- as.integer(args[[i + 1L]]); i <- i + 2L }
+    else if (a == "--adapt-delta")  { opts$adapt_delta <- as.numeric(args[[i + 1L]]); i <- i + 2L }
+    else if (a == "--out")          { opts$out_dir     <- args[[i + 1L]];             i <- i + 2L }
+    else if (a == "--init-mode")    { opts$init_mode   <- args[[i + 1L]];             i <- i + 2L }
+    else if (a == "--no-log-lik")   { opts$no_log_lik  <- TRUE;                       i <- i + 1L }
+    else if (a == "--no-compile")   { opts$no_compile  <- TRUE;                       i <- i + 1L }
+    else if (a == "--dry-run")      { opts$dry_run     <- TRUE;                       i <- i + 1L }
+    else if (startsWith(a, "--"))   { stop("unknown option: ", a, call. = FALSE) }
+    else                            { opts$config_path <- a;                          i <- i + 1L }
+}
+if (!is.null(opts$lib_loc))
+    .libPaths(c(opts$lib_loc, .libPaths()))
+if (is.null(opts$config_path))
+    stop("missing positional arg: path to runs/<config>.yaml")
+
+# --------------------------------------------------------------------------
+# Self-locate (symlink-resolved) so the harness sources its co-located libs
+# from RMF even when invoked through an A-RMF symlink.  Repo-agnostic: output
+# and config-relative paths resolve against the INVOCATION cwd -- we do NOT
+# setwd to a fixed analysis dir.
+
+script_dir <- (function() {
+    arg <- grep("^--file=", commandArgs(trailingOnly = FALSE), value = TRUE)
+    if (length(arg) > 0L)
+        dirname(normalizePath(sub("^--file=", "", arg[[1]])))  # resolve symlink THEN dirname
+    else getwd()
+})()
+repo_root <- normalizePath(file.path(script_dir, "..", ".."))  # scripts/panse-stan -> repo root
+shared_lib <- file.path(repo_root, "scripts", "lib")           # cross-harness R utils
+
+cfg_abs <- normalizePath(opts$config_path)
+if (!file.exists(cfg_abs))
+    stop("Config not found: ", cfg_abs)
+
+# --------------------------------------------------------------------------
+# Load deps.  PANSE-specific libs are co-located in script_dir.  The
+# ROC-shared init utilities live in scripts/lib/ and are loaded lazily, only
+# for the codon-bias init modes (scuo/enc_prime/mixed) -- see .load_init_util.
+
+suppressPackageStartupMessages({
+    library(yaml)
+    library(cmdstanr)
+    library(posterior)
+})
+source(file.path(script_dir, "build_panse_stan_data.R"))
+source(file.path(script_dir, "panse.stan.postproc.R"))
+
+# Lazy/optional loader for ROC-shared init utilities:
+#   init_helpers.R        -> scuo_to_log_phi(), mle_to_init_list()
+#   codon_bias_metrics.R  -> build_aa_codon_map(), calc_enc_prime(), ...
+# Search RMF_INIT_UTILS_DIR, then scripts/lib/, then script_dir.  Stop with a
+# clear message if a codon-bias init mode needs one that is absent.
+.load_init_util <- function(filename, sentinel) {
+    if (exists(sentinel, mode = "function")) return(invisible(TRUE))
+    cand <- c(Sys.getenv("RMF_INIT_UTILS_DIR", unset = NA), shared_lib, script_dir)
+    cand <- cand[!is.na(cand) & nzchar(cand)]
+    for (d in cand) {
+        f <- file.path(d, filename)
+        if (file.exists(f)) { source(f); return(invisible(TRUE)) }
+    }
+    stop("init utility '", filename, "' not found (needed for codon-bias init ",
+         "modes). Set RMF_INIT_UTILS_DIR to the directory containing it ",
+         "(e.g. the analysis repo's scripts/lib).")
+}
+
+# --------------------------------------------------------------------------
+# Parse config, select model
+
+config <- yaml.load_file(cfg_abs)
+if (is.null(config$name))
+    stop("Config missing top-level `name`")
+
+model_key <- config$fit$model %||% "csp-only"
+parameterization <- config$fit$parameterization %||% "centered"
+stan_basename <- switch(
+    paste0(model_key, ":", parameterization),
+    "csp-only:centered"                = "panse_csp_only",
+    "csp-only:noncentered"             = "panse_csp_only",
+    "csp-only-sharednse:centered"      = "panse_csp_only_sharednse",
+    "basic:centered"                   = "panse_basic",
+    "basic-sharednse:centered"         = "panse_basic_sharednse",
+    "sphi-est:centered"                = "panse_sphi_est_centered",
+    "sphi-est-sharednse:centered"      = "panse_sphi_est_centered_sharednse",
+    "sphi-est:noncentered"             = "panse_sphi_est_noncentered",
+    "sphi-est-sharednse:noncentered"   = "panse_sphi_est_noncentered_sharednse",
+    "sphi-est-sharednse:sumzero"       = "panse_sphi_est_sumzero_sharednse",
+    stop("Unsupported fit.model + parameterization combo: ", model_key,
+         " / ", parameterization)
+)
+shared_nse     <- model_key %in% c("csp-only-sharednse", "basic-sharednse",
+                                   "sphi-est-sharednse")
+samples_phi    <- model_key %in% c("basic", "basic-sharednse",
+                                   "sphi-est", "sphi-est-sharednse")
+estimates_sphi <- model_key %in% c("sphi-est", "sphi-est-sharednse")
+noncentered_phi <- estimates_sphi && parameterization %in% c("noncentered", "sumzero")
+sumzero_phi     <- estimates_sphi && parameterization == "sumzero"
+
+# Stan models live in this repo's stan/.  Default to the repo containing this
+# script (resolved through any symlink); override with RMF_ROOT to compile from
+# a different worktree/clone.
+rmf_root  <- Sys.getenv("RMF_ROOT", repo_root)
+stan_src  <- file.path(rmf_root, "stan", paste0(stan_basename, ".stan"))
+if (!file.exists(stan_src))
+    stop("Stan source not found: ", stan_src)
+
+# Build cache dir, branch-tagged by current RMF git SHA
+git_sha <- tryCatch(
+    system2("git", c("-C", rmf_root, "rev-parse", "--short", "HEAD"),
+            stdout = TRUE, stderr = TRUE),
+    error = function(e) "unknown"
+)
+build_dir <- file.path(rmf_root, "stan", "build",
+                       paste0("feat-hmc-stan-panse-", git_sha))
+exe_path  <- file.path(build_dir, stan_basename)
+
+cat("[model] ", stan_basename, " (", stan_src, ")\n", sep = "")
+cat("[build] ", build_dir, "\n", sep = "")
+
+# --------------------------------------------------------------------------
+# Build Stan data
+
+stan_data <- build_panse_stan_data(config, gene_subset = opts$genes)
+if (opts$no_log_lik) {
+    stan_data$emit_log_lik <- 0L
+    cat("[data] --no-log-lik: skipping log_lik in generated quantities\n")
+}
+cat("[data] G =", stan_data$G, " C =", stan_data$C, " P =", stan_data$P,
+    " Y =", sum(stan_data$y), " U =", round(stan_data$U, 6),
+    " emit_log_lik =", stan_data$emit_log_lik, "\n")
+
+# --------------------------------------------------------------------------
+# Compile (or load existing exe)
+
+if (!opts$no_compile || !file.exists(exe_path)) {
+    if (!dir.exists(build_dir)) dir.create(build_dir, recursive = TRUE)
+    cat("[compile] ", stan_src, " -> ", exe_path, "\n", sep = "")
+    mod <- cmdstan_model(
+        stan_file    = stan_src,
+        dir          = build_dir,
+        cpp_options  = list(stan_threads = TRUE),
+        quiet        = TRUE
+    )
+} else {
+    cat("[load] precompiled ", exe_path, "\n", sep = "")
+    mod <- cmdstan_model(exe_file = exe_path, stan_file = stan_src,
+                         compile = FALSE)
+}
+
+# --------------------------------------------------------------------------
+# Init function -- two modes (controlled by config$fit$init.mode or
+# --init-mode):
+#
+#   paper-inits     (default)  jitter from the paper's init CSVs in
+#                              data/<date>/init_params_*/.  Same point for
+#                              every chain (modulo Stan's small random
+#                              perturbation).  Useful if the init CSVs are
+#                              actually close to the posterior.
+#
+#   rmf-posterior              jitter from the *RMF posterior means* with
+#                              jitter SD = RMF posterior SD per parameter.
+#                              4 chains -> 4 different starting points
+#                              drawn from N(post_mean, post_sd) in log
+#                              space.  Validates Stan agreement with RMF
+#                              by starting AT the RMF posterior and
+#                              checking the chains stay there.  Requires
+#                              config$fit$init.rmf.posterior.dir pointing
+#                              at the final_restart/ directory of the RMF
+#                              fit (containing Parameter_est/*.csv).
+#                              NSERate has no RMF Parameter_est dump;
+#                              falls back to init.nserate.files with a
+#                              wide log-space jitter.
+
+init_mode <- opts$init_mode %||% config$fit$init.mode %||% "fixed"
+warm_start_metrics <- NULL   # set by warm-start mode if available
+
+init_alpha  <- attr(stan_data, "init_alpha")
+init_lambda <- attr(stan_data, "init_lambda")
+init_nse    <- attr(stan_data, "init_nse")
+codon_order <- attr(stan_data, "codon_order")
+
+# Helper: read the Std.Dev column from the *same* init.alpha.files /
+# init.lambda.files supplied to the data builder.  Returns a vector of
+# per-codon SDs (NA if the file has no Std.Dev column, e.g. the paper
+# init CSVs which are only Codon,Mean).
+.read_codon_sd <- function(path) {
+    if (is.null(path) || !file.exists(path)) return(NULL)
+    tbl <- read.csv(path, stringsAsFactors = FALSE)
+    if (!("Codon" %in% colnames(tbl)) || !("Std.Dev" %in% colnames(tbl)))
+        return(NULL)
+    setNames(tbl$Std.Dev, tbl$Codon)[codon_order]
+}
+
+if (init_mode == "rmf-posterior") {
+    alpha_path  <- config$fit$init.alpha.files[[1]]
+    lambda_path <- config$fit$init.lambda.files[[1]]
+    a_sd <- .read_codon_sd(alpha_path)
+    l_sd <- .read_codon_sd(lambda_path)
+    if (is.null(a_sd) || is.null(l_sd))
+        stop("init.mode = 'rmf-posterior' requires init.alpha.files / ",
+             "init.lambda.files with a `Std.Dev` column (e.g. the RMF ",
+             "Parameter_est/*.csv files).  Got: ", alpha_path, " / ", lambda_path)
+
+    # Log-space jitter SD via first-order delta: SD[log X] ~ SD[X] / E[X]
+    log_a_mean <- log(init_alpha);  log_a_jsd <- a_sd / init_alpha
+    log_l_mean <- log(init_lambda); log_l_jsd <- l_sd / init_lambda
+
+    # NSE has no RMF Std.Dev dump -- jitter over half the prior log-space
+    # width.  Weak NSE identifiability anyway; broad init helps explore.
+    log_nse_mean <- log(init_nse)
+    log_nse_jsd  <- rep((stan_data$log_nse_upper - stan_data$log_nse_lower) / 6,
+                        stan_data$C)
+
+    cat(sprintf("[init] mode = rmf-posterior (per-chain jitter)\n"))
+    cat(sprintf("[init]   log_alpha       jitter SD: [%.3f, %.3f]\n",
+                min(log_a_jsd), max(log_a_jsd)))
+    cat(sprintf("[init]   log_lambdaPrime jitter SD: [%.3f, %.3f]\n",
+                min(log_l_jsd), max(log_l_jsd)))
+    cat(sprintf("[init]   log_NSERate     jitter SD: %.3f (fallback; no RMF SD)\n",
+                log_nse_jsd[[1]]))
+
+    base_seed <- (config$stan %||% list())$seed %||% 20260523L
+    init_fn <- function(chain_id = 1) {
+        set.seed(base_seed + 1000L * chain_id)
+        log_nse <- rnorm(stan_data$C, log_nse_mean, log_nse_jsd)
+        log_nse <- pmin(pmax(log_nse,
+                             stan_data$log_nse_lower + 1e-6),
+                        stan_data$log_nse_upper - 1e-6)
+        list(
+            log_alpha       = rnorm(stan_data$C, log_a_mean, log_a_jsd),
+            log_lambdaPrime = rnorm(stan_data$C, log_l_mean, log_l_jsd),
+            log_NSERate     = log_nse
+        )
+    }
+} else if (init_mode == "fixed") {
+    cat("[init] mode = fixed (all chains start from init CSV values, no jitter)\n")
+    init_fn <- function(chain_id = 1) {
+        log_nse <- pmin(pmax(log(init_nse),
+                             stan_data$log_nse_lower + 1e-6),
+                        stan_data$log_nse_upper - 1e-6)
+        list(
+            log_alpha       = log(init_alpha),
+            log_lambdaPrime = log(init_lambda),
+            log_NSERate     = log_nse
+        )
+    }
+} else if (init_mode %in% c("scuo", "enc_prime", "mixed_scuo_encp")) {
+    # CSP parameters init from CSV files (no jitter); phi init overridden
+    # below by codon-bias metric (SCUO, ENC', or per-chain mix).
+    cat(sprintf("[init] mode = %s (CSP from init CSV files; phi overridden below)\n", init_mode))
+    init_fn <- function(chain_id = 1) {
+        log_nse <- pmin(pmax(log(init_nse),
+                             stan_data$log_nse_lower + 1e-6),
+                        stan_data$log_nse_upper - 1e-6)
+        list(
+            log_alpha       = log(init_alpha),
+            log_lambdaPrime = log(init_lambda),
+            log_NSERate     = log_nse
+        )
+    }
+} else if (init_mode == "warm-start") {
+    # Warm-start from a prior Stan fit's posterior + mass matrix.
+    # Reads the prior fit's RDS, extracts posterior medians for init and
+    # inv_metric for mass-matrix seeding.  Handles the shared-NSE ->
+    # per-codon-NSE parameter expansion (1 scalar -> C vector) by
+    # replicating the NSERate_shared metric entry.
+    ws_dir <- config$fit$warm_start_from
+    if (is.null(ws_dir)) stop("warm-start requires fit.warm_start_from in YAML")
+    ws_rds <- file.path(ws_dir, "panse-stan-fit.rds")
+    if (!file.exists(ws_rds)) stop("warm-start fit not found: ", ws_rds)
+
+    cat(sprintf("[init] mode = warm-start from %s\n", ws_dir))
+    ws_obj  <- readRDS(ws_rds)
+    ws_fit  <- ws_obj$fit
+    ws_data <- ws_obj$stan_data
+
+    # Posterior medians from the prior fit's pre-computed summary
+    ws_summ_path <- file.path(ws_dir, "stan-summary.rds")
+    if (file.exists(ws_summ_path)) {
+        ws_summ <- readRDS(ws_summ_path)
+        ws_med  <- setNames(ws_summ$mean, ws_summ$variable)
+        cat("[init] warm-start: loaded prior summary (using posterior means)\n")
+    } else {
+        ws_draws <- ws_fit$draws(format = "matrix")
+        ws_med   <- colMedians(ws_draws)
+        names(ws_med) <- colnames(ws_draws)
+        cat("[init] warm-start: computed medians from draws\n")
+    }
+
+    # Summary may contain natural-scale (alpha) or log-scale (log_alpha).
+    # Extract whichever exists, convert to log-scale for init.
+    .ws_vec <- function(log_stem, nat_stem, n) {
+        v <- ws_med[grep(paste0("^", log_stem, "\\["), names(ws_med))]
+        if (length(v) == n) return(as.numeric(v))
+        v <- ws_med[grep(paste0("^", nat_stem, "\\["), names(ws_med))]
+        if (length(v) == n) return(log(as.numeric(v)))
+        stop("warm-start: neither ", log_stem, " nor ", nat_stem, " found with length ", n)
+    }
+    ws_log_alpha  <- .ws_vec("log_alpha", "alpha", stan_data$C)
+    ws_log_lambda <- .ws_vec("log_lambdaPrime", "lambdaPrime", stan_data$C)
+    ws_sphi       <- ws_med[["sphi"]]
+
+    # z_phi (parameter) or log_phi (transformed) -- derive z_phi if needed
+    ws_z_phi <- ws_med[grep("^z_phi\\[", names(ws_med))]
+    if (length(ws_z_phi) == stan_data$G) {
+        ws_z_phi <- as.numeric(ws_z_phi)
+    } else {
+        ws_log_phi <- ws_med[grep("^log_phi\\[", names(ws_med))]
+        ws_z_phi   <- (as.numeric(ws_log_phi) + 0.5 * ws_sphi^2) / ws_sphi
+        cat(sprintf("[init] warm-start: derived z_phi from log_phi (sphi=%.4f)\n", ws_sphi))
+    }
+
+    # NSE: prior fit may have log_NSERate_shared, NSERate_shared, or log_NSERate[C].
+    # Use safe name lookup (named vectors throw on missing [[ ]])
+    .ws_get <- function(nm) if (nm %in% names(ws_med)) ws_med[[nm]] else NULL
+    ws_nse_shared <- .ws_get("log_NSERate_shared")
+    if (is.null(ws_nse_shared)) {
+        nat <- .ws_get("NSERate_shared")
+        if (!is.null(nat)) ws_nse_shared <- log(nat)
+    }
+    ws_nse_vec <- ws_med[grep("^log_NSERate\\[", names(ws_med))]
+    if (length(ws_nse_vec) == 0) {
+        nat_vec <- ws_med[grep("^NSERate\\[", names(ws_med))]
+        if (length(nat_vec) > 0) ws_nse_vec <- log(as.numeric(nat_vec))
+    }
+
+    if (!is.null(ws_nse_shared) && length(ws_nse_vec) == 0) {
+        ws_log_nse <- rep(ws_nse_shared, stan_data$C)
+        cat(sprintf("[init] warm-start: expanding NSERate_shared (%.3e) -> %d per-codon\n",
+                    exp(ws_nse_shared), stan_data$C))
+    } else if (length(ws_nse_vec) == stan_data$C) {
+        ws_log_nse <- as.numeric(ws_nse_vec)
+    } else {
+        stop("warm-start: can't resolve NSE from prior fit")
+    }
+    ws_log_nse <- pmin(pmax(ws_log_nse,
+                            stan_data$log_nse_lower + 1e-6),
+                       stan_data$log_nse_upper - 1e-6)
+
+    cat(sprintf("[init] warm-start: alpha[%d] lambda[%d] nse[%d] sphi=%.4f z_phi[%d]\n",
+                length(ws_log_alpha), length(ws_log_lambda),
+                length(ws_log_nse), ws_sphi, length(ws_z_phi)))
+
+    init_fn <- function(chain_id = 1) {
+        list(
+            log_alpha       = as.numeric(ws_log_alpha),
+            log_lambdaPrime = as.numeric(ws_log_lambda),
+            log_NSERate     = ws_log_nse
+        )
+    }
+    # Override init_phi_attr so downstream z_phi/sphi wiring uses warm-start values
+    gene_ids <- attr(stan_data, "gene_ids")
+    ws_log_phi_vals <- as.numeric(ws_z_phi) * ws_sphi - 0.5 * ws_sphi^2
+    init_phi_attr <- setNames(exp(ws_log_phi_vals), gene_ids)
+    sphi_init_override <- ws_sphi
+    z_phi_init_override <- as.numeric(ws_z_phi)
+
+    # Extract inv_metric DIAGONAL from prior fit for mass-matrix warm-start.
+    # When the prior used dense_e, we take only the diagonal (correct
+    # per-parameter step sizes) and let the new fit re-adapt the full dense
+    # covariance during warmup.  Full dense transfer would require inserting
+    # rows/columns for new parameters -- diagonal is simpler and sufficient.
+    #
+    # Parameter order: log_alpha[C], log_lambdaPrime[C], log_NSERate[?], sphi, z_phi[G]
+    ws_metrics_raw <- tryCatch(ws_fit$inv_metric(matrix = TRUE),
+                               error = function(e) NULL)
+    if (!is.null(ws_metrics_raw)) {
+        n_chains_ws <- length(ws_metrics_raw)
+        ws_C <- ws_data$C
+        n_csp <- 2L * ws_C
+        ws_has_shared <- !is.null(ws_nse_shared) && (is.null(ws_nse_vec) || length(ws_nse_vec) == 0)
+
+        ws_chains <- opts$chains %||% (config$stan %||% list())$chains %||% 4L
+        ws_metric_type <- (config$stan %||% list())$metric %||% "diag_e"
+        warm_start_metrics <- vector("list", ws_chains)
+        for (i in seq_len(ws_chains)) {
+            wm <- ws_metrics_raw[[(i - 1L) %% n_chains_ws + 1L]]
+            wm_diag <- if (is.matrix(wm)) diag(wm) else wm
+            if (ws_has_shared) {
+                csp_block  <- wm_diag[1:n_csp]
+                nse_metric <- wm_diag[n_csp + 1L]
+                tail_block <- wm_diag[(n_csp + 2L):length(wm_diag)]
+                new_diag   <- c(csp_block, rep(nse_metric, stan_data$C), tail_block)
+            } else {
+                new_diag   <- wm_diag
+            }
+            # dense_e needs a full matrix; diag_e needs a vector
+            warm_start_metrics[[i]] <- if (ws_metric_type == "dense_e") diag(new_diag) else new_diag
+        }
+        n_orig <- length(if (is.matrix(ws_metrics_raw[[1]])) diag(ws_metrics_raw[[1]])
+                         else ws_metrics_raw[[1]])
+        n_new  <- length(new_diag)
+        cat(sprintf("[init] warm-start: inv_metric %s diagonal (%d -> %d params)\n",
+                    ws_metric_type, n_orig, n_new))
+    } else {
+        cat("[warn] warm-start: inv_metric extraction failed; dense_e will re-adapt from scratch\n")
+        warm_start_metrics <- NULL
+    }
+} else {
+    stop("init.mode must be one of: fixed, rmf-posterior, scuo, enc_prime, mixed_scuo_encp, warm-start; got: ", init_mode)
+}
+
+# Shared-NSE model uses log_NSERate_shared (scalar) instead of log_NSERate
+# (vector).  Wrap init_fn to collapse the per-codon log_NSERate to its
+# mean (in our sim all entries are identical anyway).
+if (shared_nse) {
+    cat("[init] shared-NSE model: collapsing log_NSERate vector -> ",
+        "log_NSERate_shared scalar (mean)\n", sep = "")
+    inner_init_fn <- init_fn
+    init_fn <- function(chain_id = 1) {
+        ll <- inner_init_fn(chain_id)
+        ll$log_NSERate_shared <- mean(ll$log_NSERate)
+        ll$log_NSERate <- NULL
+        ll
+    }
+}
+
+# v1+ models sample log_phi.  Init log_phi from the init.phi.file (which
+# was loaded into the data builder as init_phi and is the "truth" phi for
+# sim runs or the prior fit posterior mean for real runs).  Same per-chain
+# jitter logic as alpha/lambda when init.mode = rmf-posterior; in fixed
+# mode, all chains start at the same log_phi vector.
+init_phi_attr <- attr(stan_data, "init_phi")
+
+# scuo / enc_prime / mixed_scuo_encp: override init_phi_attr with codon-bias
+# ranked phi values.  Loads genome via AnaCoDa; maps ranks to LN quantiles
+# via scuo_to_log_phi().  init.phi.file still defines the gene set.
+# mixed_scuo_encp: chains 1-2 use SCUO, chains 3-4 use ENC' (Novembre 2002).
+if (init_mode %in% c("scuo", "enc_prime", "mixed_scuo_encp")) {
+    gene_ids <- attr(stan_data, "gene_ids")
+    rfp_csv  <- Sys.glob(file.path(config$genome$input.dir,
+                                    config$genome$pattern))[[1]]
+    cat(sprintf("[init] loading genome from %s\n", basename(rfp_csv)))
+    genome   <- AnaCoDa::initializeGenomeObject(rfp_csv, fasta = FALSE,
+                                                 positional = TRUE)
+}
+
+if (init_mode %in% c("scuo", "mixed_scuo_encp")) {
+    .load_init_util("init_helpers.R", "scuo_to_log_phi")
+    cat("[init] computing SCUO\n")
+    scuo_df      <- AnaCoDa::calculateSCUO(genome)
+    scuo_all     <- setNames(scuo_df$SCUO, scuo_df$ORF)
+    log_phi_scuo <- scuo_to_log_phi(scuo_all[gene_ids])
+    cat(sprintf("[init] scuo: G=%d  phi in [%.3f, %.3f]  sd(log phi)=%.4f\n",
+                length(gene_ids), min(exp(log_phi_scuo)), max(exp(log_phi_scuo)),
+                sd(log_phi_scuo)))
+}
+
+if (init_mode %in% c("enc_prime", "mixed_scuo_encp")) {
+    .load_init_util("init_helpers.R", "scuo_to_log_phi")
+    .load_init_util("codon_bias_metrics.R", "build_aa_codon_map")
+    cat("[init] computing ENC' (Novembre 2002)\n")
+    cc       <- as.matrix(AnaCoDa::getCodonCounts(genome))
+    mode(cc) <- "integer"
+    cc       <- cc[gene_ids, , drop = FALSE]
+    aa_cmap  <- build_aa_codon_map()
+    null_f   <- derive_null_from_genome(cc, aa_cmap)
+    encp_raw <- calc_enc_prime(cc, aa_cmap, null_freqs = null_f)
+    # Lower ENC' = more biased = higher phi; negate so scuo_to_log_phi maps
+    # low-ENC' genes to high phi (same direction as SCUO).
+    log_phi_encp <- scuo_to_log_phi(-encp_raw[gene_ids])
+    cat(sprintf("[init] enc_prime: G=%d  phi in [%.3f, %.3f]  sd(log phi)=%.4f\n",
+                length(gene_ids), min(exp(log_phi_encp)), max(exp(log_phi_encp)),
+                sd(log_phi_encp)))
+}
+
+if (init_mode == "scuo")
+    init_phi_attr <- setNames(exp(log_phi_scuo), gene_ids)
+if (init_mode == "enc_prime")
+    init_phi_attr <- setNames(exp(log_phi_encp), gene_ids)
+# mixed_scuo_encp: init_phi_attr stays as-is (phi file); per-chain
+# z_phi dispatch is added after the noncentered block below.
+
+if (samples_phi && !noncentered_phi) {
+    cat("[init] phi-sampling model (centered): adding log_phi vector to init list\n")
+    inner_phi_init_fn <- init_fn
+    init_fn <- function(chain_id = 1) {
+        ll <- inner_phi_init_fn(chain_id)
+        ll$log_phi <- log(as.numeric(init_phi_attr))
+        ll
+    }
+}
+
+# v2 sphi-est models estimate sphi.  Init at sd(log(init_phi)),
+# or use warm-start override if available.
+if (estimates_sphi) {
+    sphi_init <- if (exists("sphi_init_override")) sphi_init_override
+                 else sd(log(as.numeric(init_phi_attr)))
+    cat(sprintf("[init] sphi-est model: adding sphi init = %.4f (sd log init_phi)\n",
+                sphi_init))
+    inner_sphi_init_fn <- init_fn
+    init_fn <- function(chain_id = 1) {
+        ll <- inner_sphi_init_fn(chain_id)
+        ll$sphi <- sphi_init
+        ll
+    }
+}
+
+# v2 noncentered models reparameterize log_phi = -0.5*sphi^2 + sphi * z_phi.
+# Init z_phi to make log_phi = log(init_phi):
+#   z_phi = (log(init_phi) + 0.5*sphi_init^2) / sphi_init
+# This is added LAST so it sees the sphi_init from the wrapper above.
+if (noncentered_phi) {
+    if (exists("z_phi_init_override")) {
+        z_phi_init <- z_phi_init_override
+    } else {
+        log_phi_truth <- log(as.numeric(init_phi_attr))
+        z_phi_init    <- (log_phi_truth + 0.5 * sphi_init * sphi_init) / sphi_init
+    }
+    if (sumzero_phi) {
+        # sum_to_zero_vector requires sum(z_phi) == 0; subtract empirical mean.
+        z_phi_init <- z_phi_init - mean(z_phi_init)
+        cat(sprintf("[init] sumzero phi: centered z_phi init to mean 0 (residual = %.2e)\n",
+                    mean(z_phi_init)))
+    }
+    cat(sprintf("[init] noncentered phi: z_phi init range [%.3f, %.3f] (G=%d)\n",
+                min(z_phi_init), max(z_phi_init), length(z_phi_init)))
+    inner_z_init_fn <- init_fn
+    init_fn <- function(chain_id = 1) {
+        ll <- inner_z_init_fn(chain_id)
+        ll$z_phi <- z_phi_init
+        ll
+    }
+}
+
+# mixed_scuo_encp: override z_phi per chain after the noncentered block so
+# sphi_init is available.  Chains 1-2 use SCUO-derived z_phi; 3-4 use ENC'.
+if (init_mode == "mixed_scuo_encp" && noncentered_phi) {
+    z_scuo <- (log_phi_scuo + 0.5 * sphi_init^2) / sphi_init
+    z_encp <- (log_phi_encp + 0.5 * sphi_init^2) / sphi_init
+    cat(sprintf("[init] mixed_scuo_encp: chains 1-2 SCUO z_phi [%.3f, %.3f]; chains 3-4 ENC' z_phi [%.3f, %.3f]\n",
+                min(z_scuo), max(z_scuo), min(z_encp), max(z_encp)))
+    inner_mixed_fn <- init_fn
+    init_fn <- function(chain_id = 1) {
+        ll         <- inner_mixed_fn(chain_id)
+        ll$z_phi   <- if (chain_id <= 2L) z_scuo else z_encp
+        ll$sphi    <- sphi_init
+        ll
+    }
+}
+
+# --------------------------------------------------------------------------
+# Sampler settings (YAML + CLI overrides)
+
+stan_cfg <- config$stan %||% list()
+chains   <- opts$chains   %||% stan_cfg$chains             %||% 4L
+threads  <- opts$threads  %||% stan_cfg$threads_per_chain  %||% 1L
+warmup   <- opts$warmup   %||% stan_cfg$warmup             %||% 1000L
+sampling <- opts$sampling %||% stan_cfg$sampling           %||% 1000L
+adapt_dl     <- opts$adapt_delta %||% stan_cfg$adapt_delta     %||% 0.9
+max_treedepth <- stan_cfg$max_treedepth %||% 10L
+parallel <- min(chains, stan_cfg$parallel_chains %||% chains)
+seed     <- stan_cfg$seed %||% 20260523L
+
+cat("[sample] chains=", chains, " parallel=", parallel,
+    " warmup=", warmup, " sampling=", sampling,
+    " threads_per_chain=", threads, " adapt_delta=", adapt_dl,
+    " max_treedepth=", max_treedepth, "\n", sep = "")
+
+# --------------------------------------------------------------------------
+# Output dir
+
+out_dir <- opts$out_dir %||% file.path("Output", paste0(config$name, "-stan"))
+if (!dir.exists(out_dir)) dir.create(out_dir, recursive = TRUE)
+cat("[out] ", normalizePath(out_dir), "\n", sep = "")
+
+# Snapshot the config + data
+saveRDS(stan_data,
+        file.path(out_dir, "stan-data.rds"))
+yaml::write_yaml(config, file.path(out_dir, "config.yaml"))
+
+if (opts$dry_run) {
+    cat("[--dry-run] skipping sampling\n")
+    quit(status = 0)
+}
+
+# --------------------------------------------------------------------------
+# Sample
+
+stan_csv_dir <- file.path(out_dir, "stan-csv")
+if (!dir.exists(stan_csv_dir)) dir.create(stan_csv_dir, recursive = TRUE)
+
+metric_choice <- stan_cfg$metric %||% "diag_e"
+if (!metric_choice %in% c("diag_e", "dense_e"))
+    stop("stan.metric must be 'diag_e' or 'dense_e'; got: ", metric_choice)
+cat("[sample] metric=", metric_choice, "\n", sep = "")
+
+sample_args <- list(
+    data              = stan_data,
+    init              = init_fn,
+    chains            = chains,
+    parallel_chains   = parallel,
+    threads_per_chain = threads,
+    iter_warmup       = warmup,
+    iter_sampling     = sampling,
+    adapt_delta       = adapt_dl,
+    max_treedepth     = max_treedepth,
+    metric            = metric_choice,
+    seed              = seed,
+    refresh           = max(1L, (warmup + sampling) %/% 20L),
+    output_dir        = stan_csv_dir
+)
+if (!is.null(warm_start_metrics)) {
+    sample_args$inv_metric <- warm_start_metrics
+    cat(sprintf("[sample] warm-start: seeding inv_metric (%d entries/chain)\n",
+                length(warm_start_metrics[[1]])))
+}
+
+t0 <- Sys.time()
+fit <- do.call(mod$sample, sample_args)
+t1 <- Sys.time()
+wall_sec <- as.numeric(difftime(t1, t0, units = "secs"))
+cat(sprintf("\n[done] sample wall = %.1f sec (%.2f min)\n", wall_sec, wall_sec / 60))
+
+# --------------------------------------------------------------------------
+# Diagnostics + save
+
+panse_stan_finalize(fit, config, stan_data, out_dir, wall_sec, git_sha,
+                    diagnose_fn = function(fit) fit$cmdstan_diagnose())
