@@ -65,6 +65,77 @@
  * ============================================================================ */
 
 functions {
+    /* ------------------------------------------------------------------ *
+     * Exact per-codon log survival probability log_psuccess[c]:
+     *   log E_W[ v/(W+v) ],  W ~ Gamma(shape=alpha, rate=lambda),  v = 1/NSERate
+     * This is bounded <= 0 and monotonically decreasing in NSERate.
+     *
+     * The legacy 2nd-order Taylor in q = alpha*NSERate/lambda goes POSITIVE
+     * (psuccess > 1, survival increasing 5'->3', non-physical) once
+     * q > q* = 1/(1/alpha + 0.5) ~ 0.78-0.99.  The wide NSERate prior
+     * [1e-7, 0.1] reaches q ~ 1.5, inside the breach.  We replace it with the
+     * exact closed form for q >= Q_SWITCH and keep the Taylor (which is exact
+     * there and avoids catastrophic cancellation as q->0) for q < Q_SWITCH.
+     *
+     * Exact form (verified vs numerical integration to ~3e-11 across the full
+     * alpha bound range [1e-3,100], i.e. s = 1-alpha in [-99, 0.999]; matches
+     * the author reference Nonsense_error_rates/R_scripts/testSigmaApprox.R):
+     *   log E = alpha*log(lv) + lv + logGammaUpper(1 - alpha, lv),  lv = lambda*v
+     * with logGammaUpper the log of the UNregularized upper incomplete gamma.
+     *
+     * No standard library (Stan gamma_q, R pgamma, GSL gamma_inc) evaluates
+     * Gamma(s,x) for s <= 0, and the recurrence that would reach the s>0 library
+     * forms is numerically unstable at the integer-alpha poles inside [1,100].
+     * So we evaluate Gamma(s,x) directly via the forward modified-Lentz
+     * continued fraction (Numerical Recipes "gcf"), which is stable for all real
+     * s including the s=0 (alpha=1) removable singularity.  Adaptive: converges
+     * in ~10-20 iters in the typical regime, <=343 in the worst small-x corner.
+     * ------------------------------------------------------------------ */
+
+    // log of the UNregularized upper incomplete gamma Gamma(s, x), x > 0, via
+    // the forward modified-Lentz continued fraction:
+    //   Gamma(s,x) = e^{-x} x^s * h,   h = 1/(x+1-s -) (1*(1-s))/(x+3-s -) ...
+    // Returns s*log(x) - x + log(h).  itmax=2000 is far above the measured
+    // worst case (343 at tol 1e-12); reaching it signals a pathology.
+    real log_upper_incomplete_gamma(real s, real x) {
+        real tol   = 1e-10;
+        real FPMIN = 1e-300;
+        real b = x + 1 - s;
+        if (abs(b) < FPMIN) b = FPMIN;
+        real c = 1 / FPMIN;
+        real d = 1 / b;
+        real h = d;
+        int  i = 1;
+        real del = 0;
+        int  converged = 0;
+        while (i <= 2000 && converged == 0) {
+            real an = -i * (i - s);
+            b = b + 2;
+            d = an * d + b;  if (abs(d) < FPMIN) d = FPMIN;
+            c = b + an / c;  if (abs(c) < FPMIN) c = FPMIN;
+            d = 1 / d;
+            del = d * c;
+            h = h * del;
+            if (abs(del - 1) < tol) converged = 1;
+            i = i + 1;
+        }
+        if (converged == 0)
+            reject("log_upper_incomplete_gamma: CF did not converge for s=", s, " x=", x);
+        return s * log(x) - x + log(h);
+    }
+
+    // log E[v/(W+v)], hybrid in q = alpha*NSERate/lambda.
+    real log_psuccess_hybrid(real alpha, real lambda, real NSERate) {
+        real v  = 1.0 / NSERate;
+        real lv = lambda * v;
+        real q  = alpha * NSERate / lambda;        // = alpha / lv
+        if (q < 0.005) {                            // Taylor: exact at small q
+            real a_over_lv = alpha / lv;
+            return -a_over_lv + a_over_lv / lv + 0.5 * a_over_lv * a_over_lv;
+        }
+        return alpha * log(lv) + lv + log_upper_incomplete_gamma(1 - alpha, lv);
+    }
+
     /* Per-slice partial sum, summed over genes assigned to this worker.
      * slice_g is a sub-array of gene_indices.  Returns the partial
      * log-likelihood contribution.
@@ -229,11 +300,9 @@ transformed parameters {
     vector[C] log_psuccess;         // 2nd-order Taylor of log P(success at codon c)
     for (c in 1:C) {
         log_alpha_term[c] = log_alpha[c] - log_U - log_lambdaPrime[c];
-        real v         = 1.0 / NSERate[c];
-        real a_over_lv = alpha[c] / (lambdaPrime[c] * v);
-        log_psuccess[c] = -a_over_lv
-                          + a_over_lv / (lambdaPrime[c] * v)
-                          + 0.5 * a_over_lv * a_over_lv;
+        // Exact survival (hybrid Taylor/closed-form); replaces the bare 2nd-order
+        // Taylor, which breached (psuccess>1) for q>q* under the wide NSE prior.
+        log_psuccess[c] = log_psuccess_hybrid(alpha[c], lambdaPrime[c], NSERate[c]);
     }
 }
 
