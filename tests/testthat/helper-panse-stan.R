@@ -76,8 +76,13 @@ panse_stan_data_for <- function(fx, model, sphi_prior_sd = 2.5) {
 .panse_stan_fn_models <- new.env(parent = emptyenv())
 panse_stan_functions <- function(name = "panse_sphi_est_noncentered_sharednse") {
     if (!is.null(.panse_stan_fn_models[[name]])) return(.panse_stan_fn_models[[name]])
-    stan_file <- file.path(panse_stan_dir(), paste0(name, ".stan"))
-    m <- cmdstanr::cmdstan_model(stan_file, compile_standalone = TRUE, quiet = TRUE)
+    # Compile from a temp copy so there is no cached sampling exe to load as
+    # "pre-compiled" (which blocks expose_functions); forces a fresh build that
+    # retains the C++ needed to export the functions block.
+    src <- file.path(panse_stan_dir(), paste0(name, ".stan"))
+    tmp <- file.path(tempdir(), paste0(name, "__fns.stan"))
+    file.copy(src, tmp, overwrite = TRUE)
+    m <- cmdstanr::cmdstan_model(tmp, compile_standalone = TRUE, quiet = TRUE)
     m$expose_functions(verbose = FALSE)
     .panse_stan_fn_models[[name]] <- m
     m
