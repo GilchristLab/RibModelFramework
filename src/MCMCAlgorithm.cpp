@@ -118,13 +118,25 @@ double MCMCAlgorithm::acceptRejectSynthesisRateLevelForAllGenes(Genome& genome, 
 	unsigned numMixtures = model.getNumMixtureElements();
 	//std::vector<std::vector<unsigned>> updatePhi(numGenes,std::vector<unsigned>(numSynthesisRateCategories,0));
 	std::vector <double> dirichletParameters(numMixtures, 0);
-	std::default_random_engine generator;
 	Gene *gene;
-	std::exponential_distribution<double> exp_distribution(1);
-	std::uniform_real_distribution<double> unif_distribution(0, 1);
+	// Pre-draw the per-gene Metropolis acceptance thresholds and mixture-assignment
+	// reference values from R's RNG (serial, controlled by set.seed) BEFORE the
+	// parallel region. Previously these were drawn inside the loop from a shared,
+	// default-seeded std::default_random_engine -- which (a) raced across OpenMP
+	// threads, (b) ignored set.seed, and (c) was re-created identically each
+	// iteration. Pre-drawing by gene index makes the sampler bit-reproducible at
+	// ncores=1 and thread-safe. Each gene consumes exactly one Exp(1) and one
+	// Unif(0,1) draw, unconditionally, in both estimateMixtureAssignment branches.
+	std::vector<double> alpha_vec((unsigned)numGenes);
+	std::vector<double> refValue_vec((unsigned)numGenes);
+	for (unsigned ii = 0u; ii < (unsigned)numGenes; ii++)
+	{
+		alpha_vec[ii]    = -Parameter::randExp(1);
+		refValue_vec[ii] =  Parameter::randUnif(0, 1);
+	}
 #ifdef _OPENMP
 //#ifndef __APPLE__
-#pragma omp parallel for private(exp_distribution,unif_distribution,gene) reduction(+:loglikelihood,logPosterior)
+#pragma omp parallel for private(gene) reduction(+:loglikelihood,logPosterior)
 #endif
 	for (unsigned i = 0u; i < numGenes; i++)
 	{
@@ -170,7 +182,7 @@ double MCMCAlgorithm::acceptRejectSynthesisRateLevelForAllGenes(Genome& genome, 
 
 		double currGeneLogPost = 0.0;
 		double currGeneLogLike = 0.0;
-		double alpha = -exp_distribution(generator);
+		double alpha = alpha_vec[i];
 		if (estimateMixtureAssignment)
 		{
 			for (unsigned k = 0u; k < numSynthesisRateCategories; k++)
@@ -353,7 +365,7 @@ double MCMCAlgorithm::acceptRejectSynthesisRateLevelForAllGenes(Genome& genome, 
 		// draw random number from U(0,1)
 		double referenceValue;
 		//std::uniform_real_distribution<double> distribution(0, 1);
-		referenceValue = unif_distribution(generator);	
+		referenceValue = refValue_vec[i];
 		// check in which category the element falls
 		for (unsigned j = 0u; j < numMixtures; j++)
 		{
@@ -431,7 +443,13 @@ void MCMCAlgorithm::acceptRejectCodonSpecificParameter(Genome& genome, Model& mo
 	std::vector<double> acceptanceRatioForAllMixtures(5,0.0);
 	unsigned size = model.getGroupListSize();
 
-	unsigned seed = std::chrono::system_clock::now().time_since_epoch().count();
+	// Seed the random-scan shuffle (used in the non-shared branch below) from R's
+	// RNG so that set.seed() makes the amino-acid update order reproducible.
+	// Previously this was seeded from the wall clock, so every run/process used a
+	// different scan order -- the dominant source of run-to-run variance even at
+	// ncores=1. (std::default_random_engine + std::shuffle are deterministic for a
+	// given seed on a fixed platform; cross-platform bit-identity is not claimed.)
+	unsigned seed = (unsigned)(Parameter::randUnif(0.0, 1.0) * 4294967295.0);
 	std::default_random_engine e(seed);
 
 	std::vector<unsigned> groups(size);

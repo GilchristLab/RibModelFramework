@@ -1,0 +1,17 @@
+GeneID,Position,Codon,Mixture,RFPCount
+geneA,1,ATG,1,12
+geneA,2,AAA,1,7
+geneA,3,GCC,1,3
+geneA,4,TTT,1,9
+geneA,5,GGT,1,5
+geneA,6,CCA,1,2
+geneA,7,ACT,1,8
+geneA,8,GAA,1,4
+geneB,1,ATG,1,15
+geneB,2,TGC,1,6
+geneB,3,CTG,1,11
+geneB,4,AAC,1,2
+geneB,5,GGA,1,7
+geneB,6,TCT,1,3
+geneB,7,ACC,1,10
+geneB,8,GTT,1,5
