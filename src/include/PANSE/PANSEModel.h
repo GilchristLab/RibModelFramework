@@ -34,8 +34,19 @@ class PANSEModel: public Model
     double nse_exponential_mean = 25000;
     double nse_gamma_shape = 1.0;
     double nse_gamma_rate  = 1.0;
-    
- 
+
+    // Survival-term validity guard.  log_psuccess = log E[v/(W+v)] is <= 0 by
+    // construction; the exact form can only exceed 0 by (a) continued-fraction
+    // roundoff ~ CF tol, or (b) a genuine pathology (NaN/Inf, x->0, non-conv).
+    // EPS is tied to the CF convergence tolerance (1e-10), NOT machine epsilon:
+    // the iterative stop, not double precision, sets the achievable accuracy.
+    // 100x margin sits above worst measured roundoff (~2e-9) and far below any
+    // real breach (O(0.1-1)).  Excursions in (0, EPS] are silently floored;
+    // excursions > EPS or non-finite are floored AND counted as validity
+    // violations (reported at fit end).  See checkProbSuccessful().
+    static constexpr double PROB_SUCCESS_EPS = 1e-8;   // = 100 * CF tol (1e-10)
+    unsigned long prob_success_breach_count = 0;
+
     std::vector<double> Z;
 
 	public:
@@ -173,6 +184,13 @@ class PANSEModel: public Model
 
     double elongationProbability(double currAlpha, double currLambda, double currNSE);
     double elongationProbabilityLog(double currAlpha, double currLambda, double currNSE);
+    // Validity guard for a survival log-prob: floors small positive roundoff to
+    // 0, counts (and floors) meaningful breaches / non-finite values. Returns
+    // the corrected value. Centralizes the former inline `if (p>0) p=0` clamps.
+    double checkProbSuccessful(double logp);
+    // Number of survival-term validity breaches (log-prob > EPS or non-finite)
+    // floored during the fit. 0 in a healthy fit. Exposed to R via the module.
+    unsigned long getProbSuccessBreachCount();
         
     double elongationUntilIndexApproximation1Probability(double alpha, double lambda, double v, double current);
     double elongationUntilIndexApproximation2Probability(double alpha, double lambda, double v, bool proposed);

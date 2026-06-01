@@ -132,3 +132,8 @@ S3method(format, AdaptiveScheme)
 export(dic.var)
 export(dic.classic)
 export(setParameterToPosteriorMean)
+
+# Stan warm-start helpers (added 2026-05-30)
+export(genomeToStanData)
+export(genomeToStanInit)
+export(adviToWarmStart)

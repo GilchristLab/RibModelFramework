@@ -26,7 +26,11 @@ initializeParameterObject(
   init.by.random = FALSE,
   init.initiation.cost = 4,
   init.partition.function = 1,
-  numElongationMixtures = 1
+  numElongationMixtures = 1,
+  phi.prior = "lognormal",
+  phi.prior.constraint = "mean",
+  phi.prior.init = NULL,
+  phi.prior.hyperparams = NULL
 )
 }
 \arguments{
@@ -118,6 +122,30 @@ missing phi values, as these genes will not have an initial phi value.}
 \item{init.partition.function}{FOR PANSE ONLY. initializes the partition function Z.}
 
 \item{numElongationMixtures}{FOR PANSE ONLY. Number of elongation mixture components. Default is 1.}
+
+\item{phi.prior}{Specifies the prior on the synthesis rate phi. Valid values
+are \code{"lognormal"} (default, legacy single-LogNormal behavior) and
+\code{"mixture-lognormal"} (mixture of two LogNormals, with one component's
+log-location derived from the constraint below). Currently only the ROC
+model uses this argument; ignored otherwise.}
+
+\item{phi.prior.constraint}{Anchor for the mixture-LN prior. Valid values are
+\code{"mean"} (default; anchors E[phi] = 1) and \code{"median"} (anchors
+median[phi] = 1). For \code{phi.prior = "lognormal"} the default constraint
+(\code{"mean"}) reproduces existing behavior exactly. The \code{"median"}
+option for the single-LN case is not yet wired into MCMC (task #12).}
+
+\item{phi.prior.init}{Optional list with initial values for the mixture-LN
+parameters. Named elements \code{p}, \code{mu1}, \code{sigma1}, \code{sigma2}
+each numeric (scalar recycled to num.mixtures, or vector of length
+num.mixtures). NULL uses defaults from the validated R prototype.}
+
+\item{phi.prior.hyperparams}{Optional named list overriding mixture prior
+hyperparameters. Sub-blocks: \code{p = list(alpha=, beta=)} (Beta prior),
+\code{mu1 = list(mean=, sd=)} (Normal prior), \code{sigma1 = list(scale=)}
+and \code{sigma2 = list(scale=)} (half-Normal scales). Any field omitted
+keeps its default. Defaults match the R prototype: Beta(8,2), Normal(0,10),
+half-Normal(1), half-Normal(1) truncated above by sigma1.}
 }
 \value{
 parameter Returns an initialized Parameter object.
