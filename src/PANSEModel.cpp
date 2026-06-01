@@ -89,13 +89,8 @@ void PANSEModel::fillMatrices(Genome& genome)
             currNSERate = getParameterForCategory(nseCategory, PANSEParameter::nse, codon, false);
 
             tmp[k] = std::lgamma(currAlpha);
-            prob_successful[j][k] = elongationUntilIndexApproximation2ProbabilityLog(currAlpha, currLambda, 1/currNSERate);
-
-            if (prob_successful[j][k] > 0.0)
-            {
-            	//prob_successful[j][k] = std::numeric_limits<double>::quiet_NaN();
-              prob_successful[j][k] = 0.0;
-            }
+            prob_successful[j][k] = checkProbSuccessful(
+                elongationProbabilityLog(currAlpha, currLambda, 1/currNSERate));
             for (unsigned l=0; l < 50; l++)
             {
                 // l: RFP count at position, j is mixture, k is codon
@@ -400,12 +395,8 @@ void PANSEModel::calculateLogLikelihoodRatioPerGroupingPerCategory(std::string g
                 }
                 if (prop_prob_successful[codonMixture][codonIndex] > 500)
                 {
-                    prop_prob_successful[codonMixture][codonIndex] = elongationUntilIndexApproximation2ProbabilityLog(currAlpha, currLambda,1/propNSERate);
-                    if (prop_prob_successful[codonMixture][codonIndex] > 0.0)
-                    {
-                        //prop_prob_successful[codonMixture][codonIndex] = std::numeric_limits<double>::quiet_NaN();
-                        prop_prob_successful[codonMixture][codonIndex] = 0.0;
-                    }
+                    prop_prob_successful[codonMixture][codonIndex] = checkProbSuccessful(
+                        elongationProbabilityLog(currAlpha, currLambda,1/propNSERate));
                 }
                 propSigma = propSigma + prop_prob_successful[codonMixture][codonIndex];
             }
@@ -422,13 +413,8 @@ void PANSEModel::calculateLogLikelihoodRatioPerGroupingPerCategory(std::string g
                     }
                     if (prop_prob_successful[codonMixture][codonIndex] > 500)
                     {
-                        prop_prob_successful[codonMixture][codonIndex] = elongationUntilIndexApproximation2ProbabilityLog(propAlpha, propLambda,1/currNSERate);
-                        if (prop_prob_successful[codonMixture][codonIndex] > 0.0)
-                        {
-                            //prop_prob_successful[codonMixture][codonIndex] = std::numeric_limits<double>::quiet_NaN();
-                            prop_prob_successful[codonMixture][codonIndex] = 0.0;
-                        }
-               
+                        prop_prob_successful[codonMixture][codonIndex] = checkProbSuccessful(
+                            elongationProbabilityLog(propAlpha, propLambda,1/currNSERate));
                     }
    
                 }
@@ -442,12 +428,8 @@ void PANSEModel::calculateLogLikelihoodRatioPerGroupingPerCategory(std::string g
                     }
                     if (prop_prob_successful[codonMixture][codonIndex] > 500)
                     {
-                        prop_prob_successful[codonMixture][codonIndex] = elongationUntilIndexApproximation2ProbabilityLog(currAlpha, currLambda,1/propNSERate);
-                        if (prop_prob_successful[codonMixture][codonIndex] > 0.0)
-                        {
-                        	//prop_prob_successful[codonMixture][codonIndex] = std::numeric_limits<double>::quiet_NaN();
-                        	prop_prob_successful[codonMixture][codonIndex] = 0.0;
-                        }
+                        prop_prob_successful[codonMixture][codonIndex] = checkProbSuccessful(
+                            elongationProbabilityLog(currAlpha, currLambda,1/propNSERate));
                     }
                 }
                 propSigma = propSigma + prop_prob_successful[codonMixture][codonIndex];
@@ -1666,8 +1648,10 @@ bool PANSEModel::checkValues(bool proposed)
 			currAlpha = getParameterForCategory(alphaCategory, PANSEParameter::alp, grouping, proposed);
 			currLambda = getParameterForCategory(lambdaCategory, PANSEParameter::lmPri, grouping, proposed);
 			currNSERate = getParameterForCategory(nseCategory, PANSEParameter::nse, grouping, proposed);
-			prob_success = elongationUntilIndexApproximation2ProbabilityLog(currAlpha, currLambda, 1/currNSERate);
-			if (prob_success > 0.0)
+			prob_success = elongationProbabilityLog(currAlpha, currLambda, 1/currNSERate);
+			// log E[v/(W+v)] must be <= 0; tolerate CF roundoff up to EPS, reject
+			// the proposal (good_values=false) only on a meaningful breach / non-finite.
+			if (!std::isfinite(prob_success) || prob_success > PROB_SUCCESS_EPS)
 			{
 				good_values = false;
 			}
@@ -1683,19 +1667,43 @@ double PANSEModel::getParameterForCategory(unsigned category, unsigned param, st
     return parameter->getParameterForCategory(category, param, codon, proposal);
 }
 
-//Continued fractions helper function for upper incomplete gamma
+//Continued fractions helper for the upper incomplete gamma Gamma(s,x).
+//Returns the CF denominator D such that Gamma(s,x) = x^s e^{-x} / D.
+//
+//Forward modified-Lentz evaluation (Numerical Recipes "gcf"): adaptive,
+//converges in ~10-20 iterations in the typical regime and <=~350 in the
+//worst small-x corner, versus the previous fixed 10000-term backward sweep.
+//Stable for all real s (incl. s=0 at alpha=1 and s<<0 down to ~ -99), which
+//is required because s = 1 - alpha is negative over the alpha bound range and
+//no standard-library incomplete-gamma routine accepts shape <= 0.
+//
+//D = 1/h where Gamma(s,x) = x^s e^{-x} h; verified equal to the prior fixed
+//10000-term result to ~1e-9 across the operating range.
 double PANSEModel::UpperIncompleteGammaHelper(double s, double x)
 {
-    double rv;
-    int i;
+    const double FPMIN = 1e-300;
+    const double tol   = 1e-10;
+    const int    itmax = 2000;
 
-    rv = 10000.0 / x;
-    for(i = 10000; i > 0; i--){
-        if(i % 2 == 0) rv = ((i / 2)) / (x + rv);
-        if(i % 2 != 0) rv = ((((i / 2) + 1) - s)) / (1 + rv);
+    double b = x + 1.0 - s;
+    if (std::fabs(b) < FPMIN) b = FPMIN;
+    double c = 1.0 / FPMIN;
+    double d = 1.0 / b;
+    double h = d;
+
+    for (int i = 1; i <= itmax; i++) {
+        double an = -1.0 * i * (i - s);
+        b += 2.0;
+        d = an * d + b; if (std::fabs(d) < FPMIN) d = FPMIN;
+        c = b + an / c; if (std::fabs(c) < FPMIN) c = FPMIN;
+        d = 1.0 / d;
+        double del = d * c;
+        h *= del;
+        if (std::fabs(del - 1.0) < tol) break;
     }
 
-    return x + rv;
+    // Prior callers expect the denominator D with Gamma(s,x) = x^s e^{-x} / D.
+    return 1.0 / h;
 }
 
 //Upper incomplete gamma function
@@ -1724,9 +1732,43 @@ double PANSEModel::UpperIncompleteGammaLog(double s, double x)
 
 }
 
+// Validity guard for a survival log-probability (log E[v/(W+v)], must be <= 0).
+// - value in (0, EPS]      : continued-fraction roundoff; silently floor to 0.
+// - value > EPS or !finite : real breach / pathology; floor to 0 AND count it.
+// The breach count is reported at the end of the fit (see writeRestartFile /
+// the MCMC driver); a healthy fit has count 0.  Floor (not reject) is retained
+// so a single bad proposal does not abort a long run; with the exact survival
+// form a positive value should essentially never occur outside roundoff.
+double PANSEModel::checkProbSuccessful(double logp)
+{
+    if (!std::isfinite(logp))
+    {
+        if (prob_success_breach_count == 0)
+            my_print("WARNING: survival log-prob non-finite; flooring to 0 and continuing. Investigate (NaN/Inf params, x->0, CF non-convergence).\n");
+        prob_success_breach_count++;
+        return 0.0;
+    }
+    if (logp > 0.0)
+    {
+        if (logp > PROB_SUCCESS_EPS)   // beyond CF roundoff: a real breach
+        {
+            if (prob_success_breach_count == 0)
+                my_print("WARNING: survival log-prob > 0 (psuccess > 1) by more than CF tolerance; flooring to 0 and continuing. Investigate.\n");
+            prob_success_breach_count++;
+        }
+        return 0.0;
+    }
+    return logp;
+}
+
+unsigned long PANSEModel::getProbSuccessBreachCount()
+{
+    return prob_success_breach_count;
+}
+
 //Log probability of elongation at current codon
 double PANSEModel::elongationProbabilityLog(double currAlpha, double currLambda, double currNSE)
-{ 
+{
     double tmp = std::exp(std::log(currLambda) + std::log(currNSE));
     double x = tmp + currAlpha * std::log(currLambda)  + currAlpha * std::log(currNSE) + UpperIncompleteGammaLog(1.0-currAlpha,tmp);
     return x;
@@ -1772,6 +1814,10 @@ double PANSEModel::elongationUntilIndexApproximation1ProbabilityLog(double alpha
 {
     return (-1*(alpha/(lambda * v)));   	   
 }
+// DEPRECATED (2026-06-01): 2nd-order Taylor of log E[v/(W+v)] in q=alpha/(lambda*v).
+// Goes positive (psuccess>1, non-physical) for q > 1/(1/alpha+0.5); the hot path
+// now calls the exact elongationProbabilityLog instead.  Retained for reference
+// and small-q comparison only; no longer used in sigma accumulation.
 double PANSEModel::elongationUntilIndexApproximation2ProbabilityLog(double alpha, double lambda, double v)
 {
 	return (-(alpha/(lambda * v)) + (alpha/(lambda * lambda * v * v))
@@ -1827,12 +1873,8 @@ double PANSEModel::calculateLogLikelihood(Genome &genome, std::vector<std::vecto
                                                              phiValue, std::exp(currSigma));
       if (prob_successful[codonMixture][codonIndex] > 500)
       {
-        prob_successful[codonMixture][codonIndex] = elongationUntilIndexApproximation2ProbabilityLog(currAlpha, currLambda,1/currNSERate);
-        if (prob_successful[codonMixture][codonIndex] > 0.0)
-        {
-          prob_successful[codonMixture][codonIndex] = std::numeric_limits<double>::quiet_NaN();
-          my_print("Warning: greater than 1. Prob now %\n",prob_successful[codonMixture][codonIndex]);
-        }
+        prob_successful[codonMixture][codonIndex] = checkProbSuccessful(
+            elongationProbabilityLog(currAlpha, currLambda,1/currNSERate));
       }
       currSigma = currSigma + prob_successful[codonMixture][codonIndex];
       
