@@ -75,7 +75,9 @@ cat(sprintf("  G=%d  A=%d  K=%d  mphi_prior_sd=%.3f\n", G, d$A, K, MPHI_SD))
 sep(); cat("STAGE 2: compile\n"); sep()
 te <- system.time(
   mod <- cmdstan_model("stan/roc_sphi_est.stan",
-                       cpp_options = list(stan_threads = TRUE), quiet = TRUE)
+                       cpp_options = list(stan_threads = TRUE),
+                       compile_model_methods = TRUE, force_recompile = TRUE,
+                       quiet = TRUE)
 )["elapsed"]
 cat(sprintf("  compiled in %.1fs\n", te))
 
@@ -100,7 +102,6 @@ lp_at <- function(scale_anchor, theta) {
   dd <- d; dd$deta_scale_anchor <- as.integer(scale_anchor)
   fit <- mod$optimize(data = dd, iter = 1L, algorithm = "lbfgs",
                       threads = threads, refresh = 0, show_messages = FALSE)
-  fit$init_model_methods(verbose = FALSE)      # enable $log_prob (bridgestan)
   fit$log_prob(unconstrained_variables = theta, jacobian = TRUE)
 }
 
