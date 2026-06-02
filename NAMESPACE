@@ -174,3 +174,7 @@ export(write_sim_outputs)
 import(data.table)
 importFrom(yaml, write_yaml)
 importFrom(rlang, "%||%")
+
+# ---- PANSE Stan harness Phase 3 (TKT #38) ----
+export(panse_stan_model_path)
+export(panse_compile_model)
