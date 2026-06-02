@@ -75,11 +75,13 @@ test_that("inst/scripts/fit_panse_stan.R shim: --dry-run exits 0 and writes conf
         "stan: { chains: 1, warmup: 5, sampling: 5, seed: 1 }"
     ), cfg)
 
+    # Pass lib-loc so the subprocess finds the same AnaCoDa install as the test runner.
+    lib_loc <- .libPaths()[1]
     rc <- suppressWarnings(
-        system2("Rscript", c(shim, cfg, "--out", out, "--dry-run"),
+        system2("Rscript", c(shim, cfg, "--lib-loc", lib_loc, "--out", out, "--dry-run"),
                 stdout = TRUE, stderr = TRUE)
     )
-    expect_true(dir.exists(out) || TRUE)   # dry-run may not create out_dir
-    # dry-run should print the data summary and exit without error
-    expect_true(any(grepl("dry-run|skipping|G =", rc)))
+    # dry-run should print data summary and --dry-run notice without error
+    expect_true(any(grepl("dry-run|skipping|G =", rc)),
+                info = paste(tail(rc, 10), collapse = "\n"))
 })
