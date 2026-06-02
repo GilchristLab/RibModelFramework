@@ -161,6 +161,10 @@ prior_exponential <- function(rate = 1) {
 
 # ---- print methods ----------------------------------------------------------
 
+#' Print a phi_spec object
+#' @param x A \code{phi_spec} object.
+#' @param ... Further arguments passed to or from other methods.
+#' @return \code{x} invisibly.
 #' @export
 print.phi_spec <- function(x, ...) {
   cat("<phi_spec: mode =", x$mode)
@@ -174,6 +178,10 @@ print.phi_spec <- function(x, ...) {
   invisible(x)
 }
 
+#' Format a prior_dist object as a string
+#' @param x A \code{prior_dist} object.
+#' @param ... Further arguments passed to or from other methods.
+#' @return A character string describing the distribution.
 #' @export
 format.prior_dist <- function(x, ...) {
   switch(x$dist,
@@ -185,6 +193,10 @@ format.prior_dist <- function(x, ...) {
   )
 }
 
+#' Print a prior_dist object
+#' @param x A \code{prior_dist} object.
+#' @param ... Further arguments passed to or from other methods.
+#' @return \code{x} invisibly.
 #' @export
 print.prior_dist <- function(x, ...) {
   cat("<prior_dist:", format(x), ">\n")
