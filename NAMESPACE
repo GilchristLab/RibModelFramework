@@ -165,3 +165,12 @@ export(F_novembre)
 export(calc_enc)
 export(calc_enc_prime)
 export(panse_mcmc_to_draws)
+
+# ---- PANSE Stan harness Phase 2 (TKT #38) ----
+export(build_panse_stan_data)
+export(panse_stan_finalize)
+export(simulate_panse_dataset)
+export(write_sim_outputs)
+import(data.table)
+importFrom(yaml, write_yaml)
+importFrom(rlang, "%||%")
