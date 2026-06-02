@@ -1,15 +1,10 @@
-# Migrated PANSE-Stan harness: build_panse_stan_data() data-list contract.
-# Pure R (data.table/yaml; no cmdstan/AnaCoDa). Tiny hand-crafted fixture
-# (3 genes x 4 positions, 4 codons) so the expected layout is exact.
+# PANSE Stan harness: build_panse_stan_data() data-list contract.
+# Phase 5 rewrite (TKT #38): calls AnaCoDa::build_panse_stan_data() directly.
 library(testthat)
 
 context("panse-stan-harness: build_panse_stan_data")
 
 test_that("build_panse_stan_data produces the expected Stan data contract", {
-    skip_if_not_installed("data.table")
-    skip_if_not_installed("yaml")
-    source_panse_harness("scripts/panse-stan/build_panse_stan_data.R")
-
     fx <- testthat::test_path("fixtures", "panse-stan", "builder")
     config <- list(
         genome = list(input.dir = fx, pattern = "rfp_counts.csv"),
@@ -25,7 +20,7 @@ test_that("build_panse_stan_data produces the expected Stan data contract", {
             sphi.prior.sd = 2.5, init.partition.function = "auto"
         )
     )
-    sd <- build_panse_stan_data(config, verbose = FALSE)
+    sd <- AnaCoDa::build_panse_stan_data(config, verbose = FALSE)
 
     # dimensions
     expect_equal(sd$G, 3L)
@@ -41,9 +36,9 @@ test_that("build_panse_stan_data produces the expected Stan data contract", {
     # codon ids in range; counts preserved
     expect_true(all(sd$codon_at_pos >= 1L & sd$codon_at_pos <= sd$C))
     expect_length(sd$y, 12L)
-    expect_equal(sum(sd$y), 36L)   # 5+3+2+4 +6+1+7+0 +2+2+1+3
+    expect_equal(sum(sd$y), 36L)
 
-    # codon ordering taken from the alpha CSV's Codon column
+    # codon ordering from alpha CSV
     expect_equal(names(attr(sd, "init_alpha")), c("TTT", "TTC", "TAT", "TAC"))
     expect_equal(unname(attr(sd, "init_alpha")[["TTT"]]), 1.5)
 

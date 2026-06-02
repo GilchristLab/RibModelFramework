@@ -34,8 +34,13 @@ skip_if_no_cmdstan <- function() {
     if (is.na(v) || is.null(v)) testthat::skip("cmdstan toolchain not installed")
 }
 
-# ---- locate the stan/ directory by walking up from the test dir -------------
+# ---- locate the stan/ directory (inst/stan preferred, top-level fallback) ---
 panse_stan_dir <- function() {
+    # 1. Installed package path (inst/stan/ after R CMD INSTALL).
+    pkg_dir <- system.file("stan", package = "AnaCoDa")
+    if (nzchar(pkg_dir) && file.exists(file.path(pkg_dir, "panse_csp_only.stan")))
+        return(normalizePath(pkg_dir))
+    # 2. In-source fallback: walk up to the repo-root stan/ (worktree / devtools).
     d <- normalizePath(testthat::test_path("."), mustWork = FALSE)
     for (i in 1:6) {
         cand <- file.path(d, "stan")
