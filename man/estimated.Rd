@@ -21,3 +21,9 @@ A \code{phi_spec} object of mode \code{"estimated"}.
 \description{
 Specify an estimated mPhi or sphi
 }
+\examples{
+# Estimate sphi with a weakly-informative normal prior
+estimated(prior = prior_normal(mean = 1.4, sd = 0.125))
+# Estimate sphi with a bounded-uniform prior
+estimated(prior = prior_uniform(low = 0, high = 10))
+}

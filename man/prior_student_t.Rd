@@ -19,3 +19,6 @@ A \code{prior_dist} object.
 \description{
 Student-t prior for MCMC parameter estimation
 }
+\examples{
+prior_student_t(df = 3, mean = 0, sd = 1)
+}
