@@ -1,0 +1,280 @@
+---
+title: "AnaCoDa: Parameterizing the phi prior for ROC (anchoring, sphi, and HMC mixing)"
+author: "Michael A. Gilchrist"
+date: "`r Sys.Date()`"
+output: rmarkdown::html_vignette
+vignette: >
+  %\VignetteIndexEntry{AnaCoDa: Parameterizing the phi prior for ROC (anchoring, sphi, and HMC mixing)}
+  %\VignetteEngine{knitr::rmarkdown}
+  %\VignetteEncoding{UTF-8}
+---
+
+```{r setup, include = FALSE}
+knitr::opts_chunk$set(
+  collapse = TRUE,
+  comment = "#>"
+)
+```
+
+> **Scope.** This vignette covers the **single-lognormal** phi prior for the ROC
+> model. It explains *why* the way you parameterize the prior on the gene-specific
+> synthesis rate `phi` matters for sampling, and *how* to express your choice with
+> the `phi.mphi` / `phi.sphi` arguments to `initializeParameterObject()`. The
+> two-component (mixture / "dual-LN") prior is a different regime and is discussed
+> only briefly at the end.
+
+## The quantities you are specifying
+
+ROC treats each gene's synthesis rate `phi_g` as lognormal,
+
+$$\log \phi_g \sim \mathrm{Normal}(m_\phi,\; s_\phi),$$
+
+so the prior has a **location** `mphi` ($m_\phi$, the mean of `log phi`) and a
+**spread** `sphi` ($s_\phi$, the SD of `log phi`). The new API lets you specify
+each independently:
+
+```{r, eval = FALSE}
+initializeParameterObject(
+  genome,
+  phi.mphi = constrained(statistic = "median", value = 1),   # the location
+  phi.sphi = estimated(prior = prior_normal(mean = 1.4, sd = 0.125))  # the spread
+)
+```
+
+The rest of this vignette is about choosing those two specs well. The short
+version:
+
+- **`phi.mphi`**: anchor a chosen *statistic* of `phi` to 1. Prefer
+  `statistic = "median"` for fitting; use `"mean"` only for backward-compatibility /
+  regression parity; **avoid `"mode"`**.
+- **`phi.sphi`**: usually `estimated()` with a weakly-informative prior such as
+  `prior_normal(mean = 1.4, sd = 0.125)`; `fixed()` when you want to hold the spread.
+- For Stan/HMC fits, pair `statistic = "median"` with the **non-centered**
+  parameterization and the **scale-anchor**, and keep the default **`diag_e`**
+  metric (not `dense_e`).
+
+## 1. Why parameterization matters: a non-identified scale
+
+The ROC likelihood enters only through the product `dEta_c * phi_g` (in the linear
+predictor `eta_{g,c} = -dM_c - dEta_c * phi_g`). Consequently it is **exactly
+invariant** under the rescaling
+
+$$\phi \to a\,\phi, \qquad dEta \to dEta / a \qquad (a > 0),$$
+
+because `dEta * phi` is unchanged. The data therefore identify only the *product* of
+the dEta scale and the phi scale -- **not the absolute level of `phi` on its own**.
+Something other than the likelihood has to fix that level: that "something" is the
+**anchor** (`phi.mphi`) plus the prior on `sphi`. In other words, the anchor is a
+**gauge choice**, not a quantity the data estimate.
+
+This non-identification is also the practical reason parameterization matters for
+*sampling*: the rescaling direction is a near-flat ridge in the posterior, and it is
+the dominant bottleneck for mixing the `dEta` (selection) parameters. The choices
+below either fix the gauge in a numerically friendly way (Section 2-3) or reshape the
+geometry so the sampler can move along/across that ridge efficiently (Section 4).
+
+A useful corollary: because the level is a gauge, **`sphi` is gauge-invariant** and
+the *relative* pattern of `dEta` across codons is gauge-invariant; only the *absolute*
+`phi` level and the *absolute* `dEta` scale depend on the anchor. You can convert a
+fit from one anchor to another after the fact (Section 2).
+
+## 2. Anchoring the location: `phi.mphi = constrained(statistic, value = 1)`
+
+`constrained(statistic, value = 1)` pins a chosen statistic of the `phi`
+distribution to `value`. For the lognormal the three natural "central" statistics are
+
+| statistic | value of the statistic | anchoring it to 1 forces |
+|---|---|---|
+| `"mean"`   | `exp(mphi + sphi^2/2)` | `mphi = -sphi^2/2` |
+| `"median"` | `exp(mphi)`           | `mphi = 0` |
+| `"mode"`   | `exp(mphi - sphi^2)`  | `mphi = +sphi^2` |
+
+The key structural fact: **the choice of statistic is a choice of how `mphi` couples
+to `sphi`.** `"median"` *decouples* them (`mphi = 0`, independent of `sphi`); `"mean"`
+couples them weakly; `"mode"` couples them most strongly and in the opposite
+direction.
+
+What that does to the rest of the distribution (the API enforces these and warns
+about the growth ones):
+
+| anchor (=1) | E[phi] | median(phi) | mode(phi) |
+|---|---|---|---|
+| `mean`   | 1                    | `exp(-sphi^2/2)` | `exp(-3 sphi^2/2)` |
+| `median` | `exp(sphi^2/2)`      | 1                | `exp(-sphi^2)` |
+| `mode`   | `exp(3 sphi^2/2)`    | `exp(sphi^2)`    | 1 |
+
+At a realistic `sphi = 1.4`, the contrast is stark -- where the *bulk* of `phi` mass
+sits relative to 1:
+
+| anchor (=1) | E[phi] | median(phi) |
+|---|---:|---:|
+| `mean`   | 1.00 | 0.38 |
+| `median` | 2.66 | 1.00 |
+| `mode`   | 18.9 | 7.1  |
+
+### Recommendation
+
+- **`"median"` (recommended for fitting).** Robust to the high-expression tail (the
+  median ignores how extreme the most-expressed genes are), and it *decouples* `mphi`
+  from `sphi`, which gives the cleanest sampling geometry and is what the Stan
+  scale-anchor (Section 4) needs.
+- **`"mean"` (legacy / regression parity).** The historical ROC convention
+  (`E[phi] = 1`). Keep it when you need results numerically comparable to earlier ROC
+  fits, or for regression test cases. It is sensitive to the tail (a few
+  highly-expressed genes pull the level), and it couples `mphi` to `sphi`.
+- **Avoid `"mode"`.** It couples `mphi` to `sphi` most strongly and in the direction
+  that makes `E[phi]` *grow* as `exp(3 sphi^2/2)` -- for wide priors it pushes almost
+  all of `phi` far above 1, fighting the `dEta` prior. `constrained("mode")` issues a
+  warning to this effect.
+- `"sd"` / `"variance"` pin the spread of `phi` rather than its center; they let
+  `E[phi]` drift toward 0 as `sphi` grows and should be paired with a prior on `sphi`.
+  The API warns accordingly.
+
+```{r, eval = FALSE}
+# Recommended for fitting:
+phi.mphi <- constrained(statistic = "median", value = 1)
+
+# Legacy / comparable-to-old-fits:
+phi.mphi <- constrained(statistic = "mean", value = 1)
+
+# Hold the location at an exact log-space mean instead of constraining a statistic:
+phi.mphi <- fixed(value = 0)   # mphi = 0  (equivalent location to median=1)
+```
+
+### Re-gauging after a fit
+
+Because the level is a gauge, a posterior fit under one anchor can be converted to
+another deterministically. Going mean <-> median rescales `phi` and `dEta` by a
+constant factor `exp(+/- sphi^2/2)`:
+
+$$\phi_{\text{median}} = \phi_{\text{mean}}\,e^{+s_\phi^2/2}, \qquad
+  dEta_{\text{median}} = dEta_{\text{mean}}\,e^{-s_\phi^2/2}.$$
+
+So you can fit in the geometry-friendly `"median"` gauge and report in the legacy
+`"mean"` gauge if you need comparability. `sphi` and the relative `dEta` pattern are
+unchanged by the conversion.
+
+## 3. The spread: `phi.sphi = estimated(prior = ...)` vs `fixed()`
+
+```{r, eval = FALSE}
+# Estimate sphi with a weakly-informative normal prior (recommended default):
+phi.sphi <- estimated(prior = prior_normal(mean = 1.4, sd = 0.125))
+
+# Estimate sphi with a bounded-uniform prior:
+phi.sphi <- estimated(prior = prior_uniform(low = 0, high = 10))
+
+# Estimate sphi with an improper flat prior (legacy default behavior):
+phi.sphi <- estimated(prior = NULL)
+
+# Hold sphi fixed:
+phi.sphi <- fixed(value = 1.4)
+```
+
+`estimated()` puts `sphi` under MCMC with the given prior. The
+`prior_normal(mean = 1.4, sd = 0.125)` form is the adopted weakly-informative default
+for ROC fits -- centered near typical genome-wide `sphi` values and tight enough to
+keep the sampler out of pathological small-`sphi` regions, but not so tight as to
+override the data. `fixed()` is appropriate when you want to condition on a known
+spread (e.g. transferring `sphi` from a reference fit, or a sensitivity analysis).
+
+Currently implemented sphi priors are `prior_normal()`, `prior_uniform()`, and the
+flat `NULL`. `prior_student_t()` and `prior_exponential()` are defined but **not yet
+wired into estimation** (see Roadmap).
+
+## 4. Sampling geometry for Stan/HMC fits
+
+Fixing the gauge (Sections 2-3) makes the model identified, but a *residual* version
+of the rescaling ridge still slows `dEta` mixing under HMC. Three settings address
+the geometry; they are Stan data-flags on the ROC Stan model (`stan/roc_sphi_est.stan`)
+and pair naturally with `phi.mphi = constrained("median")`.
+
+**Non-centered `log_phi`.** Sample standardized `z` and set
+`log_phi = mphi + sphi * z`. This removes the Neal's-funnel between `log_phi` and
+`sphi` that otherwise appears once the global level is free, and it is *required* for
+the scale-anchor below to actually decouple the ridge. (Trade-off: non-centering
+slightly worsens `sphi` mixing; usually a good trade.)
+
+**The dEta scale-anchor.** With a free median anchor, reparameterize so the global
+level cancels out of the `dEta * phi` product. The likelihood then becomes exactly
+invariant to the global level, which removes the dominant `dEta` ridge instead of
+merely relocating it.
+
+**Keep `diag_e`, not `dense_e`.** It is tempting to "let the metric learn the
+correlations." Don't: the Stan mass matrix spans *all* sampled parameters -- roughly
+`2 * (#codons) + (#genes) + 2`, on the order of 2000+ for a real genome -- and the
+gene-by-gene block is essentially diagonal. A full `dense_e` therefore pays an
+`O(n^2)` per-leapfrog cost dominated by modeling noise, with no benefit; the one
+coupling that matters is the single low-rank rescaling direction, which the reparam
+already removes. Use the default `diag_e`.
+
+**Recommended HMC combination:**
+`constrained("median")` + `estimated(sphi)` + non-centered + scale-anchor + `diag_e`.
+On a `G = 2000` simulated yeast genome this lifted `dEta` effective-samples-per-second
+to ~1.6x the centered/mean-anchored baseline, removed the funnel
+(`log_phi` R-hat 2.49 -> ~1.0), and roughly halved warmup -- with no regression on
+`dM` or `log_phi`. The reparameterization's correctness (exact invariance of the
+likelihood to the global level) and its legacy-`mean` parity are covered by the
+package tests `scripts/test_reparam_stan.R` and
+`scripts/test_reparam_inertness_stan.R`.
+
+## 5. Worked configurations
+
+**(a) Legacy `mean(phi) = 1`, fixed spread** -- comparable to older ROC fits; good
+for regression test cases.
+
+```{r, eval = FALSE}
+parameter <- initializeParameterObject(
+  genome       = genome,
+  model        = "ROC",
+  num.mixtures = 1,
+  gene.assignment = rep(1, length(genome)),
+  phi.mphi = constrained(statistic = "mean", value = 1),
+  phi.sphi = fixed(value = 1.4)
+)
+```
+
+**(b) Recommended: `median(phi) = 1`, estimated spread** -- robust gauge, clean
+geometry.
+
+```{r, eval = FALSE}
+parameter <- initializeParameterObject(
+  genome       = genome,
+  model        = "ROC",
+  num.mixtures = 1,
+  gene.assignment = rep(1, length(genome)),
+  phi.mphi = constrained(statistic = "median", value = 1),
+  phi.sphi = estimated(prior = prior_normal(mean = 1.4, sd = 0.125))
+)
+```
+
+**Stan/HMC backend equivalents.** When fitting via the Stan ROC model rather than the
+native MCMC, the same choices map to data-flags on `stan/roc_sphi_est.stan`:
+
+```{r, eval = FALSE}
+# anchor_phi        = 1     # median anchor (matches constrained("median"))
+# noncentered       = 1     # non-centered log_phi
+# deta_scale_anchor = 1     # cancel the global level from dEta*phi
+# metric            = "diag_e"   # NOT dense_e
+```
+
+**Backward compatibility.** The older arguments still work and are translated
+internally: `sphi = <number>` behaves like `phi.sphi = fixed(<number>)`,
+`sphi = NA` like `phi.sphi = estimated()`, and
+`phi.prior.constraint = "mean" | "median"` like
+`phi.mphi = constrained(statistic = ...)`.
+
+## 6. Caveats, scope, and roadmap
+
+- **Single-LN only.** Everything above is for the one-component lognormal phi prior.
+  The two-component mixture ("dual-LN") prior is a genuinely different regime: at
+  realistic genome sizes the mixture is not reliably samplable by Stan HMC, and the
+  native MCMC is the authoritative backend there. The anchoring ideas carry over only
+  partially (the bulk component can be anchored, but the rare component and the
+  mixing weight add their own identifiability issues).
+- **The anchor is a convention.** Report and compare the *relative* `dEta` pattern
+  (gauge-invariant). Absolute `phi` and absolute `dEta` magnitudes depend on the
+  anchor; state which one you used.
+- **Roadmap (not yet implemented).** `phi.mphi = estimated()` (estimating the global
+  level under a prior rather than constraining it), and `prior_student_t()` /
+  `prior_exponential()` for `sphi`, are defined in the API surface but currently stop
+  with a "not yet implemented" message.
