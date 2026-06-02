@@ -178,3 +178,6 @@ importFrom(rlang, "%||%")
 # ---- PANSE Stan harness Phase 3 (TKT #38) ----
 export(panse_stan_model_path)
 export(panse_compile_model)
+
+# ---- PANSE Stan harness Phase 4 (TKT #38) ----
+export(fit_panse_stan)
