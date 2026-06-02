@@ -79,6 +79,26 @@
   members are persisted in `.rst` restart files (forward-compatible: old builds
   silently skip unknown keys).
 
+- **Stan backend: `initializeStan()` with phi.mphi/phi.sphi spec.**
+  `genomeToStanData()` + `genomeToStanInit()` are replaced by a single
+  `initializeStan(genome, phi.mphi = ..., phi.sphi = ...)` that accepts
+  the same `constrained()` / `fixed()` / `estimated()` / `prior_*()` spec
+  objects as `initializeParameterObject()`.  Returns a two-slot list:
+  `$data` (pass to `mod$sample(data = ...)`) and `$init` (pass to
+  `mod$sample(init = list(...))`).  The matching Stan model
+  `stan/roc_sphi_est.stan` is updated with:
+  - Data-dependent bounds `real<lower=sphi_low, upper=sphi_high> sphi`
+    replacing `real<lower=0> sphi`; a `Uniform(0, 10)` prior sets
+    `sphi_low=0, sphi_high=10` with no prior density statement, matching
+    the MCMC uniform convention exactly.
+  - `phi_mphi_mode` / `phi_mphi_statistic` / `phi_mphi_value` / `phi_mphi_fixed`
+    data fields replace the old `anchor_phi` / `mphi_param` / `mphi_prior_sd`
+    flags.  All five `computeMPhi` formulas (mean, median, mode, variance, sd)
+    are in the `transformed parameters` block.
+  - `mphi_param` removed from the `parameters` block; mphi is always computed
+    deterministically from the phi spec.
+  `adviToWarmStart()` is updated to handle models with or without `mphi_param`.
+
 ## BUG FIXES
 
 - **MCMC RNG determinism (behavior change).** `runMCMC()` is now
