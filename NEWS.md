@@ -21,6 +21,25 @@
 - Rcpp methods on Parameter: `setCSPAdaptationScheme(name, params)` +
   `getCSPAdaptationSchemeName()`.
 
+- **Stan ROC single-LN reparameterization flags for dEta mixing (closes #6).**
+  `stan/roc_sphi_est.stan` gains two opt-in data flags, both OFF by default and
+  byte-identical to the prior model when off:
+  - `deta_scale_anchor` — samples `dEta` on a scale-anchored coordinate
+    (`dEta = dS * exp(-(mphi - ref))`) so the global phi level `mphi` cancels from
+    the `dEta * phi` product, breaking the multiplicative dEta-phi scale ridge that
+    dominates dEta mixing.  Requires `anchor_phi = median` (a free, sampled `mphi`).
+  - `deta_phi_center` — centers phi in the likelihood, applying the dM prior to the
+    intercept-at-0 (unit-Jacobian shear).
+
+  Paired with the non-centered `log_phi` parameterization (`noncentered = 1`), the
+  scale-anchor makes the data likelihood exactly invariant to `mphi`, removing the
+  Neal's-funnel that centering otherwise exposes.  On a G=2000 simulated genome this
+  lifted dEta ESS/sec ~1.6x over the mean-anchored/centered baseline with the funnel
+  gone and no regression on dM/log_phi.  Correctness/regression guards added:
+  `scripts/test_reparam_stan.R` (likelihood invariance to `mphi`, verified to ~1e-13)
+  and `scripts/test_reparam_inertness_stan.R` (legacy `mean(phi)=1` parity + frozen
+  golden).  See the `phi-parameterization` vignette for guidance.
+
 - **Composable phi prior specification API for the ROC single-LN phi prior
   (closes #28).** `initializeParameterObject()` accepts two new arguments,
   `phi.mphi` and `phi.sphi`, built from a set of composable mode and prior
