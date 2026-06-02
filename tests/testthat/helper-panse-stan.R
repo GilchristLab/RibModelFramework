@@ -6,6 +6,22 @@
 # independent R reference for the per-codon survival term (copied verbatim from
 # the analysis-side ground-truth test, so the Stan model is checked against an
 # implementation it does not share).
+#
+# RUNNING THESE TESTS MANUALLY
+# ----------------------------
+# The skip guard calls testthat::skip_on_cran(), which causes all Stan tests
+# to be skipped when the suite is run via test_check("AnaCoDa") (the standard
+# CI harness).  To run them locally set NOT_CRAN=true:
+#
+#   NOT_CRAN=true Rscript -e '
+#     library(AnaCoDa)
+#     library(testthat)
+#     Sys.setenv(NOT_CRAN = "true")
+#     test_dir("tests/testthat", filter = "panse-stan")
+#   '
+#
+# CmdStan and the R packages cmdstanr + posterior must be installed.
+# Stan models are compiled on first run and cached by cmdstanr.
 # ============================================================================
 
 # ---- skip guard: Stan tests need cmdstanr + a working cmdstan toolchain -----
