@@ -17,3 +17,7 @@ A \code{phi_spec} object of mode \code{"fixed"}.
 \description{
 Specify a fixed mPhi or sphi
 }
+\examples{
+# Hold sphi fixed at 1.4
+fixed(value = 1.4)
+}

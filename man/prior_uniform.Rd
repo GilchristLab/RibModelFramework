@@ -17,3 +17,6 @@ A \code{prior_dist} object.
 \description{
 Uniform prior for MCMC parameter estimation
 }
+\examples{
+prior_uniform(low = 0, high = 10)
+}

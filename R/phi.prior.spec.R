@@ -36,6 +36,11 @@
 #'   scale of phi but allow \code{E[phi]} to vary with sphi (see Warning).
 #' @param value Positive numeric. Target value for the statistic (default 1).
 #' @return A \code{phi_spec} object of mode \code{"constrained"}.
+#' @examples
+#' # Recommended for fitting: anchor the median of phi to 1
+#' constrained(statistic = "median", value = 1)
+#' # Legacy convention: anchor the mean of phi to 1
+#' constrained(statistic = "mean", value = 1)
 #' @export
 constrained <- function(statistic = "mean", value = 1) {
   if (!statistic %in% names(.PHI_STATISTIC_CODES))
@@ -74,6 +79,9 @@ constrained <- function(statistic = "mean", value = 1) {
 #'   log-space mean (\code{meanlog}); for \code{phi.sphi} it is the log-space
 #'   SD (\code{sdlog}) and must be positive.
 #' @return A \code{phi_spec} object of mode \code{"fixed"}.
+#' @examples
+#' # Hold sphi fixed at 1.4
+#' fixed(value = 1.4)
 #' @export
 fixed <- function(value) {
   if (!is.numeric(value) || length(value) != 1L || !is.finite(value))
@@ -94,6 +102,11 @@ fixed <- function(value) {
 #'   constrained formula at the starting sphi. Only used for \code{phi.mphi}
 #'   (deferred: not yet implemented for v1).
 #' @return A \code{phi_spec} object of mode \code{"estimated"}.
+#' @examples
+#' # Estimate sphi with a weakly-informative normal prior
+#' estimated(prior = prior_normal(mean = 1.4, sd = 0.125))
+#' # Estimate sphi with a bounded-uniform prior
+#' estimated(prior = prior_uniform(low = 0, high = 10))
 #' @export
 estimated <- function(prior = prior_uniform(low = 0, high = 10), init = NULL) {
   if (!is.null(prior) && !inherits(prior, "prior_dist"))
@@ -112,6 +125,8 @@ estimated <- function(prior = prior_uniform(low = 0, high = 10), init = NULL) {
 #' @param low  Lower bound (default 0). Must be >= 0 for sphi.
 #' @param high Upper bound (default 10).
 #' @return A \code{prior_dist} object.
+#' @examples
+#' prior_uniform(low = 0, high = 10)
 #' @export
 prior_uniform <- function(low = 0, high = 10) {
   if (!is.numeric(low)  || !is.finite(low))  stop("low must be finite\n")
@@ -126,6 +141,8 @@ prior_uniform <- function(low = 0, high = 10) {
 #' @param mean Prior mean (default 0).
 #' @param sd   Prior standard deviation (default 1). Must be positive.
 #' @return A \code{prior_dist} object.
+#' @examples
+#' prior_normal(mean = 1.4, sd = 0.125)
 #' @export
 prior_normal <- function(mean = 0, sd = 1) {
   if (!is.numeric(sd) || sd <= 0) stop("sd must be positive\n")
@@ -139,6 +156,8 @@ prior_normal <- function(mean = 0, sd = 1) {
 #' @param mean Location (default 0).
 #' @param sd   Scale (default 1). Must be positive.
 #' @return A \code{prior_dist} object.
+#' @examples
+#' prior_student_t(df = 3, mean = 0, sd = 1)
 #' @export
 prior_student_t <- function(df = 3, mean = 0, sd = 1) {
   if (!is.numeric(df) || df <= 0) stop("df must be positive\n")
@@ -152,6 +171,8 @@ prior_student_t <- function(df = 3, mean = 0, sd = 1) {
 #'
 #' @param rate Rate parameter (default 1). Must be positive.
 #' @return A \code{prior_dist} object.
+#' @examples
+#' prior_exponential(rate = 1)
 #' @export
 prior_exponential <- function(rate = 1) {
   if (!is.numeric(rate) || rate <= 0) stop("rate must be positive\n")

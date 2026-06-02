@@ -17,3 +17,6 @@ A \code{prior_dist} object.
 \description{
 Normal prior for MCMC parameter estimation
 }
+\examples{
+prior_normal(mean = 1.4, sd = 0.125)
+}

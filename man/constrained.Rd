@@ -21,3 +21,9 @@ A \code{phi_spec} object of mode \code{"constrained"}.
 \description{
 Specify a constrained mPhi or sphi
 }
+\examples{
+# Recommended for fitting: anchor the median of phi to 1
+constrained(statistic = "median", value = 1)
+# Legacy convention: anchor the mean of phi to 1
+constrained(statistic = "mean", value = 1)
+}

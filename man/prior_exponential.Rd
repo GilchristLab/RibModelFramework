@@ -15,3 +15,6 @@ A \code{prior_dist} object.
 \description{
 Exponential prior for MCMC parameter estimation
 }
+\examples{
+prior_exponential(rate = 1)
+}
