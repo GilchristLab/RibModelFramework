@@ -149,3 +149,35 @@ export(prior_exponential)
 S3method(print,  phi_spec)
 S3method(print,  prior_dist)
 S3method(format, prior_dist)
+
+# ---- PANSE Stan harness API (TKT #38) -- append-only block; do not reorder ----
+export(mle_to_init_list)
+export(jitter_init)
+export(scuo_to_log_phi)
+export(scuo_posterior)
+export(mixture_bootstrap_init)
+export(build_aa_codon_map)
+export(group_aa_by_d)
+export(derive_null_from_genome)
+export(derive_null_from_subset)
+export(F_wright)
+export(F_novembre)
+export(calc_enc)
+export(calc_enc_prime)
+export(panse_mcmc_to_draws)
+
+# ---- PANSE Stan harness Phase 2 (TKT #38) ----
+export(build_panse_stan_data)
+export(panse_stan_finalize)
+export(simulate_panse_dataset)
+export(write_sim_outputs)
+import(data.table)
+importFrom(yaml, write_yaml)
+importFrom(rlang, "%||%")
+
+# ---- PANSE Stan harness Phase 3 (TKT #38) ----
+export(panse_stan_model_path)
+export(panse_compile_model)
+
+# ---- PANSE Stan harness Phase 4 (TKT #38) ----
+export(fit_panse_stan)
