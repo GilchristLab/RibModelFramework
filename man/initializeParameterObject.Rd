@@ -30,15 +30,20 @@ initializeParameterObject(
   phi.prior = "lognormal",
   phi.prior.constraint = "mean",
   phi.prior.init = NULL,
-  phi.prior.hyperparams = NULL
+  phi.prior.hyperparams = NULL,
+  phi.mphi = NULL,
+  phi.sphi = NULL
 )
 }
 \arguments{
 \item{genome}{An object of type Genome necessary for the initialization of the Parameter object.
 The default value is NULL.}
 
-\item{sphi}{Initial values for sphi. Expected is a vector of length numMixtures.
-The default value is NULL.}
+\item{sphi}{Initial value(s) for sphi (log-space SD of the phi prior, equivalent
+to \code{sdlog} in \code{\link{dlnorm}}). Numeric vector of length numMixtures, or
+\code{NA} to estimate sphi with the default weakly informative prior (see
+\code{phi.sphi}). Will be superseded by \code{phi.sphi} when that argument is
+provided.}
 
 \item{num.mixtures}{The number of mixtures elements for the underlying mixture distribution (numMixtures > 0).
 The default value is 1.}
@@ -129,11 +134,11 @@ are \code{"lognormal"} (default, legacy single-LogNormal behavior) and
 log-location derived from the constraint below). Currently only the ROC
 model uses this argument; ignored otherwise.}
 
-\item{phi.prior.constraint}{Anchor for the mixture-LN prior. Valid values are
-\code{"mean"} (default; anchors E[phi] = 1) and \code{"median"} (anchors
-median[phi] = 1). For \code{phi.prior = "lognormal"} the default constraint
-(\code{"mean"}) reproduces existing behavior exactly. The \code{"median"}
-option for the single-LN case is not yet wired into MCMC (task #12).}
+\item{phi.prior.constraint}{Anchor for the phi prior. Valid values are
+\code{"mean"} (default; anchors E[phi] = 1 via mPhi = -sphi^2/2) and
+\code{"median"} (anchors median[phi] = 1 via mPhi = 0). Applies to both
+\code{phi.prior = "lognormal"} and \code{phi.prior = "mixture-lognormal"}.
+The default (\code{"mean"}) reproduces legacy behavior exactly.}
 
 \item{phi.prior.init}{Optional list with initial values for the mixture-LN
 parameters. Named elements \code{p}, \code{mu1}, \code{sigma1}, \code{sigma2}
@@ -146,6 +151,19 @@ hyperparameters. Sub-blocks: \code{p = list(alpha=, beta=)} (Beta prior),
 and \code{sigma2 = list(scale=)} (half-Normal scales). Any field omitted
 keeps its default. Defaults match the R prototype: Beta(8,2), Normal(0,10),
 half-Normal(1), half-Normal(1) truncated above by sigma1.}
+
+\item{phi.mphi}{Optional specification of the phi-prior location (mPhi), built
+with \code{\link{constrained}} or \code{\link{fixed}}; e.g.
+\code{constrained(statistic = "median", value = 1)}. When supplied it supersedes
+the legacy \code{phi.prior.constraint} argument. \code{NULL} (default) uses the
+legacy \code{phi.prior.constraint} path. See the phi-prior parameterization
+vignette for guidance on the anchor statistic.}
+
+\item{phi.sphi}{Optional specification of sphi (the phi-prior spread), built with
+\code{\link{estimated}} or \code{\link{fixed}}; e.g.
+\code{estimated(prior = prior_normal(mean = 1.4, sd = 0.125))} or
+\code{fixed(value = 1.4)}. When supplied it supersedes the legacy \code{sphi}
+argument. \code{NULL} (default) falls back to \code{sphi}.}
 }
 \value{
 parameter Returns an initialized Parameter object.
