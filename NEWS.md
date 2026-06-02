@@ -21,6 +21,45 @@
 - Rcpp methods on Parameter: `setCSPAdaptationScheme(name, params)` +
   `getCSPAdaptationSchemeName()`.
 
+- **Composable phi prior specification API for the ROC single-LN phi prior
+  (closes #28).** `initializeParameterObject()` accepts two new arguments,
+  `phi.mphi` and `phi.sphi`, built from a set of composable mode and prior
+  constructors:
+
+  *Mode constructors* (control how mPhi or sphi is treated):
+  - `constrained(statistic, value)` — derived so that the named distributional
+    property of phi equals `value`.  `statistic` is one of `"mean"`,
+    `"median"`, `"mode"`, `"variance"`, `"sd"`.  Default:
+    `constrained("mean", 1)` which restores `mPhi = log(value) - sphi^2/2`,
+    identical to the previous default behavior.
+  - `fixed(value)` — holds mPhi (or sphi) at a constant.
+  - `estimated(prior)` — mPhi/sphi is sampled during MCMC with an optional
+    prior distribution.  Currently implemented for sphi only; `phi.mphi =
+    estimated(...)` is reserved for a future release.
+
+  *Prior distribution constructors* (used inside `estimated()`):
+  - `prior_uniform(low, high)` — default for sphi; `prior_uniform(0, 10)` is
+    the new system default, replacing the previous implicit improper flat prior.
+  - `prior_normal(mean, sd)` — Normal prior on sphi.
+  - `prior_student_t(df, mean, sd)` — Student-t prior (forward-compatible; not
+    yet wired into the MCMC acceptance step in this release).
+  - `prior_exponential(rate)` — Exponential prior (forward-compatible).
+  - `NULL` — improper flat; retains backward compatibility with callers that
+    passed no prior via `parameter$setSphiPrior()`.
+
+  *Backward compatibility:* All previously valid calling patterns continue to
+  work unchanged.  `sphi = 1` (numeric) maps to `phi.sphi = fixed(1)`;
+  `sphi = NA` maps to `phi.sphi = estimated(prior = prior_uniform(0, 10))`;
+  `phi.prior.constraint = "median"` maps to
+  `phi.mphi = constrained("median", 1)` with a deprecation warning.
+
+  *C++ internals:* `Parameter` gains `computeMPhi(sphi, statistic, value)` (a
+  static helper with closed-form mPhi formulas for all five statistics),
+  `phiMuMode` / `phiMuFixed` / `phiConstraintValue` members, and
+  `sphiPriorType` / `sphiPriorLow` / `sphiPriorHigh` members.  All new
+  members are persisted in `.rst` restart files (forward-compatible: old builds
+  silently skip unknown keys).
+
 ## BUG FIXES
 
 - **MCMC RNG determinism (behavior change).** `runMCMC()` is now

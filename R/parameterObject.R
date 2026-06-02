@@ -3,8 +3,11 @@
 #' @param genome An object of type Genome necessary for the initialization of the Parameter object.
 #' The default value is NULL.
 #' 
-#' @param sphi Initial values for sphi. Expected is a vector of length numMixtures.
-#' The default value is NULL.
+#' @param sphi Initial value(s) for sphi (log-space SD of the phi prior, equivalent
+#' to \code{sdlog} in \code{\link{dlnorm}}). Numeric vector of length numMixtures, or
+#' \code{NA} to estimate sphi with the default weakly informative prior (see
+#' \code{phi.sphi}). Will be superseded by \code{phi.sphi} when that argument is
+#' provided.
 #' 
 #' @param num.mixtures The number of mixtures elements for the underlying mixture distribution (numMixtures > 0).
 #' The default value is 1.
@@ -95,11 +98,11 @@
 #' log-location derived from the constraint below). Currently only the ROC
 #' model uses this argument; ignored otherwise.
 #'
-#' @param phi.prior.constraint Anchor for the mixture-LN prior. Valid values are
-#' \code{"mean"} (default; anchors E[phi] = 1) and \code{"median"} (anchors
-#' median[phi] = 1). For \code{phi.prior = "lognormal"} the default constraint
-#' (\code{"mean"}) reproduces existing behavior exactly. The \code{"median"}
-#' option for the single-LN case is not yet wired into MCMC (task #12).
+#' @param phi.prior.constraint Anchor for the phi prior. Valid values are
+#' \code{"mean"} (default; anchors E[phi] = 1 via mPhi = -sphi^2/2) and
+#' \code{"median"} (anchors median[phi] = 1 via mPhi = 0). Applies to both
+#' \code{phi.prior = "lognormal"} and \code{phi.prior = "mixture-lognormal"}.
+#' The default (\code{"mean"}) reproduces legacy behavior exactly.
 #'
 #' @param phi.prior.init Optional list with initial values for the mixture-LN
 #' parameters. Named elements \code{p}, \code{mu1}, \code{sigma1}, \code{sigma2}
@@ -175,9 +178,46 @@ initializeParameterObject <- function(genome = NULL, sphi = NULL, num.mixtures =
                                       phi.prior = "lognormal",
                                       phi.prior.constraint = "mean",
                                       phi.prior.init = NULL,
-                                      phi.prior.hyperparams = NULL){
+                                      phi.prior.hyperparams = NULL,
+                                      phi.mphi = NULL,
+                                      phi.sphi = NULL){
   # check input integrity
+  # ---- phi spec resolution ----
+  # Translate legacy sphi= convention and phi.mphi/phi.sphi args into resolved
+  # phi_spec objects before the integrity checks.
+  if (is.null(init.with.restart.file)) {
+    # sphi = NA  -> estimate with default prior + mean anchor
+    # sphi = num -> fix at that value (legacy behavior)
+    # phi.sphi arg overrides sphi when provided
+    if (is.null(phi.sphi)) {
+      if (is.null(sphi)) {
+        stop("Either sphi or phi.sphi must be specified\n")
+      } else if (all(is.na(sphi))) {
+        phi.sphi <- estimated(prior = prior_uniform(low = 0, high = 10))
+        sphi     <- rep(1.0, num.mixtures)  # dummy init; not used for estimation start
+      } else {
+        phi.sphi <- fixed(value = mean(sphi))
+      }
+    }
+    if (is.null(phi.mphi)) {
+      # Legacy phi.prior.constraint path: translate to new constrained() form.
+      if (!is.null(phi.prior.constraint) && phi.prior.constraint != "mean") {
+        .legacyConstraintMap <- c(mean = "mean", median = "median")
+        if (!phi.prior.constraint %in% names(.legacyConstraintMap))
+          stop("phi.prior.constraint must be 'mean' or 'median'\n")
+        warning("phi.prior.constraint is deprecated; use phi.mphi = constrained(statistic='",
+                phi.prior.constraint, "', value=1) instead.", call. = FALSE)
+        phi.mphi <- constrained(statistic = phi.prior.constraint, value = 1)
+      } else {
+        phi.mphi <- constrained(statistic = "mean", value = 1)
+      }
+    }
+  }
+
   if(is.null(init.with.restart.file)){
+    if (inherits(phi.sphi, "phi_spec_fixed")) {
+      if (is.null(sphi)) sphi <- rep(phi.sphi$value, num.mixtures)
+    }
     if(length(sphi) != num.mixtures){
       stop("Not all mixtures have an Sphi value assigned!\n")
     }
@@ -289,6 +329,8 @@ initializeParameterObject <- function(genome = NULL, sphi = NULL, num.mixtures =
     applyPhiPriorSettings(parameter, num.mixtures, phi.prior,
                           phi.prior.constraint, phi.prior.init,
                           phi.prior.hyperparams)
+    # Apply phi spec (new API). phi.mphi/phi.sphi are always resolved above.
+    .applyPhiSpec(parameter, phi.mphi, phi.sphi)
   }
 
   return(parameter)

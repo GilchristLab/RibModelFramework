@@ -317,6 +317,28 @@ RCPP_MODULE(Parameter_mod)
 		.method("setPhiPriorType", &Parameter::setPhiPriorType)
 		.method("getPhiPriorConstraint", &Parameter::getPhiPriorConstraint)
 		.method("setPhiPriorConstraint", &Parameter::setPhiPriorConstraint)
+
+		// Phi spec: mPhi mode + constraint parameters.
+		.method("getPhiMuMode",          &Parameter::getPhiMuMode)
+		.method("setPhiMuMode",          &Parameter::setPhiMuMode)
+		.method("getPhiConstraintValue", &Parameter::getPhiConstraintValue)
+		.method("setPhiConstraintValue", &Parameter::setPhiConstraintValue)
+		.method("getPhiMuFixed",         &Parameter::getPhiMuFixed)
+		.method("setPhiMuFixed",         &Parameter::setPhiMuFixed)
+
+		// Phi spec: sphi prior type + bounds.
+		.method("getSphiPriorType",      &Parameter::getSphiPriorType)
+		.method("setSphiPriorType",      &Parameter::setSphiPriorType)
+		.method("getSphiPriorLow",       &Parameter::getSphiPriorLow)
+		.method("setSphiPriorLow",       &Parameter::setSphiPriorLow)
+		.method("getSphiPriorHigh",      &Parameter::getSphiPriorHigh)
+		.method("setSphiPriorHigh",      &Parameter::setSphiPriorHigh)
+		.method("setSphiPriorBounds",    &Parameter::setSphiPriorBounds)
+
+		// E[phi] sanity bounds.
+		.method("getPhiFloor",           &Parameter::getPhiFloor)
+		.method("getPhiCeiling",         &Parameter::getPhiCeiling)
+		.method("setPhiBounds",          &Parameter::setPhiBounds)
 		// Idempotent allocator for phiMixture* vectors; needed when
 		// loadParameterObject reconstructs a parameter via new(ROCParameter)
 		// where initParameterSet (which normally calls this) is bypassed.

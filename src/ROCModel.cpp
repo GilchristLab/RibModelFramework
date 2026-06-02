@@ -331,15 +331,49 @@ void ROCModel::calculateLogLikelihoodRatioForHyperParameters(Genome &genome, uns
 	std::vector<double> proposedStdDevSynthesisRate(selectionCategory, 0.0);
 	std::vector<double> proposedMphi(selectionCategory, 0.0);
 
+	unsigned phiMuMode    = parameter->getPhiMuMode();
+	unsigned statistic    = parameter->getPhiPriorConstraint();
+	double   cvalue       = parameter->getPhiConstraintValue();
+	unsigned sphiPriorTyp = parameter->getSphiPriorType();
+	double   sphiHigh     = parameter->getSphiPriorHigh();
+	double   sphiLow      = parameter->getSphiPriorLow();
+
 	//Calculating reverse jump probabilities due to asymmetry of logNormal
 	for (unsigned i = 0u; i < selectionCategory; i++)
 	{
-		currentStdDevSynthesisRate[i] = getStdDevSynthesisRate(i, false);
-		currentMphi[i] = -((currentStdDevSynthesisRate[i] * currentStdDevSynthesisRate[i]) * 0.5);
+		currentStdDevSynthesisRate[i]  = getStdDevSynthesisRate(i, false);
 		proposedStdDevSynthesisRate[i] = getStdDevSynthesisRate(i, true);
-		proposedMphi[i] = -((proposedStdDevSynthesisRate[i] * proposedStdDevSynthesisRate[i]) * 0.5);
+
+		// mPhi under fixed mode is constant -- its ratio cancels in the M-H
+		// ratio, so both current and proposed mPhi are the same and we can
+		// skip computing them.  Under constrained mode, mPhi varies with sphi.
+		if (phiMuMode == Parameter::PHI_MU_FIXED)
+		{
+			currentMphi[i]  = parameter->getPhiMuFixed();
+			proposedMphi[i] = parameter->getPhiMuFixed();
+		}
+		else
+		{
+			currentMphi[i]  = Parameter::computeMPhi(currentStdDevSynthesisRate[i],  statistic, cvalue);
+			proposedMphi[i] = Parameter::computeMPhi(proposedStdDevSynthesisRate[i], statistic, cvalue);
+		}
 		// take the Jacobian into account for the non-linear transformation from logN to N distribution
 		lpr -= (std::log(currentStdDevSynthesisRate[i]) - std::log(proposedStdDevSynthesisRate[i]));
+	}
+
+	// Uniform prior: reject proposals outside [low, high] immediately.
+	if (sphiPriorTyp == Parameter::SPHI_PRIOR_UNIFORM)
+	{
+		for (unsigned i = 0u; i < selectionCategory; i++)
+		{
+			if (proposedStdDevSynthesisRate[i] < sphiLow ||
+			    proposedStdDevSynthesisRate[i] > sphiHigh)
+			{
+				logProbabilityRatio[0] = -DBL_MAX;
+				return;
+			}
+		}
+		// Both current and proposed are in range: uniform prior ratio = 0, no lpr contribution.
 	}
 
 	if (withPhi)
@@ -366,15 +400,18 @@ void ROCModel::calculateLogLikelihoodRatioForHyperParameters(Genome &genome, uns
 			   - Parameter::densityLogNorm(phi, currentMphi[mixture], currentStdDevSynthesisRate[mixture], true);
 	}
 
-	// sphi prior: N(sphiPriorMu, sphiPriorSd)
-	double sphiSd = parameter->getSphiPriorSd();
-	if (sphiSd > 0.0)
+	// sphi prior contribution (normal only; uniform handled above; flat contributes 0).
+	if (sphiPriorTyp == Parameter::SPHI_PRIOR_NORMAL)
 	{
-		double sphiMu = parameter->getSphiPriorMu();
-		for (unsigned i = 0u; i < selectionCategory; i++)
+		double sphiSd = parameter->getSphiPriorSd();
+		if (sphiSd > 0.0)
 		{
-			lpr += Parameter::densityNorm(proposedStdDevSynthesisRate[i], sphiMu, sphiSd, true)
-				 - Parameter::densityNorm(currentStdDevSynthesisRate[i], sphiMu, sphiSd, true);
+			double sphiMu = parameter->getSphiPriorMu();
+			for (unsigned i = 0u; i < selectionCategory; i++)
+			{
+				lpr += Parameter::densityNorm(proposedStdDevSynthesisRate[i], sphiMu, sphiSd, true)
+					 - Parameter::densityNorm(currentStdDevSynthesisRate[i], sphiMu, sphiSd, true);
+			}
 		}
 	}
 

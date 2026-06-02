@@ -60,8 +60,25 @@ class Parameter {
 		// Defaults map to existing behavior (SINGLE_LN + MEAN).
 		static const unsigned PHI_PRIOR_SINGLE_LN;   // = 0; legacy single LogNormal (default)
 		static const unsigned PHI_PRIOR_MIXTURE_LN;  // = 1; mixture of two LogNormals
-		static const unsigned PHI_CONSTRAINT_MEAN;    // = 0; anchors E[phi]   = 1 (default)
-		static const unsigned PHI_CONSTRAINT_MEDIAN;  // = 1; anchors median[phi] = 1
+
+		// Phi constraint statistic codes -- which distributional property of phi
+		// is pinned to phiConstraintValue when phiMuMode == PHI_MU_CONSTRAINED.
+		// Values 0 and 1 match legacy PHI_CONSTRAINT_MEAN / PHI_CONSTRAINT_MEDIAN
+		// so restart files written by older builds load correctly.
+		static const unsigned PHI_CONSTRAINT_MEAN;    // = 0; anchors E[phi]   = value (default)
+		static const unsigned PHI_CONSTRAINT_MEDIAN;  // = 1; anchors median[phi] = value
+		static const unsigned PHI_STATISTIC_MODE;     // = 2; anchors mode[phi]   = value
+		static const unsigned PHI_STATISTIC_VARIANCE; // = 3; anchors Var[phi]    = value
+		static const unsigned PHI_STATISTIC_SD;       // = 4; anchors SD[phi]     = value
+
+		// phiMuMode codes: how mPhi is determined each MCMC step.
+		static const unsigned PHI_MU_CONSTRAINED; // = 0; mPhi = computeMPhi(sphi, statistic, value)
+		static const unsigned PHI_MU_FIXED;       // = 1; mPhi = phiMuFixed (user constant)
+
+		// sphiPriorType codes.
+		static const unsigned SPHI_PRIOR_FLAT;    // = 0; improper flat (legacy default)
+		static const unsigned SPHI_PRIOR_NORMAL;  // = 1; Normal(mu, sd) via sphiPriorMu/Sd
+		static const unsigned SPHI_PRIOR_UNIFORM; // = 2; Uniform(low, high) via sphiPriorLow/High
 
 #ifdef STANDALONE
 		static std::default_random_engine generator; // static to make sure that the same generator is used during the runtime.
@@ -140,6 +157,34 @@ class Parameter {
 		void setPhiPriorType(unsigned type);
 		unsigned getPhiPriorConstraint();
 		void setPhiPriorConstraint(unsigned constraint);
+
+		// Phi spec: mPhi mode + constraint parameters.
+		unsigned getPhiMuMode();
+		void     setPhiMuMode(unsigned mode);
+		double   getPhiConstraintValue();
+		void     setPhiConstraintValue(double value);
+		double   getPhiMuFixed();
+		void     setPhiMuFixed(double value);
+
+		// Phi spec: sphi prior type + bounds.
+		unsigned getSphiPriorType();
+		void     setSphiPriorType(unsigned type);
+		double   getSphiPriorLow();
+		void     setSphiPriorLow(double low);
+		double   getSphiPriorHigh();
+		void     setSphiPriorHigh(double high);
+		void     setSphiPriorBounds(double low, double high);
+
+		// E[phi] sanity bounds for getLogPhiPrior().
+		double   getPhiFloor();
+		double   getPhiCeiling();
+		void     setPhiBounds(double floor, double ceiling);
+
+		// Compute mPhi from current sphi given the constraint specification.
+		// statistic: PHI_CONSTRAINT_MEAN/MEDIAN or PHI_STATISTIC_MODE/VARIANCE/SD.
+		// Returns the log-space mean mPhi such that the named statistic of
+		// LogNormal(mPhi, sphi) equals value.
+		static double computeMPhi(double sphi, unsigned statistic, double value);
 
 		// Per-mixture-category mixture-LN parameters.
 		double getPhiMixtureP(unsigned mixtureCategory, bool proposed = false);
@@ -540,7 +585,21 @@ class Parameter {
 		// Phi prior selection (task #12). Default values map to legacy behavior:
 		// SINGLE_LN + MEAN constraint == LogNormal(-sigma^2/2, sigma).
 		unsigned phiPriorType;
-		unsigned phiPriorConstraint;
+		unsigned phiPriorConstraint; // statistic code (0=mean..4=sd); restart key kept for compat
+
+		// mPhi specification (phi spec redesign).
+		unsigned phiMuMode;       // PHI_MU_CONSTRAINED or PHI_MU_FIXED
+		double   phiConstraintValue; // target value for constrained mode (default 1.0)
+		double   phiMuFixed;      // mPhi constant for PHI_MU_FIXED mode
+
+		// sphi prior type (phi spec redesign).
+		unsigned sphiPriorType;   // SPHI_PRIOR_FLAT / NORMAL / UNIFORM
+		double   sphiPriorLow;    // lower bound for uniform prior
+		double   sphiPriorHigh;   // upper bound for uniform prior
+
+		// E[phi] sanity bounds -- getLogPhiPrior() returns -DBL_MAX outside these.
+		double phiFloor;
+		double phiCeiling;
 
 		// Mixture-LN phi prior, per-mixture-category storage. Empty unless
 		// phiPriorType == PHI_PRIOR_MIXTURE_LN; resized in initPhiMixtureStorage().

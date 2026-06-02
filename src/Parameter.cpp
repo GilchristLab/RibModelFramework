@@ -41,6 +41,14 @@ const unsigned Parameter::PHI_PRIOR_SINGLE_LN   = 0;
 const unsigned Parameter::PHI_PRIOR_MIXTURE_LN  = 1;
 const unsigned Parameter::PHI_CONSTRAINT_MEAN   = 0;
 const unsigned Parameter::PHI_CONSTRAINT_MEDIAN = 1;
+const unsigned Parameter::PHI_STATISTIC_MODE     = 2;
+const unsigned Parameter::PHI_STATISTIC_VARIANCE = 3;
+const unsigned Parameter::PHI_STATISTIC_SD       = 4;
+const unsigned Parameter::PHI_MU_CONSTRAINED     = 0;
+const unsigned Parameter::PHI_MU_FIXED           = 1;
+const unsigned Parameter::SPHI_PRIOR_FLAT        = 0;
+const unsigned Parameter::SPHI_PRIOR_NORMAL      = 1;
+const unsigned Parameter::SPHI_PRIOR_UNIFORM     = 2;
 
 
 
@@ -78,6 +86,14 @@ Parameter::Parameter()
 	// Phi prior defaults: legacy single LogNormal, mean=1 anchor.
 	phiPriorType = PHI_PRIOR_SINGLE_LN;
 	phiPriorConstraint = PHI_CONSTRAINT_MEAN;
+	phiMuMode         = PHI_MU_CONSTRAINED;
+	phiConstraintValue = 1.0;
+	phiMuFixed         = 0.0;
+	sphiPriorType      = SPHI_PRIOR_FLAT;
+	sphiPriorLow       = 0.0;
+	sphiPriorHigh      = 10.0;
+	phiFloor           = 1e-6;
+	phiCeiling         = 1e6;
 	// Defaults match validated R prototype proposals (regime A acceptance ~0.15
 	// for p, ~0.5 for sigma2). Adaptive tuning in 12c.2 will refine.
 	std_phiMixtureP = 0.3;
@@ -144,6 +160,14 @@ Parameter::Parameter(unsigned _maxGrouping)
 	// Phi prior defaults: legacy single LogNormal, mean=1 anchor.
 	phiPriorType = PHI_PRIOR_SINGLE_LN;
 	phiPriorConstraint = PHI_CONSTRAINT_MEAN;
+	phiMuMode         = PHI_MU_CONSTRAINED;
+	phiConstraintValue = 1.0;
+	phiMuFixed         = 0.0;
+	sphiPriorType      = SPHI_PRIOR_FLAT;
+	sphiPriorLow       = 0.0;
+	sphiPriorHigh      = 10.0;
+	phiFloor           = 1e-6;
+	phiCeiling         = 1e6;
 	// Defaults match validated R prototype proposals (regime A acceptance ~0.15
 	// for p, ~0.5 for sigma2). Adaptive tuning in 12c.2 will refine.
 	std_phiMixtureP = 0.3;
@@ -267,6 +291,14 @@ Parameter& Parameter::operator=(const Parameter& rhs)
 	// Phi prior selection + mixture storage (task #12a).
 	phiPriorType = rhs.phiPriorType;
 	phiPriorConstraint = rhs.phiPriorConstraint;
+	phiMuMode          = rhs.phiMuMode;
+	phiConstraintValue  = rhs.phiConstraintValue;
+	phiMuFixed          = rhs.phiMuFixed;
+	sphiPriorType       = rhs.sphiPriorType;
+	sphiPriorLow        = rhs.sphiPriorLow;
+	sphiPriorHigh       = rhs.sphiPriorHigh;
+	phiFloor            = rhs.phiFloor;
+	phiCeiling          = rhs.phiCeiling;
 	phiMixtureP = rhs.phiMixtureP;
 	phiMixtureP_proposed = rhs.phiMixtureP_proposed;
 	phiMixtureMu1 = rhs.phiMixtureMu1;
@@ -669,6 +701,30 @@ void Parameter::initBaseValuesFromFile(std::string filename)
 				else if (variableName == "phiPriorConstraint") {
 					iss.str(tmp); iss >> phiPriorConstraint;
 				}
+				else if (variableName == "phiMuMode") {
+					iss.str(tmp); iss >> phiMuMode;
+				}
+				else if (variableName == "phiConstraintValue") {
+					iss.str(tmp); iss >> phiConstraintValue;
+				}
+				else if (variableName == "phiMuFixed") {
+					iss.str(tmp); iss >> phiMuFixed;
+				}
+				else if (variableName == "sphiPriorType") {
+					iss.str(tmp); iss >> sphiPriorType;
+				}
+				else if (variableName == "sphiPriorLow") {
+					iss.str(tmp); iss >> sphiPriorLow;
+				}
+				else if (variableName == "sphiPriorHigh") {
+					iss.str(tmp); iss >> sphiPriorHigh;
+				}
+				else if (variableName == "phiFloor") {
+					iss.str(tmp); iss >> phiFloor;
+				}
+				else if (variableName == "phiCeiling") {
+					iss.str(tmp); iss >> phiCeiling;
+				}
 				else if (variableName == "phiMixtureP") {
 					double val; iss.str(tmp);
 					while (iss >> val) phiMixtureP.push_back(val);
@@ -967,6 +1023,14 @@ void Parameter::writeBasicRestartFile(std::string filename)
 		// vectors empty/default), which is harmless.
 		oss << ">phiPriorType:\n"        << phiPriorType        << "\n";
 		oss << ">phiPriorConstraint:\n"  << phiPriorConstraint  << "\n";
+		oss << ">phiMuMode:\n"           << phiMuMode           << "\n";
+		oss << ">phiConstraintValue:\n"  << phiConstraintValue  << "\n";
+		oss << ">phiMuFixed:\n"          << phiMuFixed          << "\n";
+		oss << ">sphiPriorType:\n"       << sphiPriorType       << "\n";
+		oss << ">sphiPriorLow:\n"        << sphiPriorLow        << "\n";
+		oss << ">sphiPriorHigh:\n"       << sphiPriorHigh       << "\n";
+		oss << ">phiFloor:\n"            << phiFloor            << "\n";
+		oss << ">phiCeiling:\n"          << phiCeiling          << "\n";
 		oss << ">phiMixtureP:\n";
 		for (i = 0; i < phiMixtureP.size(); i++)
 			oss << phiMixtureP[i] << ((i + 1 == phiMixtureP.size()) ? "\n" : " ");
@@ -1485,8 +1549,9 @@ void Parameter::updateStdDevSynthesisRate()
 
 void Parameter::setSphiPrior(double mu, double sd)
 {
-	sphiPriorMu = mu;
-	sphiPriorSd = sd;
+	sphiPriorMu   = mu;
+	sphiPriorSd   = sd;
+	sphiPriorType = (sd > 0.0) ? SPHI_PRIOR_NORMAL : SPHI_PRIOR_FLAT;
 }
 
 double Parameter::getSphiPriorMu()
@@ -3087,8 +3152,36 @@ unsigned Parameter::getPhiPriorConstraint() { return phiPriorConstraint; }
 
 void Parameter::setPhiPriorConstraint(unsigned constraint)
 {
-	if (constraint != PHI_CONSTRAINT_MEAN && constraint != PHI_CONSTRAINT_MEDIAN) return;
+	if (constraint > PHI_STATISTIC_SD) return; // accept 0..4
 	phiPriorConstraint = constraint;
+}
+
+// ---- phi spec: mPhi mode + constraint parameters ----
+unsigned Parameter::getPhiMuMode()               { return phiMuMode; }
+void     Parameter::setPhiMuMode(unsigned mode)   { if (mode <= PHI_MU_FIXED) phiMuMode = mode; }
+double   Parameter::getPhiConstraintValue()       { return phiConstraintValue; }
+void     Parameter::setPhiConstraintValue(double v){ if (v > 0.0) phiConstraintValue = v; }
+double   Parameter::getPhiMuFixed()               { return phiMuFixed; }
+void     Parameter::setPhiMuFixed(double v)        { phiMuFixed = v; }
+
+// ---- phi spec: sphi prior type + bounds ----
+unsigned Parameter::getSphiPriorType()             { return sphiPriorType; }
+void     Parameter::setSphiPriorType(unsigned t)   { if (t <= SPHI_PRIOR_UNIFORM) sphiPriorType = t; }
+double   Parameter::getSphiPriorLow()              { return sphiPriorLow; }
+void     Parameter::setSphiPriorLow(double low)    { if (low >= 0.0) sphiPriorLow = low; }
+double   Parameter::getSphiPriorHigh()             { return sphiPriorHigh; }
+void     Parameter::setSphiPriorHigh(double high)  { if (high > sphiPriorLow) sphiPriorHigh = high; }
+void     Parameter::setSphiPriorBounds(double low, double high)
+{
+	if (low >= 0.0 && high > low) { sphiPriorLow = low; sphiPriorHigh = high; }
+}
+
+// ---- phi spec: E[phi] sanity bounds ----
+double Parameter::getPhiFloor()                    { return phiFloor; }
+double Parameter::getPhiCeiling()                  { return phiCeiling; }
+void   Parameter::setPhiBounds(double floor, double ceiling)
+{
+	if (floor > 0.0 && ceiling > floor) { phiFloor = floor; phiCeiling = ceiling; }
 }
 
 double Parameter::getPhiMixtureP(unsigned mixtureCategory, bool proposed)
@@ -3196,15 +3289,42 @@ void Parameter::initPhiMixtureStorage()
 }
 
 
+double Parameter::computeMPhi(double sphi, unsigned statistic, double value)
+{
+	double s2 = sphi * sphi;
+	double lv = std::log(value);
+	switch (statistic)
+	{
+		case PHI_CONSTRAINT_MEAN:    return lv - s2 * 0.5;
+		case PHI_CONSTRAINT_MEDIAN:  return lv;
+		case PHI_STATISTIC_MODE:     return lv + s2;
+		case PHI_STATISTIC_VARIANCE: return (std::log(value / (std::exp(s2) - 1.0)) - s2) * 0.5;
+		case PHI_STATISTIC_SD:       return (std::log(value * value / (std::exp(s2) - 1.0)) - s2) * 0.5;
+		default:                     return lv - s2 * 0.5; // fallback to mean anchor
+	}
+}
+
+
 double Parameter::getLogPhiPrior(double phi, unsigned mixtureCategory)
 {
 	if (phiPriorType == PHI_PRIOR_SINGLE_LN)
 	{
-		// Legacy single LogNormal anchored at E[phi] = 1 via mPhi = -s^2/2.
-		// Same arithmetic as the inline blocks this method replaces, so
-		// bit-for-bit identical for SINGLE_LN (the default).
 		double s = stdDevSynthesisRate[mixtureCategory];
-		double mPhi = (-(s * s) * 0.5);
+		double mPhi;
+		if (phiMuMode == PHI_MU_FIXED)
+		{
+			mPhi = phiMuFixed;
+		}
+		else // PHI_MU_CONSTRAINED
+		{
+			mPhi = computeMPhi(s, phiPriorConstraint, phiConstraintValue);
+		}
+
+		// Sanity bounds on E[phi] = exp(mPhi + s^2/2).  Returns -DBL_MAX so
+		// M-H auto-rejects proposals that push phi into pathological territory.
+		double ePhi = std::exp(mPhi + s * s * 0.5);
+		if (ePhi < phiFloor || ePhi > phiCeiling) return -DBL_MAX;
+
 		return densityLogNorm(phi, mPhi, s, true);
 	}
 	// PHI_PRIOR_MIXTURE_LN: density helper handles the label-switching guard
