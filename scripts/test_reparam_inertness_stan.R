@@ -2,6 +2,11 @@
 # test_reparam_inertness_stan.R -- legacy mean(phi)=1 inertness/regression guard
 #                                   for stan/roc_sphi_est.stan.
 #
+# NOTE (2026-06-02): This script uses the OLD genomeToStanData() API with
+# anchor_phi=0 / mphi_param fields that have been replaced by the phi.mphi /
+# phi.sphi spec in roc_sphi_est.stan.  It CANNOT run against the updated model.
+# Update to initializeStan() (default constrained("mean",1)) before re-running.
+#
 # Previous ROC code used the mean(phi)=1 constraint (anchor_phi=0).  This test
 # pins that legacy gauge so the dEta scale-anchor / phi-centering additions cannot
 # silently change behavior when OFF.  Under the legacy config

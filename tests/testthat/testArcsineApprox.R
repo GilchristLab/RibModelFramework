@@ -187,22 +187,62 @@ test_that("arcsine LL differs from exact LL on same genome (methods are distinct
 })
 
 # ======================================================================
-# Section 4 -- genomeToStanData() shape and consistency checks
+# Section 4 -- initializeStan() shape and consistency checks
 # ======================================================================
 
-context("genomeToStanData: Stan data list preparation")
+context("initializeStan: Stan data list preparation")
 
-stan_d <- genomeToStanData(genome)
+stan_s <- suppressWarnings(initializeStan(genome))
+stan_d <- stan_s$data
 
-test_that("genomeToStanData returns the required fields", {
+test_that("initializeStan returns a list with $data and $init slots", {
+  expect_named(stan_s, c("data", "init"))
+  expect_type(stan_s$data, "list")
+  expect_type(stan_s$init, "list")
+})
+
+test_that("initializeStan $data has the required fields", {
   required <- c("G", "A", "K", "aa_start", "aa_end", "y_k", "N_ga",
                 "approx_min_n",
                 "dM_prior_mean", "dM_prior_sd",
                 "dEta_prior_mean", "dEta_prior_sd",
+                "sphi_low", "sphi_high", "sphi_prior_type",
                 "sphi_prior_mean", "sphi_prior_sd",
-                "noncentered", "anchor_phi", "mphi_prior_sd",
-                "grainsize")
+                "phi_mphi_mode", "phi_mphi_statistic",
+                "phi_mphi_value", "phi_mphi_fixed",
+                "noncentered", "grainsize")
   expect_true(all(required %in% names(stan_d)))
+})
+
+test_that("default phi spec gives correct Stan data fields", {
+  # constrained("mean", 1) + estimated(prior_uniform(0, 10))
+  expect_equal(stan_d$phi_mphi_mode,      0L)
+  expect_equal(stan_d$phi_mphi_statistic, 0L)   # mean
+  expect_equal(stan_d$phi_mphi_value,     1.0)
+  expect_equal(stan_d$sphi_low,           0.0)
+  expect_equal(stan_d$sphi_high,          10.0)
+  expect_equal(stan_d$sphi_prior_type,    0L)    # uniform (bounds only)
+})
+
+test_that("constrained('median', 1) sets phi_mphi_statistic=1", {
+  s <- suppressWarnings(initializeStan(genome, phi.mphi = constrained("median", 1)))
+  expect_equal(s$data$phi_mphi_mode,      0L)
+  expect_equal(s$data$phi_mphi_statistic, 1L)
+})
+
+test_that("fixed(mphi) sets phi_mphi_mode=1 and stores the value", {
+  s <- suppressWarnings(initializeStan(genome, phi.mphi = fixed(-0.5)))
+  expect_equal(s$data$phi_mphi_mode,  1L)
+  expect_equal(s$data$phi_mphi_fixed, -0.5)
+})
+
+test_that("estimated(prior_normal) sets sphi_prior_type=1 and wide bounds", {
+  s <- suppressWarnings(initializeStan(
+    genome, phi.sphi = estimated(prior_normal(1.4, 0.125))))
+  expect_equal(s$data$sphi_prior_type, 1L)
+  expect_equal(s$data$sphi_prior_mean, 1.4)
+  expect_equal(s$data$sphi_prior_sd,   0.125)
+  expect_gt(s$data$sphi_high, 1e9)   # effectively unbounded
 })
 
 test_that("A = 19 and K = 40 (standard genetic code, ROCParameter::groupList)", {
@@ -256,70 +296,69 @@ test_that("approx_min_n defaults to 20L (integer)", {
 })
 
 test_that("scalar prior expansion works correctly", {
-  d2 <- genomeToStanData(genome, dM_prior_sd = 0.5)
-  expect_true(all(d2$dM_prior_sd == 0.5))
-  expect_equal(length(d2$dM_prior_sd), 40L)
+  s2 <- suppressWarnings(initializeStan(genome, dM_prior_sd = 0.5))
+  expect_true(all(s2$data$dM_prior_sd == 0.5))
+  expect_equal(length(s2$data$dM_prior_sd), 40L)
 })
 
 test_that("length-K prior vector is accepted as-is", {
   custom_mean <- seq(-1, 1, length.out = 40L)
-  d3 <- genomeToStanData(genome, dM_prior_mean = custom_mean)
-  expect_equal(d3$dM_prior_mean, custom_mean)
+  s3 <- suppressWarnings(
+    initializeStan(genome, dM_prior_mean = custom_mean))
+  expect_equal(s3$data$dM_prior_mean, custom_mean)
 })
 
 test_that("wrong-length prior vector raises an error", {
-  expect_error(genomeToStanData(genome, dM_prior_sd = rep(1, 5)),
-               regexp = "length")
+  expect_error(
+    suppressWarnings(initializeStan(genome, dM_prior_sd = rep(1, 5))),
+    regexp = "length")
 })
 
 # ======================================================================
-# Section 5 -- dM prior from SCUO and genomeToStanInit()
+# Section 5 -- dM prior from SCUO and init list
 # ======================================================================
 
-context("genomeToStanData: SCUO-based dM prior")
+context("initializeStan: SCUO-based dM prior")
 
 # Pre-compute SCUO once (reused across tests)
 scuo_vals <- calculateSCUO(genome)$SCUO
 
 test_that("dM.prior='scuo' (default) gives non-zero dM_prior_mean", {
-  # At least some dM priors should be non-zero when estimated from data
   expect_false(all(stan_d$dM_prior_mean == 0))
   expect_equal(length(stan_d$dM_prior_mean), 40L)
   expect_true(all(is.finite(stan_d$dM_prior_mean)))
 })
 
 test_that("dM.prior='flat' gives all-zero dM_prior_mean", {
-  d_flat <- genomeToStanData(genome, dM.prior = "flat")
-  expect_true(all(d_flat$dM_prior_mean == 0))
+  s_flat <- suppressWarnings(initializeStan(genome, dM.prior = "flat"))
+  expect_true(all(s_flat$data$dM_prior_mean == 0))
 })
 
 test_that("explicit dM_prior_mean overrides dM.prior", {
   custom <- rep(0.5, 40L)
-  d_ov   <- genomeToStanData(genome, dM_prior_mean = custom, dM.prior = "scuo")
-  expect_equal(d_ov$dM_prior_mean, custom)
+  s_ov   <- suppressWarnings(
+    initializeStan(genome, dM_prior_mean = custom, dM.prior = "scuo"))
+  expect_equal(s_ov$data$dM_prior_mean, custom)
 })
 
 test_that("pre-computed scuo arg gives same result as internal computation", {
-  d_pre  <- genomeToStanData(genome, scuo = scuo_vals)
-  d_auto <- genomeToStanData(genome)
-  expect_equal(d_pre$dM_prior_mean, d_auto$dM_prior_mean)
+  s_pre  <- suppressWarnings(initializeStan(genome, scuo = scuo_vals))
+  s_auto <- suppressWarnings(initializeStan(genome))
+  expect_equal(s_pre$data$dM_prior_mean, s_auto$data$dM_prior_mean)
 })
 
 test_that("SCUO-based dM prior has correct sign: rare codons get positive dM", {
-  # dM_k = log(count_ref) - log(count_k).
-  # Reference codons (e.g. GCT for Ala) tend to be most common in low-expression
-  # genes, so most non-ref codons should have positive dM (= lower usage than ref).
-  # Not all will be positive (mutation patterns vary by AA), but the median should be.
   expect_gt(median(stan_d$dM_prior_mean), 0)
 })
 
-context("genomeToStanInit: phi initialisation")
+context("initializeStan: phi initialisation (init list)")
 
-stan_init <- genomeToStanInit(genome, stan_d, scuo = scuo_vals)
+stan_init <- suppressWarnings(initializeStan(genome, scuo = scuo_vals))$init
 
-test_that("genomeToStanInit returns the required parameter fields", {
-  required <- c("dM", "dEta", "latent_phi", "sphi", "mphi_param")
+test_that("initializeStan $init has the required parameter fields", {
+  required <- c("dM", "dEta", "latent_phi", "sphi")
   expect_true(all(required %in% names(stan_init)))
+  expect_false("mphi_param" %in% names(stan_init))  # removed in phi-spec API
 })
 
 test_that("latent_phi has length G", {
@@ -340,33 +379,32 @@ test_that("SCUO init latent_phi is centered near 0 (mean close to 0)", {
 })
 
 test_that("SCUO init sd ~ sphi.init (default 1.0)", {
-  # With G=8 the sd won't be exactly 1, but should be in a reasonable range
   expect_gt(sd(stan_init$latent_phi), 0.3)
   expect_lt(sd(stan_init$latent_phi), 3.0)
 })
 
 test_that("phi.init='uniform' gives latent_phi = 0 everywhere", {
-  init_u <- genomeToStanInit(genome, stan_d, phi.init = "uniform")
-  expect_equal(init_u$latent_phi, rep(0.0, stan_d$G))
+  s_u <- suppressWarnings(initializeStan(genome, phi.init = "uniform"))
+  expect_equal(s_u$init$latent_phi, rep(0.0, stan_d$G))
 })
 
 test_that("numeric phi.init vector is accepted and log-transformed", {
-  phi_vec  <- rep(2.0, stan_d$G)   # all genes at phi=2
-  init_phi <- genomeToStanInit(genome, stan_d, phi.init = phi_vec)
+  phi_vec <- rep(2.0, stan_d$G)
+  s_phi   <- suppressWarnings(initializeStan(genome, phi.init = phi_vec))
   # All genes same phi -> after centering, latent_phi = 0
-  expect_equal(init_phi$latent_phi, rep(0.0, stan_d$G), tolerance = 1e-10)
+  expect_equal(s_phi$init$latent_phi, rep(0.0, stan_d$G), tolerance = 1e-10)
 })
 
 test_that("pre-computed scuo gives same init as internal computation", {
-  init_pre  <- genomeToStanInit(genome, stan_d, scuo = scuo_vals)
-  init_auto <- genomeToStanInit(genome, stan_d)
-  expect_equal(init_pre$latent_phi, init_auto$latent_phi)
+  s_pre  <- suppressWarnings(initializeStan(genome, scuo = scuo_vals))
+  s_auto <- suppressWarnings(initializeStan(genome))
+  expect_equal(s_pre$init$latent_phi, s_auto$init$latent_phi)
 })
 
 test_that("sphi.init controls the spread of latent_phi", {
-  init_narrow <- genomeToStanInit(genome, stan_d, scuo = scuo_vals, sphi.init = 0.5)
-  init_wide   <- genomeToStanInit(genome, stan_d, scuo = scuo_vals, sphi.init = 2.0)
-  expect_lt(sd(init_narrow$latent_phi), sd(init_wide$latent_phi))
+  s_narrow <- suppressWarnings(initializeStan(genome, scuo = scuo_vals, sphi.init = 0.5))
+  s_wide   <- suppressWarnings(initializeStan(genome, scuo = scuo_vals, sphi.init = 2.0))
+  expect_lt(sd(s_narrow$init$latent_phi), sd(s_wide$init$latent_phi))
 })
 
 
@@ -374,17 +412,15 @@ test_that("sphi.init controls the spread of latent_phi", {
 # Section 6: adviToWarmStart() -- init + inv_metric from ADVI fit
 # ======================================================================
 # Build a synthetic ADVI-like draws data frame to test adviToWarmStart()
-# without running actual Stan. We need a data.frame with columns matching
-# what mod$variational()$draws(format="df") would return.
+# without running actual Stan. Draws match the new model (no mphi_param).
 
 local({
   G_s <- stan_d$G   # 8
   K_s <- stan_d$K   # 40
-  N   <- 50L        # synthetic draw count
+  N   <- 50L
 
   set.seed(42L)
-  # check.names=FALSE preserves "[" in column names (data.frame() would
-  # otherwise mangle them to e.g. "dM.1." via make.names())
+  # check.names=FALSE preserves "[" in column names
   synth_draws <- data.frame(
     matrix(rnorm(N * K_s, mean = 0.5, sd = 0.3), nrow = N,
            dimnames = list(NULL, paste0("dM[", 1:K_s, "]"))),
@@ -392,14 +428,11 @@ local({
            dimnames = list(NULL, paste0("dEta[", 1:K_s, "]"))),
     matrix(rnorm(N * G_s, mean = 0.0, sd = 0.8), nrow = N,
            dimnames = list(NULL, paste0("latent_phi[", 1:G_s, "]"))),
-    sphi       = abs(rnorm(N, mean = 1.3, sd = 0.15)),
-    mphi_param = rnorm(N, mean = -0.5, sd = 0.1),
+    sphi = abs(rnorm(N, mean = 1.3, sd = 0.15)),
     check.names = FALSE
   )
 
-  # Mock fit object with $draws() method
   mock_fit <- list(draws = function(format = "df") synth_draws)
-
   ws <<- adviToWarmStart(mock_fit, stan_d)
 })
 
@@ -407,8 +440,8 @@ test_that("adviToWarmStart returns init and inv_metric", {
   expect_named(ws, c("init", "inv_metric"))
 })
 
-test_that("init has all required parameter fields", {
-  expect_named(ws$init, c("dM", "dEta", "latent_phi", "sphi", "mphi_param"),
+test_that("init has all required parameter fields (no mphi_param)", {
+  expect_named(ws$init, c("dM", "dEta", "latent_phi", "sphi"),
                ignore.order = TRUE)
 })
 
@@ -417,11 +450,10 @@ test_that("init field lengths match data dimensions", {
   expect_length(ws$init$dEta,       stan_d$K)
   expect_length(ws$init$latent_phi, stan_d$G)
   expect_length(ws$init$sphi,       1L)
-  expect_length(ws$init$mphi_param, 1L)
 })
 
-test_that("inv_metric length is 2K + G + 2", {
-  expect_length(ws$inv_metric, 2L * stan_d$K + stan_d$G + 2L)
+test_that("inv_metric length is 2K + G + 1 (no mphi_param)", {
+  expect_length(ws$inv_metric, 2L * stan_d$K + stan_d$G + 1L)
 })
 
 test_that("all inv_metric values are strictly positive", {
@@ -433,7 +465,6 @@ test_that("all init values are finite", {
   expect_true(all(is.finite(ws$init$dEta)))
   expect_true(all(is.finite(ws$init$latent_phi)))
   expect_true(is.finite(ws$init$sphi))
-  expect_true(is.finite(ws$init$mphi_param))
 })
 
 test_that("init$sphi is positive", {
@@ -441,7 +472,7 @@ test_that("init$sphi is positive", {
 })
 
 test_that("inv_metric dEta block (K values) is wider than dM block", {
-  K_s    <- stan_d$K
+  K_s      <- stan_d$K
   dM_var   <- ws$inv_metric[seq_len(K_s)]
   dEta_var <- ws$inv_metric[K_s + seq_len(K_s)]
   # dEta draws had sd=1.5, dM draws had sd=0.3 -> dEta vars should be larger
@@ -449,9 +480,7 @@ test_that("inv_metric dEta block (K values) is wider than dM block", {
 })
 
 test_that("sphi inv_metric entry is var(log(sphi)), not var(sphi)", {
-  # The sphi entry is at position 2K + G + 1
   K_s <- stan_d$K; G_s <- stan_d$G
   sphi_metric_idx <- 2L * K_s + G_s + 1L
-  # Should be small (log-scale variance), not on the raw scale
   expect_lt(ws$inv_metric[sphi_metric_idx], 1.0)
 })

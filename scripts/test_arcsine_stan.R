@@ -1,6 +1,13 @@
 # ============================================================================
 # test_arcsine_stan.R -- End-to-end test of roc_arcsine.stan via cmdstanr.
 #
+# NOTE (2026-06-02): This script uses the OLD genomeToStanData() / genomeToStanInit()
+# API.  Those functions have been replaced by initializeStan() in R/stanDataHelpers.R.
+# Additionally, roc_arcsine.stan still uses the old data block (anchor_phi,
+# sphi_prior_mean, etc.) and must be updated to the new phi spec data fields
+# (phi_mphi_mode, sphi_low/high, etc.) before this script can run again.
+# Until roc_arcsine.stan is updated, do not run this script.
+#
 # Stages:
 #   1. Compile  roc_arcsine.stan with STAN_THREADS=true
 #   2. Check    log_prob at default init is finite (gradient sanity)

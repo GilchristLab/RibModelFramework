@@ -2,6 +2,12 @@
 # test_reparam_stan.R -- correctness test for the dEta scale-anchor reparam
 #                        in stan/roc_sphi_est.stan, via cmdstanr $log_prob().
 #
+# NOTE (2026-06-02): This script uses the OLD genomeToStanData() API and tests
+# anchor_phi=1 / mphi_param features that have been replaced by the phi.mphi /
+# phi.sphi spec in roc_sphi_est.stan.  It CANNOT run against the updated model
+# without refactoring.  Update to initializeStan() with constrained("median",1)
+# before re-running.  See project_stan_align memory for the new API.
+#
 # WHAT IT PROVES (no sampling; pure log-density identities):
 #
 #   The scale-anchor sets dEta_eff = dEta * exp(-(mphi - ref)) and, under

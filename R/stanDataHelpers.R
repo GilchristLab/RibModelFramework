@@ -1,7 +1,34 @@
-#' Build a Stan data list from an AnaCoDa Genome object
+#' Build Stan data and init lists from an AnaCoDa Genome object
 #'
-#' Converts an AnaCoDa Genome object to the data list required by the ROC
-#' Stan models (roc_arcsine.stan and roc_sphi_est.stan).
+#' Converts an AnaCoDa Genome object and phi prior specifications to the data
+#' and init lists required by the ROC Stan models (roc_sphi_est.stan and
+#' roc_arcsine.stan).  Returns a two-slot list: \code{$data} (pass to
+#' \code{mod$sample(data = ...)}) and \code{$init} (pass to
+#' \code{mod$sample(init = list(...))}).
+#'
+#' @section phi.mphi modes:
+#' \describe{
+#'   \item{\code{constrained(statistic, value)}}{mphi is derived from sphi each
+#'     MCMC iteration so that the specified distributional statistic of phi
+#'     equals \code{value}.  Five statistics are supported: \code{"mean"},
+#'     \code{"median"}, \code{"mode"}, \code{"variance"}, \code{"sd"}.}
+#'   \item{\code{fixed(value)}}{mphi is a fixed data constant equal to
+#'     \code{value} (log-space mean, i.e.\ \code{meanlog}).  sphi is still
+#'     estimated.}
+#' }
+#' \code{estimated()} for phi.mphi is not yet implemented (deferred).
+#'
+#' @section phi.sphi modes:
+#' \describe{
+#'   \item{\code{estimated(prior_uniform(low, high))}}{sphi is sampled within
+#'     \code{[low, high]}; no prior density statement is added (uniform on
+#'     the parameter bounds).  Default: \code{prior_uniform(0, 10)}.}
+#'   \item{\code{estimated(prior_normal(mean, sd))}}{sphi is sampled on
+#'     \code{(0, Inf)} with prior \code{sphi ~ normal(mean, sd)} truncated
+#'     to positive values.}
+#'   \item{\code{estimated(NULL)}}{improper flat prior on positive reals.}
+#' }
+#' \code{fixed()} for phi.sphi is not yet implemented.
 #'
 #' @section dM prior from low-expression genes:
 #' When \code{dM.prior = "scuo"} (default), the prior mean for each mutation
@@ -14,72 +41,102 @@
 #' Pass \code{dM.prior = "flat"} or supply \code{dM_prior_mean} explicitly
 #' to skip this estimation.
 #'
-#' @section Output not in Stan data block:
-#' The returned list contains only fields declared in the Stan model's
-#' \code{data \{\}} block.  Use \code{\link{genomeToStanInit}} to build the
-#' matching \code{init} list (with SCUO-based phi initialisation) for
-#' \code{mod$sample()} / \code{mod$optimize()} / \code{mod$variational()}.
-#'
 #' @param genome An AnaCoDa Genome object.
-#' @param approx_min_n Integer. Minimum N per (gene, AA) for the arcsine
-#'   branch (default 20).  Ignored by roc_sphi_est.stan.
-#' @param noncentered Integer 0/1.  0 = centered phi (default), 1 = non-centered.
-#' @param anchor_phi Integer 0/1.  0 = mean(phi)=1 via mphi=-sphi^2/2 (default),
-#'   1 = soft median anchor.
+#' @param phi.mphi A \code{phi_spec} object for the log-space mean of phi.
+#'   Default: \code{constrained("mean", 1)} (mean(phi) = 1 convention).
+#'   See Details.
+#' @param phi.sphi A \code{phi_spec} object for the log-space SD of phi.
+#'   Default: \code{estimated(prior_uniform(0, 10))}.  See Details.
+#' @param approx_min_n Integer. Minimum total count per (gene, AA) for the
+#'   arcsine branch in \code{roc_arcsine.stan} (default 20).  Included in
+#'   \code{$data} for cross-model compatibility; ignored by
+#'   \code{roc_sphi_est.stan}.
+#' @param noncentered Integer 0/1.  0 = centered latent_phi (default, good
+#'   for G >= 1000 full-genome fits), 1 = non-centered (better for data-sparse
+#'   fits with poor sphi ESS).
 #' @param dM.prior Character.  \code{"scuo"} (default): estimate
-#'   \code{dM_prior_mean} from low-SCUO genes.  \code{"flat"}: use 0 for all.
-#'   Ignored if \code{dM_prior_mean} is supplied explicitly.
-#' @param scuo Numeric vector of length G, or NULL.  Pre-computed SCUO values
-#'   (from \code{\link{calculateSCUO}}).  Computed internally if NULL.
-#'   Passing pre-computed values avoids redundant work when also calling
-#'   \code{\link{genomeToStanInit}}.
-#' @param scuo.low.frac Fraction of lowest-SCUO genes used to estimate the
-#'   dM prior means.  Default 0.25.  At least 5 genes are always used.
-#' @param dM_prior_mean Prior mean for dM.  NULL (default): use \code{dM.prior}.
-#'   Scalar or length-K vector: use as-is, ignoring \code{dM.prior}.
+#'   \code{dM_prior_mean} from low-SCUO genes.  \code{"flat"}: use 0.
+#'   Ignored if \code{dM_prior_mean} is supplied.
+#' @param scuo Numeric vector of length G, or \code{NULL}.  Pre-computed SCUO
+#'   (from \code{\link{calculateSCUO}}).  Computed internally if \code{NULL}.
+#'   Pass a pre-computed vector to avoid redundant work.
+#' @param scuo.low.frac Fraction of lowest-SCUO genes for dM prior estimation.
+#'   Default 0.25; at least 5 genes are always used.
+#' @param dM_prior_mean Prior mean for dM.  \code{NULL} (default): use
+#'   \code{dM.prior}.  Scalar or length-K vector: used as-is.
 #' @param dM_prior_sd Prior SD for dM.  Scalar or length-K vector.  Default 1.
 #' @param dEta_prior_mean Prior mean for dEta.  Default 0.
 #' @param dEta_prior_sd Prior SD for dEta.  Default 1.
-#' @param sphi_prior_mean Prior mean for sphi.  Default 1 (half-normal away
-#'   from 0 avoids exp(-750)=0 underflow warnings in HMC).
-#' @param sphi_prior_sd Prior SD for sphi.  Default 2.
-#' @param mphi_prior_sd Prior SD for the mphi soft anchor (anchor_phi=1 only).
+#' @param deta_scale_anchor Integer 0/1.  Scale-anchor reparameterisation of
+#'   dEta to reduce the dEta-phi ridge (default 0, disabled).
+#' @param deta_anchor_ref Reference mphi level for the scale anchor
+#'   (ignored when \code{deta_scale_anchor = 0}).
+#' @param deta_phi_center Numeric.  Centering constant for the phi predictor
+#'   (0 = disabled, default).
+#' @param phi.init Character or numeric.  \code{"scuo"} (default): per-gene
+#'   log-phi from SCUO.  \code{"uniform"}: phi = 1 everywhere.  Numeric
+#'   vector of length G: used directly as starting phi values (log-transformed
+#'   and scaled internally).
+#' @param sphi.init Numeric.  Starting value for sphi and target SD for the
+#'   initial log-phi distribution (default 1.0).  Must be within the sphi
+#'   bounds implied by \code{phi.sphi}.
 #' @param grainsize reduce_sum grain size (default 1; TBB auto-selects).
 #'
-#' @return Named list suitable for \code{mod$sample(data = ...)}, etc.
+#' @return A named list with two slots:
+#'   \describe{
+#'     \item{\code{$data}}{Stan data list.  Pass as \code{mod$sample(data = result$data)}.}
+#'     \item{\code{$init}}{Stan init list.  Pass as \code{mod$sample(init = list(result$init))}.}
+#'   }
 #'
-#' @seealso \code{\link{genomeToStanInit}} for the matching init list.
+#' @seealso \code{\link{adviToWarmStart}} for warm-starting HMC from ADVI output.
+#'   \code{\link{constrained}}, \code{\link{fixed}}, \code{\link{estimated}},
+#'   \code{\link{prior_uniform}}, \code{\link{prior_normal}} for phi spec constructors.
 #'
 #' @examples
 #' \dontrun{
 #' genome <- initializeGenomeObject("mygenome.fasta")
-#' scuo   <- calculateSCUO(genome)$SCUO          # compute once, reuse
-#' d      <- genomeToStanData(genome, scuo = scuo)
-#' init   <- genomeToStanInit(genome, d, scuo = scuo)
+#' scuo   <- calculateSCUO(genome)$SCUO   # compute once, reuse
+#'
+#' # default: mean(phi)=1 constraint, Uniform(0,10) prior on sphi
+#' stan <- initializeStan(genome, scuo = scuo)
+#'
+#' # median(phi)=1, Normal(1.4, 0.125) prior on sphi
+#' stan <- initializeStan(genome, scuo = scuo,
+#'                        phi.mphi = constrained("median", 1),
+#'                        phi.sphi = estimated(prior_normal(1.4, 0.125)))
 #'
 #' library(cmdstanr)
-#' mod  <- cmdstan_model("stan/roc_arcsine.stan",
-#'                       cpp_options = list(stan_threads = TRUE))
-#' fit  <- mod$variational(data = d, init = list(init), threads = 4L)
+#' mod <- cmdstan_model("stan/roc_sphi_est.stan",
+#'                      cpp_options = list(stan_threads = TRUE))
+#' fit <- mod$variational(data = stan$data, init = list(stan$init), threads = 4L)
 #' }
 #'
 #' @export
-genomeToStanData <- function(genome,
-                              approx_min_n    = 20L,
-                              noncentered     = 0L,
-                              anchor_phi      = 0L,
-                              dM.prior        = "scuo",
-                              scuo            = NULL,
-                              scuo.low.frac   = 0.25,
-                              dM_prior_mean   = NULL,
-                              dM_prior_sd     = 1.0,
-                              dEta_prior_mean = 0.0,
-                              dEta_prior_sd   = 1.0,
-                              sphi_prior_mean = 1.0,
-                              sphi_prior_sd   = 2.0,
-                              mphi_prior_sd   = 0.5,
-                              grainsize       = 1L) {
+initializeStan <- function(genome,
+                            phi.mphi          = constrained("mean", 1),
+                            phi.sphi          = estimated(prior_uniform(0, 10)),
+                            approx_min_n      = 20L,
+                            noncentered       = 0L,
+                            dM.prior          = "scuo",
+                            scuo              = NULL,
+                            scuo.low.frac     = 0.25,
+                            dM_prior_mean     = NULL,
+                            dM_prior_sd       = 1.0,
+                            dEta_prior_mean   = 0.0,
+                            dEta_prior_sd     = 1.0,
+                            deta_scale_anchor = 0L,
+                            deta_anchor_ref   = 0.0,
+                            deta_phi_center   = 0.0,
+                            phi.init          = "scuo",
+                            sphi.init         = 1.0,
+                            grainsize         = 1L) {
 
+  if (!inherits(phi.mphi, "phi_spec"))
+    stop("phi.mphi must be a phi_spec object (constrained(), fixed(), or estimated())\n")
+  if (!inherits(phi.sphi, "phi_spec"))
+    stop("phi.sphi must be a phi_spec object (estimated() or fixed())\n")
+
+  # ---- genome-derived structural fields ------------------------------------
   group_list <- c("A","C","D","E","F","G","H","I","K","L",
                   "N","P","Q","R","S","T","V","Y","Z")
   A <- length(group_list)
@@ -112,7 +169,7 @@ genomeToStanData <- function(genome,
                  name, K, length(x)))
   }
 
-  # ---- dM prior -------------------------------------------------------
+  # ---- dM prior ------------------------------------------------------------
   if (!is.null(dM_prior_mean)) {
     dM_pm <- expand_k(dM_prior_mean, "dM_prior_mean")
   } else if (identical(dM.prior, "scuo")) {
@@ -124,115 +181,70 @@ genomeToStanData <- function(genome,
     dM_pm <- rep(0.0, K)
   }
 
-  list(
-    G               = G,
-    A               = A,
-    K               = K,
-    aa_start        = aa_start,
-    aa_end          = aa_end,
-    y_k             = y_k,
-    N_ga            = N_ga,
-    approx_min_n    = as.integer(approx_min_n),
-    dM_prior_mean   = dM_pm,
-    dM_prior_sd     = expand_k(dM_prior_sd,     "dM_prior_sd"),
-    dEta_prior_mean = expand_k(dEta_prior_mean, "dEta_prior_mean"),
-    dEta_prior_sd   = expand_k(dEta_prior_sd,   "dEta_prior_sd"),
-    sphi_prior_mean = as.double(sphi_prior_mean),
-    sphi_prior_sd   = as.double(sphi_prior_sd),
-    noncentered     = as.integer(noncentered),
-    anchor_phi      = as.integer(anchor_phi),
-    mphi_prior_sd   = as.double(mphi_prior_sd),
-    grainsize       = as.integer(grainsize)
+  # ---- phi spec → Stan data fields -----------------------------------------
+  phi_fields <- .phiSpecToStanData(phi.mphi, phi.sphi)
+
+  # Clamp sphi.init into the declared bounds with a warning
+  sphi_lo <- phi_fields$sphi_low + 1e-6
+  sphi_hi <- phi_fields$sphi_high - 1e-6
+  if (sphi.init <= phi_fields$sphi_low || sphi.init >= phi_fields$sphi_high)
+    warning(sprintf(
+      "sphi.init (%.4g) is outside (sphi_low=%.4g, sphi_high=%.4g). Clamping.",
+      sphi.init, phi_fields$sphi_low, phi_fields$sphi_high),
+      call. = FALSE)
+  sphi.init <- max(sphi_lo, min(sphi_hi, sphi.init))
+
+  # ---- assemble data list --------------------------------------------------
+  stan_data <- c(
+    list(
+      G               = G,
+      A               = A,
+      K               = K,
+      aa_start        = aa_start,
+      aa_end          = aa_end,
+      y_k             = y_k,
+      N_ga            = N_ga,
+      approx_min_n    = as.integer(approx_min_n),
+      dM_prior_mean   = dM_pm,
+      dM_prior_sd     = expand_k(dM_prior_sd,     "dM_prior_sd"),
+      dEta_prior_mean = expand_k(dEta_prior_mean, "dEta_prior_mean"),
+      dEta_prior_sd   = expand_k(dEta_prior_sd,   "dEta_prior_sd"),
+      noncentered       = as.integer(noncentered),
+      deta_scale_anchor = as.integer(deta_scale_anchor),
+      deta_anchor_ref   = as.double(deta_anchor_ref),
+      deta_phi_center   = as.double(deta_phi_center),
+      grainsize         = as.integer(grainsize)
+    ),
+    phi_fields
   )
-}
 
-
-#' Build a Stan init list from an AnaCoDa Genome object
-#'
-#' Constructs the per-chain \code{init} list for cmdstanr's \code{sample()},
-#' \code{optimize()}, or \code{variational()}.  By default initializes
-#' \code{latent_phi} from per-gene SCUO, which places each gene's starting
-#' synthesis rate in the right ballpark from codon-bias alone — without any
-#' MCMC required.
-#'
-#' @section SCUO to log-phi mapping:
-#' SCUO in [0,1] is mapped to log-phi via:
-#' \enumerate{
-#'   \item \eqn{\ell_g = \log(\max(\text{SCUO}_g, \epsilon))} with \eqn{\epsilon = 10^{-3}};
-#'   \item Center: \eqn{\ell_g \leftarrow \ell_g - \bar{\ell}};
-#'   \item Scale to target spread: \eqn{\ell_g \leftarrow \ell_g / \text{sd}(\ell) \times \text{sphi.init}}.
-#' }
-#' This produces a phi distribution with geometric mean \eqn{\approx 1} and
-#' log-scale SD \eqn{\approx \text{sphi.init}}, consistent with the
-#' \code{anchor_phi=0} prior constraint \eqn{E[\phi]=1}.
-#'
-#' For \code{noncentered=1}, the returned \code{latent_phi} is the z-score
-#' \eqn{(log\phi - m_\phi) / \text{sphi.init}} rather than \eqn{log\phi}.
-#'
-#' @param genome An AnaCoDa Genome object.
-#' @param data The data list returned by \code{\link{genomeToStanData}}.
-#'   Provides \code{G}, \code{K}, and \code{noncentered}.
-#' @param phi.init Character or numeric.  \code{"scuo"} (default): per-gene
-#'   log-phi from SCUO.  \code{"uniform"}: \eqn{\phi=1} for all genes
-#'   (\code{latent_phi = 0}).  Numeric vector of length G: treated as
-#'   phi values and log-transformed.
-#' @param scuo Numeric vector of length G, or NULL.  Pre-computed SCUO.
-#'   Computed internally if NULL.
-#' @param sphi.init Numeric.  Target SD for the initial log-phi distribution
-#'   (default 1.0).  Also used as the initial value for \code{sphi}.
-#'
-#' @return A named list with fields \code{dM}, \code{dEta}, \code{latent_phi},
-#'   \code{sphi}, \code{mphi_param} — one element per Stan parameter.
-#'   Pass as \code{mod$sample(init = list(result))} (wrap in a list to supply
-#'   the same init to all chains; replicate the list for per-chain variation).
-#'
-#' @seealso \code{\link{genomeToStanData}}
-#'
-#' @examples
-#' \dontrun{
-#' scuo <- calculateSCUO(genome)$SCUO
-#' d    <- genomeToStanData(genome, scuo = scuo)
-#' init <- genomeToStanInit(genome, d, scuo = scuo)
-#' fit  <- mod$sample(data = d, init = list(init), chains = 4L, ...)
-#' }
-#'
-#' @export
-genomeToStanInit <- function(genome, data,
-                              phi.init  = "scuo",
-                              scuo      = NULL,
-                              sphi.init = 1.0) {
-
-  G <- data$G
-  K <- data$K
-
+  # ---- build init list -----------------------------------------------------
   if (identical(phi.init, "scuo")) {
     if (is.null(scuo))
       scuo <- calculateSCUO(genome)$SCUO
     log_phi_init <- .scuoToLogPhi(scuo, sphi.init)
-
   } else if (is.numeric(phi.init) && length(phi.init) == G) {
     raw          <- log(pmax(phi.init, 1e-10))
     log_phi_init <- .scaleLogPhi(raw, sphi.init)
-
   } else {
-    log_phi_init <- rep(0.0, G)   # phi = 1 everywhere
+    log_phi_init <- rep(0.0, G)
   }
 
-  # For non-centered, convert log_phi to z-score
-  if (data$noncentered == 1L) {
-    mphi_0       <- -0.5 * sphi.init^2
-    latent_init  <- (log_phi_init - mphi_0) / sphi.init
+  if (noncentered == 1L) {
+    mphi_0      <- .computeMPhiR(phi.mphi, sphi.init)
+    latent_init <- (log_phi_init - mphi_0) / sphi.init
   } else {
-    latent_init  <- log_phi_init
+    latent_init <- log_phi_init
   }
 
-  list(
+  stan_init <- list(
     dM         = rep(0.0, K),
     dEta       = rep(0.0, K),
     latent_phi = latent_init,
-    sphi       = sphi.init,
-    mphi_param = 0.0
+    sphi       = sphi.init
   )
+
+  list(data = stan_data, init = stan_init)
 }
 
 
@@ -252,43 +264,42 @@ genomeToStanInit <- function(genome, data,
 #' early warmup.
 #'
 #' @section Unconstrained transforms:
-#' \code{sphi} has a \code{lower=0} constraint; Stan maps it to unconstrained
-#' space as \eqn{x = \log(\text{sphi})}, so its unconstrained variance is
-#' \eqn{\text{Var}(\log(\text{sphi}_{\text{draws}}))}.  All other parameters
-#' (\code{dM}, \code{dEta}, \code{latent\_phi}, \code{mphi\_param}) are
+#' \code{sphi} has a \code{lower=sphi_low} constraint; Stan maps it to
+#' unconstrained space via a logit transform, so its unconstrained variance
+#' is approximated from \eqn{\text{Var}(\log(\text{sphi}_{\text{draws}}))}.
+#' All other parameters (\code{dM}, \code{dEta}, \code{latent\_phi}) are
 #' unconstrained and their ADVI variances are used directly.
 #'
 #' @section Stan parameter ordering:
 #' The returned \code{inv_metric} vector follows Stan's internal unconstrained
-#' parameter ordering for \code{roc_arcsine.stan} and \code{roc_sphi_est.stan}:
-#' \code{dM[1..K]}, \code{dEta[1..K]}, \code{latent\_phi[1..G]},
-#' \code{sphi}, \code{mphi\_param}.
+#' parameter ordering:
+#' \code{dM[1..K]}, \code{dEta[1..K]}, \code{latent\_phi[1..G]}, \code{sphi}.
+#' Legacy models that include \code{mphi\_param} get an extra entry appended.
 #'
 #' @param fit A \code{CmdStanVB} object from \code{mod$variational()}.
-#' @param data The Stan data list returned by \code{\link{genomeToStanData}}.
+#' @param data The Stan data list returned from \code{\link{initializeStan}}\code{$data}.
 #'
 #' @return A named list:
 #'   \describe{
 #'     \item{init}{Named list of parameter starting values (posterior means in
-#'       constrained space).  Pass as \code{mod$sample(init = list(result$init))}.}
+#'       constrained space).}
 #'     \item{inv_metric}{Numeric vector of unconstrained parameter variances
 #'       (diagonal inverse mass matrix).  Pass as
 #'       \code{mod$sample(inv_metric = result$inv_metric)}.}
 #'   }
 #'
-#' @seealso \code{\link{genomeToStanData}}, \code{\link{genomeToStanInit}}
+#' @seealso \code{\link{initializeStan}}
 #'
 #' @examples
 #' \dontrun{
-#' d    <- genomeToStanData(genome, scuo = scuo)
-#' init <- genomeToStanInit(genome, d, scuo = scuo)
-#' fit_vi <- mod_arcsine$variational(data = d, init = list(init), threads = 4L)
-#' ws     <- adviToWarmStart(fit_vi, d)
-#' # Stage 2: exact HMC warm-started from ADVI
-#' fit_hmc <- mod_exact$sample(data    = d,
-#'                              init    = list(ws$init),
+#' stan   <- initializeStan(genome, scuo = scuo)
+#' fit_vi <- mod_arcsine$variational(data = stan$data, init = list(stan$init),
+#'                                   threads = 4L)
+#' ws     <- adviToWarmStart(fit_vi, stan$data)
+#' fit_hmc <- mod_exact$sample(data       = stan$data,
+#'                              init       = list(ws$init),
 #'                              inv_metric = ws$inv_metric,
-#'                              chains  = 4L, ...)
+#'                              chains     = 4L, ...)
 #' }
 #'
 #' @export
@@ -297,36 +308,37 @@ adviToWarmStart <- function(fit, data) {
   G <- data$G
   K <- data$K
 
-  dM_cols     <- paste0("dM[",         1:K, "]")
-  dEta_cols   <- paste0("dEta[",       1:K, "]")
-  lphi_cols   <- paste0("latent_phi[", 1:G, "]")
+  dM_cols   <- paste0("dM[",         1:K, "]")
+  dEta_cols <- paste0("dEta[",       1:K, "]")
+  lphi_cols <- paste0("latent_phi[", 1:G, "]")
+  has_mphi  <- "mphi_param" %in% names(draws)
 
-  # ---- posterior means (constrained space) for init ----------------------
-  dM_mean     <- as.numeric(colMeans(draws[, dM_cols,   drop = FALSE]))
-  dEta_mean   <- as.numeric(colMeans(draws[, dEta_cols, drop = FALSE]))
-  lphi_mean   <- as.numeric(colMeans(draws[, lphi_cols, drop = FALSE]))
-  sphi_mean   <- mean(draws[["sphi"]])
-  mphi_mean   <- mean(draws[["mphi_param"]])
+  # ---- posterior means (constrained space) for init -----------------------
+  dM_mean   <- as.numeric(colMeans(draws[, dM_cols,   drop = FALSE]))
+  dEta_mean <- as.numeric(colMeans(draws[, dEta_cols, drop = FALSE]))
+  lphi_mean <- as.numeric(colMeans(draws[, lphi_cols, drop = FALSE]))
+  sphi_mean <- mean(draws[["sphi"]])
 
   init <- list(
     dM         = dM_mean,
     dEta       = dEta_mean,
     latent_phi = lphi_mean,
-    sphi       = sphi_mean,
-    mphi_param = mphi_mean
+    sphi       = sphi_mean
   )
+  if (has_mphi)
+    init$mphi_param <- mean(draws[["mphi_param"]])
 
-  # ---- unconstrained variances for inv_metric ----------------------------
-  # dM, dEta, latent_phi, mphi_param: already unconstrained -> var directly
-  # sphi: lower=0 -> Stan unconstrained = log(sphi) -> var(log(draws))
+  # ---- unconstrained variances for inv_metric -----------------------------
+  # sphi: lower-bounded -> approx unconstrained variance via log transform
   dM_var   <- as.numeric(apply(draws[, dM_cols,   drop = FALSE], 2L, var))
   dEta_var <- as.numeric(apply(draws[, dEta_cols, drop = FALSE], 2L, var))
   lphi_var <- as.numeric(apply(draws[, lphi_cols, drop = FALSE], 2L, var))
   sphi_var <- var(log(draws[["sphi"]]))
-  mphi_var <- var(draws[["mphi_param"]])
 
-  # Stan parameter order: dM[1..K], dEta[1..K], latent_phi[1..G], sphi, mphi_param
-  inv_metric <- c(dM_var, dEta_var, lphi_var, sphi_var, mphi_var)
+  # Stan parameter order: dM[1..K], dEta[1..K], latent_phi[1..G], sphi
+  inv_metric <- c(dM_var, dEta_var, lphi_var, sphi_var)
+  if (has_mphi)
+    inv_metric <- c(inv_metric, var(draws[["mphi_param"]]))
 
   list(init = init, inv_metric = inv_metric)
 }
@@ -335,6 +347,84 @@ adviToWarmStart <- function(fit, data) {
 # -------------------------------------------------------------------------
 # Internal helpers
 # -------------------------------------------------------------------------
+
+# Translate phi_spec objects into the scalar/integer Stan data fields that
+# roc_sphi_est.stan expects for phi.mphi and phi.sphi.
+.phiSpecToStanData <- function(phi.mphi, phi.sphi) {
+  result <- list()
+
+  # --- phi.mphi ---
+  if (inherits(phi.mphi, "phi_spec_estimated")) {
+    stop("phi.mphi = estimated() is not yet implemented for Stan\n")
+  } else if (inherits(phi.mphi, "phi_spec_constrained")) {
+    result$phi_mphi_mode      <- 0L
+    result$phi_mphi_statistic <- phi.mphi$statistic_code
+    result$phi_mphi_value     <- as.double(phi.mphi$value)
+    result$phi_mphi_fixed     <- 0.0   # placeholder; Stan requires the field
+  } else if (inherits(phi.mphi, "phi_spec_fixed")) {
+    result$phi_mphi_mode      <- 1L
+    result$phi_mphi_statistic <- 0L    # placeholder
+    result$phi_mphi_value     <- 1.0   # placeholder; must be > 0 for Stan constraint
+    result$phi_mphi_fixed     <- as.double(phi.mphi$value)
+  } else {
+    stop("Unrecognised phi.mphi class\n")
+  }
+
+  # --- phi.sphi ---
+  if (inherits(phi.sphi, "phi_spec_fixed")) {
+    stop("phi.sphi = fixed() is not yet implemented for Stan",
+         " (requires removing sphi from the parameters block)\n")
+  } else if (!inherits(phi.sphi, "phi_spec_estimated")) {
+    stop("phi.sphi must be an estimated() phi_spec object\n")
+  }
+
+  prior <- phi.sphi$prior
+  if (is.null(prior)) {
+    # Improper flat on (0, Inf)
+    result$sphi_low        <- 0.0
+    result$sphi_high       <- 1e10
+    result$sphi_prior_type <- 0L
+    result$sphi_prior_mean <- 0.0
+    result$sphi_prior_sd   <- 1.0
+  } else if (prior$dist == "uniform") {
+    result$sphi_low        <- as.double(prior$low)
+    result$sphi_high       <- as.double(prior$high)
+    result$sphi_prior_type <- 0L   # bounds enforce uniform; no prior statement
+    result$sphi_prior_mean <- 0.0
+    result$sphi_prior_sd   <- 1.0
+  } else if (prior$dist == "normal") {
+    result$sphi_low        <- 0.0
+    result$sphi_high       <- 1e10
+    result$sphi_prior_type <- 1L
+    result$sphi_prior_mean <- as.double(prior$mean)
+    result$sphi_prior_sd   <- as.double(prior$sd)
+  } else {
+    stop("Only uniform and normal priors are currently supported for phi.sphi in Stan\n")
+  }
+
+  result
+}
+
+
+# Compute mphi in R given a phi_spec and a sphi value.
+# Used to correctly initialise latent_phi in non-centered parameterisation.
+.computeMPhiR <- function(phi.mphi, sphi) {
+  if (inherits(phi.mphi, "phi_spec_fixed"))
+    return(phi.mphi$value)
+  if (!inherits(phi.mphi, "phi_spec_constrained"))
+    stop("phi.mphi = estimated() not yet implemented\n")
+  s2 <- sphi^2
+  v  <- phi.mphi$value
+  switch(phi.mphi$statistic,
+    mean     = log(v) - 0.5 * s2,
+    median   = log(v),
+    mode     = log(v) + s2,
+    variance = 0.5 * (log(v / (exp(s2) - 1)) - s2),
+    sd       = 0.5 * (log(v^2 / (exp(s2) - 1)) - s2),
+    stop("Unknown statistic: ", phi.mphi$statistic, "\n")
+  )
+}
+
 
 # Estimate dM_prior_mean from the codon frequencies of low-SCUO genes.
 # In low-expression genes dEta*phi ≈ 0, so observed frequencies ≈ exp(-dM)/Z.
@@ -354,7 +444,7 @@ adviToWarmStart <- function(fit, data) {
     aa         <- group_list[a]
     all_codons <- AAToCodon(aa, FALSE)
     nonref     <- AAToCodon(aa, TRUE)
-    ref_codon  <- setdiff(all_codons, nonref)   # single reference codon
+    ref_codon  <- setdiff(all_codons, nonref)
 
     count_ref  <- sum(counts_low[, ref_codon]) + 0.5
 
@@ -373,7 +463,7 @@ adviToWarmStart <- function(fit, data) {
   .scaleLogPhi(raw, sphi.init)
 }
 
-# Center and scale a log-phi vector to have mean=0 and sd=sphi.init.
+# Center and scale a log-phi vector to mean=0, sd=sphi.init.
 .scaleLogPhi <- function(log_raw, sphi.init) {
   centered <- log_raw - mean(log_raw)
   s        <- sd(centered)
