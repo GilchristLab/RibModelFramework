@@ -1,0 +1,13 @@
+GeneID,Position,Codon,RFPCount
+g1,0,TTT,5
+g1,1,TTC,3
+g1,2,TAT,2
+g1,3,TAC,4
+g2,0,TTT,6
+g2,1,TTC,1
+g2,2,TAT,7
+g2,3,TAC,0
+g3,0,TTT,2
+g3,1,TTC,2
+g3,2,TAT,1
+g3,3,TAC,3
