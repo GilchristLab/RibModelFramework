@@ -70,9 +70,13 @@
 #' @param gene_subset Integer N (first N genes) or character gene-ID vector
 #'   passed to \code{\link{build_panse_stan_data}}.
 #' @param init_mode Init strategy: \code{"fixed"}, \code{"rmf-posterior"},
-#'   \code{"scuo"}, \code{"enc_prime"}, \code{"mixed_scuo_encp"}, or
-#'   \code{"warm-start"}.  \code{NULL} (default) falls back to
-#'   \code{config$fit$init.mode}, then \code{"fixed"}.
+#'   \code{"scuo"}, \code{"enc_prime"}, \code{"mixed_scuo_encp"},
+#'   \code{"warm-start"}, or \code{"advi"} (ADVI variational warm-start).
+#'   \code{NULL} (default) falls back to \code{config$fit$init.mode}, then
+#'   \code{"fixed"}.  With \code{"advi"}, the model is first fitted by
+#'   mean-field variational inference; the posterior means seed the HMC init
+#'   and the marginal variances (transformed to unconstrained space) seed the
+#'   diagonal inverse mass matrix, reducing warmup adaptation cost.
 #' @param warm_start_from Path to a prior fit output directory (overrides
 #'   \code{config$fit$warm_start_from} when non-\code{NULL}).
 #' @param no_log_lik Logical; if \code{TRUE}, override
@@ -366,9 +370,23 @@ fit_panse_stan <- function(config,
         } else {
             cat("[warn] warm-start: inv_metric extraction failed; will re-adapt from scratch\n")
         }
+    } else if (init_mode == "advi") {
+        # ADVI warm-start: use fixed CSP init here; ADVI runs after phi/sphi
+        # init is fully resolved (see "ADVI warm-start" block below).
+        cat("[init] mode = advi (CSP init = fixed; ADVI will run before sampling)\n")
+        init_fn <- function(chain_id = 1) {
+            log_nse <- pmin(pmax(log(init_nse),
+                                 stan_data$log_nse_lower + 1e-6),
+                            stan_data$log_nse_upper - 1e-6)
+            list(
+                log_alpha       = log(init_alpha),
+                log_lambdaPrime = log(init_lambda),
+                log_NSERate     = log_nse
+            )
+        }
     } else {
         stop("init.mode must be one of: fixed, rmf-posterior, scuo, enc_prime, ",
-             "mixed_scuo_encp, warm-start; got: ", init_mode)
+             "mixed_scuo_encp, warm-start, advi; got: ", init_mode)
     }
 
     # Shared-NSE collapse: log_NSERate[C] -> log_NSERate_shared scalar
@@ -482,6 +500,50 @@ fit_panse_stan <- function(config,
         }
     }
 
+    # ---- ADVI warm-start (runs after phi/sphi init is fully resolved) --------
+    if (init_mode == "advi") {
+        advi_n_chains  <- chains  %||% (config$stan %||% list())$chains            %||% 4L
+        advi_n_threads <- threads %||% (config$stan %||% list())$threads_per_chain %||% 1L
+        advi_threads   <- advi_n_chains * advi_n_threads
+        advi_seed      <- seed %||% (config$stan %||% list())$seed %||% 20260523L
+        advi_metric    <- (config$stan %||% list())$metric %||% "diag_e"
+
+        cat(sprintf("[advi] running variational inference (threads=%d, seed=%d)...\n",
+                    advi_threads, advi_seed))
+        advi_start <- init_fn(chain_id = 1)
+        t0_vi <- proc.time()[["elapsed"]]
+        fit_vi <- tryCatch(
+            mod$variational(data    = stan_data,
+                            init    = list(advi_start),
+                            threads = advi_threads,
+                            seed    = advi_seed,
+                            refresh = 200L),
+            error = function(e) {
+                cat("[warn] ADVI failed: ", conditionMessage(e), "\n", sep = "")
+                NULL
+            }
+        )
+        t_vi <- proc.time()[["elapsed"]] - t0_vi
+        cat(sprintf("[advi] wall = %.1f sec\n", t_vi))
+
+        if (!is.null(fit_vi)) {
+            ws    <- .panse_advi_warm_start(fit_vi, stan_data, shared_nse)
+            inv_m <- ws$inv_metric
+            inv_m[!is.finite(inv_m) | inv_m <= 0] <- 1.0
+            cat(sprintf("[advi] inv_metric diagonal: n=%d  range=[%.3e, %.3e]\n",
+                        length(inv_m), min(inv_m), max(inv_m)))
+
+            advi_means  <- ws$init
+            init_fn     <- function(chain_id = 1) advi_means
+            n_rep       <- advi_n_chains
+            warm_start_metrics <- lapply(seq_len(n_rep), function(i) {
+                if (advi_metric == "dense_e") diag(inv_m) else inv_m
+            })
+        } else {
+            cat("[warn] ADVI failed; sampling will use fixed init with default metric\n")
+        }
+    }
+
     # ---- Sampler settings ---------------------------------------------------
     stan_cfg  <- config$stan %||% list()
     n_chains  <- chains      %||% stan_cfg$chains             %||% 4L
@@ -553,4 +615,78 @@ fit_panse_stan <- function(config,
                         diagnose_fn = function(fit) fit$cmdstan_diagnose())
 
     invisible(fit)
+}
+
+
+# ---- Internal helpers -------------------------------------------------------
+
+# Extract init point and diagonal inv_metric from a PANSE ADVI fit.
+#
+# Parameters are box-constrained on the log scale (log_alpha, log_lambdaPrime,
+# log_NSERate).  Their unconstrained Stan transforms are logit-scaled:
+#   y = log((x - lower) / (upper - x))
+# Variances are computed in unconstrained space.
+#
+# sphi (lower=0) uses var(log(sphi)) as the unconstrained variance proxy.
+# z_phi is unconstrained; raw variance used directly.
+#
+# Stan parameter declaration order (both per-codon and shared-NSE models):
+#   log_alpha[1..C], log_lambdaPrime[1..C], log_NSERate[1..C or scalar], sphi, z_phi[1..G]
+.panse_advi_warm_start <- function(fit_vi, stan_data, shared_nse) {
+    draws <- fit_vi$draws(format = "df")
+    C <- stan_data$C
+    G <- stan_data$G
+
+    a_cols <- paste0("log_alpha[",       seq_len(C), "]")
+    l_cols <- paste0("log_lambdaPrime[", seq_len(C), "]")
+    z_cols <- paste0("z_phi[",           seq_len(G), "]")
+
+    # Posterior means in constrained space (used as HMC init)
+    init <- list(
+        log_alpha       = as.numeric(colMeans(draws[, a_cols, drop = FALSE])),
+        log_lambdaPrime = as.numeric(colMeans(draws[, l_cols, drop = FALSE])),
+        sphi            = mean(draws[["sphi"]]),
+        z_phi           = as.numeric(colMeans(draws[, z_cols, drop = FALSE]))
+    )
+    if (shared_nse) {
+        init$log_NSERate_shared <- mean(draws[["log_NSERate_shared"]])
+    } else {
+        nse_cols <- paste0("log_NSERate[", seq_len(C), "]")
+        init$log_NSERate <- as.numeric(colMeans(draws[, nse_cols, drop = FALSE]))
+    }
+
+    # Unconstrained variances for diagonal inv_metric
+    a_lo <- stan_data$log_alpha_lower;  a_hi <- stan_data$log_alpha_upper
+    l_lo <- stan_data$log_lambda_lower; l_hi <- stan_data$log_lambda_upper
+    n_lo <- stan_data$log_nse_lower;    n_hi <- stan_data$log_nse_upper
+
+    .logit_unc_var <- function(x, lower, upper) {
+        y <- log((x - lower) / (upper - x))
+        v <- var(y[is.finite(y)])
+        if (!is.finite(v) || v <= 0) 1.0 else v
+    }
+
+    a_var <- vapply(a_cols, function(col)
+                        .logit_unc_var(draws[[col]], a_lo, a_hi), 0.0)
+    l_var <- vapply(l_cols, function(col)
+                        .logit_unc_var(draws[[col]], l_lo, l_hi), 0.0)
+
+    if (shared_nse) {
+        nse_var <- .logit_unc_var(draws[["log_NSERate_shared"]], n_lo, n_hi)
+    } else {
+        nse_cols <- paste0("log_NSERate[", seq_len(C), "]")
+        nse_var  <- vapply(nse_cols, function(col)
+                               .logit_unc_var(draws[[col]], n_lo, n_hi), 0.0)
+    }
+
+    sphi_draws <- draws[["sphi"]]
+    sphi_var   <- var(log(sphi_draws[sphi_draws > 0]))
+    if (!is.finite(sphi_var) || sphi_var <= 0) sphi_var <- 1.0
+
+    z_var <- as.numeric(apply(draws[, z_cols, drop = FALSE], 2L, var))
+    z_var[!is.finite(z_var) | z_var <= 0] <- 1.0
+
+    inv_metric <- c(a_var, l_var, nse_var, sphi_var, z_var)
+
+    list(init = init, inv_metric = inv_metric)
 }
