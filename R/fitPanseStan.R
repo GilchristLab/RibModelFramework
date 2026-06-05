@@ -666,7 +666,7 @@ fit_panse_stan <- function(config,
                     ws <- .expand_cross_advi_metric(ws, stan_data)  # shared -> per-codon
                 }
             } else if (!is.null(advi_source) && advi_source == "aa-nse" && !aa_nse) {
-                ws <- .expand_aa_to_percodon_metric(ws, stan_data)
+                ws <- .expand_aa_to_percodon_metric(ws, advi_stan_data)
             }
             inv_m <- ws$inv_metric
             inv_m[!is.finite(inv_m) | inv_m <= 0] <- 1.0
