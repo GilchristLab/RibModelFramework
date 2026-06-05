@@ -159,7 +159,7 @@ plot.Rcpp_ROCModel <- function(x, genome = NULL, samples = 100, mixture = 1,
              phi.breaks.global[-1L],     phi.usr[3L] + total.aa.bin.counts * scale.ta,
              col = "white", border = "black", lwd = 0.6)
         text(phi.usr[1L] + 0.02 * (phi.usr[2L] - phi.usr[1L]), -0.01,
-             paste0("AA Count: ", format(total.aa.all, big.mark = ",")),
+             paste0("Count: ", format(total.aa.all, big.mark = ",")),
              adj = c(0, 1), cex = 0.45, col = "black")
       }
       segments(phi.usr[1L], 0, phi.usr[2L], 0, lwd = 0.25, col = "grey50")
@@ -430,7 +430,7 @@ plot.Rcpp_FONSEModel <- function(x, genome, samples = 100, mixture = 1,
              phi.breaks.global[-1L],     phi.usr[3L] + total.aa.bin.counts * scale.ta,
              col = "white", border = "black", lwd = 0.6)
         text(phi.usr[1L] + 0.02 * (phi.usr[2L] - phi.usr[1L]), -0.01,
-             paste0("AA Count: ", format(total.aa.all, big.mark = ",")),
+             paste0("Count: ", format(total.aa.all, big.mark = ",")),
              adj = c(0, 1), cex = 0.45, col = "black")
       }
       segments(phi.usr[1L], 0, phi.usr[2L], 0, lwd = 0.25, col = "grey50")
@@ -726,7 +726,7 @@ plotSinglePanel <- function(parameter, model, genome, expressionValues, samples,
       # total observed AA count label: left of grey strip
       total.aa <- sum(counts.aa)
       text(usr[1L] + 0.02 * (usr[2L] - usr[1L]), -0.01,
-           paste0(aa, " Count: ", total.aa),
+           paste0("Count: ", format(total.aa, big.mark = ",")),
            adj = c(0, 1), cex = 0.45, col = "black")
     }
     # separator line at y=0: lighter than panel frame so strip reads as part of panel above
