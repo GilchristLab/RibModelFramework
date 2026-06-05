@@ -155,6 +155,14 @@ data {
     real<lower=0> U;
     real<lower=0> sphi_prior_sd;
 
+    // Generalized phi prior.  phi_use_data=0: sphi estimated, per-population
+    // hierarchical prior (original model).  phi_use_data=1: per-gene prior
+    // mean and SD from data vectors; sphi still sampled but does not affect
+    // log_phi computation.
+    int<lower=0, upper=1> phi_use_data;
+    vector[G] phi_prior_mu;      // per-gene prior mean  (used when phi_use_data=1)
+    vector[G] phi_prior_sigma;   // per-gene prior SD    (used when phi_use_data=1)
+
     real log_alpha_prior_mean;
     real<lower=0> log_alpha_prior_sd;
     real log_lambda_prior_mean;
@@ -193,8 +201,15 @@ transformed parameters {
     vector<lower=0>[C] alpha       = exp(log_alpha);
     vector<lower=0>[C] lambdaPrime = exp(log_lambdaPrime);
     vector<lower=0>[C] NSERate     = exp(log_NSERate);
-    // Noncentered log_phi: marginal prior Normal(-0.5*sphi^2, sphi).
-    vector[G] log_phi = -0.5 * sphi * sphi + sphi * z_phi;
+    // Noncentered log_phi.
+    // phi_use_data=0: population prior; log_phi ~ Normal(-0.5*sphi^2, sphi).
+    // phi_use_data=1: per-gene prior;   log_phi[g] ~ Normal(phi_prior_mu[g], phi_prior_sigma[g]).
+    vector[G] log_phi;
+    if (phi_use_data) {
+        log_phi = phi_prior_mu + phi_prior_sigma .* z_phi;
+    } else {
+        log_phi = -0.5 * sphi * sphi + sphi * z_phi;
+    }
     vector<lower=0>[G] phi = exp(log_phi);
 
     vector[C] log_alpha_term;
@@ -216,13 +231,15 @@ model {
     }
 
     sphi  ~ normal(0, sphi_prior_sd);
-    z_phi ~ std_normal();    // implicit log_phi ~ Normal(-sphi^2/2, sphi)
+    z_phi ~ std_normal();
 
-    /* Soft mean(phi)=1 anchor; breaks the phi <-> lambda multiplicative
-     * ridge.  Operates on the TRANSFORMED log_phi (defined as
-     * -0.5*sphi^2 + sphi*z_phi in transformed parameters), so effectively
-     * constrains mean(z_phi) ~ 0 modulo the sphi coupling. */
-    target += -0.5 * square((mean(log_phi) + 0.5 * sphi * sphi) / 0.01);
+    /* Soft mean(phi)=1 anchor; breaks the phi <-> lambda multiplicative ridge.
+     * Applied only in the population (phi_use_data=0) parameterization, where
+     * log_phi = -0.5*sphi^2 + sphi*z_phi and the anchor constrains mean(z_phi)~0.
+     * In the data parameterization (phi_use_data=1), phi_prior_mu pins the mean. */
+    if (!phi_use_data) {
+        target += -0.5 * square((mean(log_phi) + 0.5 * sphi * sphi) / 0.01);
+    }
 
     target += reduce_sum(partial_sum, gene_indices, grainsize,
                          gene_offset, codon_at_pos, y, like_mask, all_unmasked,
