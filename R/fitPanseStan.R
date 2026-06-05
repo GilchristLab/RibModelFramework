@@ -401,13 +401,12 @@ fit_panse_stan <- function(config,
         } else {
             cat("[warn] warm-start: inv_metric extraction failed; will re-adapt from scratch\n")
         }
-    } else if (init_mode %in% c("advi", "advi-cross")) {
-        # ADVI warm-start: use fixed CSP init here; ADVI runs after phi/sphi
-        # init is fully resolved (see "ADVI warm-start" block below).
-        # advi       -- ADVI on the same model as HMC (per-codon or shared-NSE)
-        # advi-cross -- ADVI on shared-NSE model; HMC on per-codon NSE
-        cat(sprintf("[init] mode = %s (CSP init = fixed; ADVI will run before sampling)\n",
-                    init_mode))
+    } else if (init_mode %in% c("advi", "advi-cross", "pathfinder")) {
+        # ADVI / Pathfinder warm-start: fixed CSP init here; inference runs after
+        # phi/sphi init is fully resolved (see warm-start blocks below).
+        cat(sprintf("[init] mode = %s (CSP init = fixed; %s will run before sampling)\n",
+                    init_mode,
+                    if (init_mode == "pathfinder") "Pathfinder" else "ADVI"))
         init_fn <- function(chain_id = 1) {
             log_nse <- pmin(pmax(log(init_nse),
                                  stan_data$log_nse_lower + 1e-6),
@@ -420,7 +419,7 @@ fit_panse_stan <- function(config,
         }
     } else {
         stop("init.mode must be one of: fixed, rmf-posterior, scuo, enc_prime, ",
-             "mixed_scuo_encp, warm-start, advi, advi-cross; got: ", init_mode)
+             "mixed_scuo_encp, warm-start, advi, advi-cross, pathfinder; got: ", init_mode)
     }
 
     # Shared-NSE collapse: log_NSERate[C] -> log_NSERate_shared scalar
@@ -684,6 +683,66 @@ fit_panse_stan <- function(config,
         }
     }
 
+    # ---- Pathfinder warm-start (same model as HMC) ---------------------------
+    if (init_mode == "pathfinder") {
+        pf_cfg        <- config$stan %||% list()
+        pf_n_chains   <- chains   %||% pf_cfg$chains             %||% 4L
+        pf_n_threads  <- threads  %||% pf_cfg$threads_per_chain  %||% 1L
+        pf_num_paths  <- pf_cfg$pathfinder_num_paths       %||% 4L
+        pf_max_iter   <- pf_cfg$pathfinder_max_lbfgs_iters %||% 100L
+        pf_seed       <- seed %||% pf_cfg$seed %||% 20260523L
+        pf_metric     <- pf_cfg$metric %||% "diag_e"
+        # Run paths in parallel: one thread per path (up to available n_threads)
+        pf_threads    <- pf_n_chains * pf_n_threads
+
+        cat(sprintf("[pathfinder] num_paths=%d max_lbfgs_iters=%d threads=%d seed=%d...\n",
+                    pf_num_paths, pf_max_iter, pf_threads, pf_seed))
+        t0_pf <- proc.time()[["elapsed"]]
+        pf_init <- lapply(seq_len(pf_num_paths), function(i) init_fn(chain_id = i))
+        fit_pf <- tryCatch(
+            mod$pathfinder(
+                data            = stan_data,
+                init            = pf_init,
+                num_paths       = as.integer(pf_num_paths),
+                max_lbfgs_iters = as.integer(pf_max_iter),
+                psis_resample   = TRUE,
+                calculate_lp    = TRUE,
+                num_threads     = as.integer(pf_threads),
+                seed            = as.integer(pf_seed),
+                refresh         = 100L
+            ),
+            error = function(e) {
+                cat("[warn] Pathfinder failed: ", conditionMessage(e), "\n", sep = "")
+                NULL
+            }
+        )
+        t_pf <- proc.time()[["elapsed"]] - t0_pf
+        cat(sprintf("[pathfinder] wall = %.1f sec\n", t_pf))
+
+        if (!is.null(fit_pf)) {
+            pf_src_type <- if (shared_nse) "sharednse" else if (aa_nse) "aa-nse" else "percodon"
+            ws <- .panse_pathfinder_warm_start(fit_pf, stan_data, pf_src_type)
+
+            if (isTRUE(ws$is_dense)) {
+                cd <- diag(ws$inv_metric)
+                cat(sprintf("[pathfinder] inv_metric (dense %dx%d): diag range=[%.3e, %.3e]\n",
+                            nrow(ws$inv_metric), ncol(ws$inv_metric), min(cd), max(cd)))
+                warm_start_metrics <- lapply(seq_len(pf_n_chains), function(i) ws$inv_metric)
+            } else {
+                inv_m <- ws$inv_metric
+                cat(sprintf("[pathfinder] inv_metric (diag fallback): n=%d  range=[%.3e, %.3e]\n",
+                            length(inv_m), min(inv_m), max(inv_m)))
+                warm_start_metrics <- lapply(seq_len(pf_n_chains), function(i) {
+                    if (pf_metric == "dense_e") diag(inv_m) else inv_m
+                })
+            }
+            pf_means <- ws$init
+            init_fn  <- function(chain_id = 1) pf_means
+        } else {
+            cat("[warn] Pathfinder failed; sampling will use fixed init with default metric\n")
+        }
+    }
+
     # ---- Sampler settings ---------------------------------------------------
     stan_cfg  <- config$stan %||% list()
     n_chains  <- chains      %||% stan_cfg$chains             %||% 4L
@@ -845,6 +904,102 @@ fit_panse_stan <- function(config,
     inv_metric <- c(a_var, l_var, nse_var, sphi_var, z_var)
 
     list(init = init, inv_metric = inv_metric)
+}
+
+
+# Extract warm-start from a Pathfinder fit.
+#
+# Unlike ADVI (mean-field, diagonal), Pathfinder draws capture correlations via
+# the L-BFGS Hessian approximation.  Returns a full covariance matrix in
+# unconstrained space as inv_metric, enabling dense_e adaptation from iter 1.
+# Falls back to diagonal variance if fewer than n_params+5 finite draws survive.
+#
+# Returns: list(init, inv_metric, is_dense)
+#   init:       constrained-space parameter means (HMC starting point)
+#   inv_metric: covariance matrix (is_dense=TRUE) or variance vector (is_dense=FALSE)
+#   is_dense:   logical; TRUE when inv_metric is a matrix
+.panse_pathfinder_warm_start <- function(fit_pf, stan_data, src_type) {
+    draws <- fit_pf$draws(format = "df")
+    C <- stan_data$C
+    G <- stan_data$G
+
+    a_cols <- paste0("log_alpha[",       seq_len(C), "]")
+    l_cols <- paste0("log_lambdaPrime[", seq_len(C), "]")
+    z_cols <- paste0("z_phi[",           seq_len(G), "]")
+
+    # Constrained-space means -> HMC init (same logic as .panse_advi_warm_start)
+    init <- list(
+        log_alpha       = as.numeric(colMeans(draws[, a_cols, drop = FALSE])),
+        log_lambdaPrime = as.numeric(colMeans(draws[, l_cols, drop = FALSE])),
+        sphi            = mean(draws[["sphi"]]),
+        z_phi           = as.numeric(colMeans(draws[, z_cols, drop = FALSE]))
+    )
+    if (src_type == "sharednse") {
+        init$log_NSERate_shared <- mean(draws[["log_NSERate_shared"]])
+    } else if (src_type == "aa-nse") {
+        N_AA <- stan_data$N_AA
+        nse_aa_cols <- paste0("log_NSERate_aa[", seq_len(N_AA), "]")
+        init$log_NSERate_aa <- as.numeric(colMeans(draws[, nse_aa_cols, drop = FALSE]))
+    } else {
+        nse_cols <- paste0("log_NSERate[", seq_len(C), "]")
+        init$log_NSERate <- as.numeric(colMeans(draws[, nse_cols, drop = FALSE]))
+    }
+
+    # Transform constrained draws to unconstrained space
+    a_lo <- stan_data$log_alpha_lower;  a_hi <- stan_data$log_alpha_upper
+    l_lo <- stan_data$log_lambda_lower; l_hi <- stan_data$log_lambda_upper
+    n_lo <- stan_data$log_nse_lower;    n_hi <- stan_data$log_nse_upper
+
+    # Box-constrained [lo, hi] -> unconstrained via logit transform
+    .logit_unc <- function(x, lo, hi) log((x - lo) / (hi - x))
+
+    a_unc <- .logit_unc(as.matrix(draws[, a_cols, drop = FALSE]), a_lo, a_hi)
+    l_unc <- .logit_unc(as.matrix(draws[, l_cols, drop = FALSE]), l_lo, l_hi)
+
+    if (src_type == "sharednse") {
+        nse_unc <- matrix(.logit_unc(as.numeric(draws[["log_NSERate_shared"]]),
+                                     n_lo, n_hi), ncol = 1L)
+    } else if (src_type == "aa-nse") {
+        N_AA <- stan_data$N_AA
+        nse_aa_cols <- paste0("log_NSERate_aa[", seq_len(N_AA), "]")
+        nse_unc <- .logit_unc(as.matrix(draws[, nse_aa_cols, drop = FALSE]), n_lo, n_hi)
+    } else {
+        nse_cols <- paste0("log_NSERate[", seq_len(C), "]")
+        nse_unc <- .logit_unc(as.matrix(draws[, nse_cols, drop = FALSE]), n_lo, n_hi)
+    }
+
+    # Lower-bounded [0, inf) -> unconstrained via log
+    sphi_unc <- matrix(log(as.numeric(draws[["sphi"]])), ncol = 1L)
+    # z_phi is unconstrained (identity)
+    z_unc <- as.matrix(draws[, z_cols, drop = FALSE])
+
+    unc_mat <- cbind(a_unc, l_unc, nse_unc, sphi_unc, z_unc)
+    finite_mask <- rowSums(!is.finite(unc_mat)) == 0L
+    unc_mat <- unc_mat[finite_mask, , drop = FALSE]
+    n_draws  <- nrow(unc_mat)
+    n_params <- ncol(unc_mat)
+
+    if (n_draws < n_params + 5L) {
+        warning(".panse_pathfinder_warm_start: only ", n_draws, " finite draws for ",
+                n_params, " params; falling back to diagonal inv_metric")
+        dv <- apply(unc_mat, 2L, var)
+        dv[!is.finite(dv) | dv <= 0] <- 1.0
+        z_idx <- seq.int(n_params - G + 1L, n_params)
+        dv[z_idx] <- pmax(dv[z_idx], 1.0)
+        return(list(init = init, inv_metric = dv, is_dense = FALSE))
+    }
+
+    # Full sample covariance matrix = optimal inv_metric for dense_e
+    cov_mat <- cov(unc_mat)
+
+    # Floor z_phi diagonal at 1.0 (noncentered N(0,1) prior; same as ADVI fix)
+    z_idx <- seq.int(n_params - G + 1L, n_params)
+    diag(cov_mat)[z_idx] <- pmax(diag(cov_mat)[z_idx], 1.0)
+
+    # Ridge regularization for numerical stability (1e-6 * mean diagonal)
+    diag(cov_mat) <- diag(cov_mat) + 1e-6 * mean(diag(cov_mat))
+
+    list(init = init, inv_metric = cov_mat, is_dense = TRUE)
 }
 
 
