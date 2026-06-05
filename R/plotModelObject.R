@@ -56,15 +56,18 @@ plot.Rcpp_ROCModel <- function(x, genome = NULL, samples = 100, mixture = 1,
     bin.mids   <- NULL
 
     lay <- .buildModelLayout(20L)
-    par(oma = c(0, 2, 0, 4))
+    par(oma = c(0, 2, 0, 4), mgp = c(3, 0.56, 0))
     layout(lay$mat, lay$widths, lay$heights, respect = FALSE)
 
     # title
     par(mar = c(0, 0, 0, 0))
     plot(NULL, NULL, xlim = c(0, 1), ylim = c(0, 1), axes = FALSE)
-    text(0.5, 0.6, main)
-    text(0.5, 0.4, date(), cex = 0.6)
+    text(0.5, 0.92, main, font = 2)
+    if(show.date) text(0.5, 0.72, date(), cex = 0.5)
 
+    total.aa.bin.counts <- NULL
+    phi.breaks.global   <- NULL
+    total.aa.all        <- 0L
     n.aa.drawn <- 0L
     for(aa in names.aa) {
       if(aa == "M" || aa == "W" || aa == "X") next
@@ -78,6 +81,15 @@ plot.Rcpp_ROCModel <- function(x, genome = NULL, samples = 100, mixture = 1,
       if(is.null(bin.counts)) {
         bin.counts <- result$bin.counts
         bin.mids   <- result$bin.mids
+      }
+      if(!is.null(result$aa.bin.totals)) {
+        if(is.null(total.aa.bin.counts)) {
+          total.aa.bin.counts <- result$aa.bin.totals
+          phi.breaks.global   <- result$phi.breaks
+        } else {
+          total.aa.bin.counts <- total.aa.bin.counts + result$aa.bin.totals
+        }
+        total.aa.all <- total.aa.all + result$total.aa.count
       }
       box()
       aa.x   <- mean(xlimit)
@@ -96,10 +108,19 @@ plot.Rcpp_ROCModel <- function(x, genome = NULL, samples = 100, mixture = 1,
       if(aa %in% c("V", "Y", "Z"))             axis(1)
       if(aa %in% c("A", "C", "D", "E"))       axis(3)
       if(aa %in% c("E", "I", "P", "T"))       axis(4, las = 1, at = seq(0, 1, by = 0.2))
-      axis(1, tck = 0.02, labels = FALSE)
-      axis(2, tck = 0.02, labels = FALSE)
-      axis(3, tck = 0.02, labels = FALSE)
-      axis(4, tck = 0.02, labels = FALSE)
+      if(show.gene.hist) {
+        axis(1, tck = 0.02, labels = FALSE, pos = 0, lwd = 0, lwd.ticks = 0.5)
+        axis(2, tck = 0.02, labels = FALSE, at = seq(0, 1, by = 0.2))
+        axis(3, tck = 0.02, labels = FALSE)
+        axis(4, tck = 0.02, labels = FALSE, at = seq(0, 1, by = 0.2))
+      } else {
+        axis(1, tck = 0.02, labels = FALSE)
+        axis(2, tck = 0.02, labels = FALSE)
+        axis(3, tck = 0.02, labels = FALSE)
+        axis(4, tck = 0.02, labels = FALSE)
+      }
+      axis(2, tck = 0.01, labels = FALSE, at = seq(0.1, 0.9, by = 0.2))
+      axis(4, tck = 0.01, labels = FALSE, at = seq(0.1, 0.9, by = 0.2))
       n.aa.drawn <- n.aa.drawn + 1L
     }
 
@@ -117,7 +138,17 @@ plot.Rcpp_ROCModel <- function(x, genome = NULL, samples = 100, mixture = 1,
     if(show.gene.hist) {
       phi.usr <- par("usr")
       rect(phi.usr[1L], phi.usr[3L], phi.usr[2L], 0, col = "grey80", border = NA)
-      segments(phi.usr[1L], 0, phi.usr[2L], 0, lwd = 1, col = "black")
+      if(!is.null(total.aa.bin.counts) && max(total.aa.bin.counts) > 0) {
+        n.b.ta   <- length(phi.breaks.global)
+        scale.ta <- (-0.02 - phi.usr[3L]) / max(total.aa.bin.counts)
+        rect(phi.breaks.global[-n.b.ta], phi.usr[3L],
+             phi.breaks.global[-1L],     phi.usr[3L] + total.aa.bin.counts * scale.ta,
+             col = "white", border = "black", lwd = 0.6)
+        text(phi.usr[1L] + 0.02 * (phi.usr[2L] - phi.usr[1L]), -0.01,
+             paste0("AA Count: ", format(total.aa.all, big.mark = ",")),
+             adj = c(0, 1), cex = 0.45, col = "black")
+      }
+      segments(phi.usr[1L], 0, phi.usr[2L], 0, lwd = 0.25, col = "grey50")
     }
     n.b <- length(h.phi$breaks)
     rect(h.phi$breaks[-n.b], 0,
@@ -125,7 +156,12 @@ plot.Rcpp_ROCModel <- function(x, genome = NULL, samples = 100, mixture = 1,
          col = "grey80", border = "grey40", lwd = 0.5)
     at.phi <- seq(0, 1, by = 0.2)
     axis(4, las = 1, at = at.phi, labels = round(at.phi * max.phi), cex.axis = 0.8)
-    mtext("gene count", side = 4, las = 0, line = 1.5, cex = 0.65)
+    par(xpd = NA)
+    gc.usr <- par("usr")
+    one.line.x <- par("csi") / par("pin")[1L] * (gc.usr[2L] - gc.usr[1L])
+    text(gc.usr[2L] + 2.5 * one.line.x, mean(gc.usr[3:4]),
+         "Gene Count", srt = 270, cex = 0.65, adj = 0.5, font = 2)
+    par(xpd = FALSE)
     axis(1, cex.axis = 0.8)
     axis(2, tck = 0.02, labels = FALSE)
     axis(3, tck = 0.02, labels = FALSE)
@@ -134,8 +170,8 @@ plot.Rcpp_ROCModel <- function(x, genome = NULL, samples = 100, mixture = 1,
     # x-label (two lines: formula + axis name)
     par(mar = c(0, 0, 0, 0), xpd = FALSE)
     plot(NULL, NULL, xlim = c(0, 1), ylim = c(0, 1), axes = FALSE)
-    text(0.5, 0.65, expression("log"[10]~"(Protein Synthesis Rate"~phi~")"), cex = 0.9)
-    text(0.5, 0.25, "Gene Expression", cex = 1.4, font = 2)
+    text(0.5, 0.55, "Gene Expression", cex = 1.4, font = 2)
+    text(0.5, 0.18, expression(bold(log[10]~"(Protein Synthesis Rate"~phi~")")), cex = 0.9)
 
     # y-label (bold, larger, shifted left)
     par(mar = c(0, 0, 0, 0), xpd = NA)
@@ -276,15 +312,18 @@ plot.Rcpp_FONSEModel <- function(x, genome, samples = 100, mixture = 1,
     bin.mids      <- NULL
 
     lay <- .buildModelLayout(20L)
-    par(oma = c(0, 2, 0, 4))
+    par(oma = c(0, 2, 0, 4), mgp = c(3, 0.56, 0))
     layout(lay$mat, lay$widths, lay$heights, respect = FALSE)
 
     # title
     par(mar = c(0, 0, 0, 0))
     plot(NULL, NULL, xlim = c(0, 1), ylim = c(0, 1), axes = FALSE)
-    text(0.5, 0.6, main)
-    text(0.5, 0.4, date(), cex = 0.6)
+    text(0.5, 0.92, main, font = 2)
+    if(show.date) text(0.5, 0.72, date(), cex = 0.5)
 
+    total.aa.bin.counts <- NULL
+    phi.breaks.global   <- NULL
+    total.aa.all        <- 0L
     n.aa.drawn <- 0L
     for(aa in names.aa) {
       if(aa == "M" || aa == "W" || aa == "X") next
@@ -299,6 +338,15 @@ plot.Rcpp_FONSEModel <- function(x, genome, samples = 100, mixture = 1,
       if(is.null(bin.counts)) {
         bin.counts <- result$bin.counts
         bin.mids   <- result$bin.mids
+      }
+      if(!is.null(result$aa.bin.totals)) {
+        if(is.null(total.aa.bin.counts)) {
+          total.aa.bin.counts <- result$aa.bin.totals
+          phi.breaks.global   <- result$phi.breaks
+        } else {
+          total.aa.bin.counts <- total.aa.bin.counts + result$aa.bin.totals
+        }
+        total.aa.all <- total.aa.all + result$total.aa.count
       }
       box()
       aa.x   <- mean(xlimit)
@@ -317,10 +365,19 @@ plot.Rcpp_FONSEModel <- function(x, genome, samples = 100, mixture = 1,
       if(aa %in% c("V", "Y", "Z"))             axis(1)
       if(aa %in% c("A", "C", "D", "E"))       axis(3)
       if(aa %in% c("E", "I", "P", "T"))       axis(4, las = 1, at = seq(0, 1, by = 0.2))
-      axis(1, tck = 0.02, labels = FALSE)
-      axis(2, tck = 0.02, labels = FALSE)
-      axis(3, tck = 0.02, labels = FALSE)
-      axis(4, tck = 0.02, labels = FALSE)
+      if(show.gene.hist) {
+        axis(1, tck = 0.02, labels = FALSE, pos = 0, lwd = 0, lwd.ticks = 0.5)
+        axis(2, tck = 0.02, labels = FALSE, at = seq(0, 1, by = 0.2))
+        axis(3, tck = 0.02, labels = FALSE)
+        axis(4, tck = 0.02, labels = FALSE, at = seq(0, 1, by = 0.2))
+      } else {
+        axis(1, tck = 0.02, labels = FALSE)
+        axis(2, tck = 0.02, labels = FALSE)
+        axis(3, tck = 0.02, labels = FALSE)
+        axis(4, tck = 0.02, labels = FALSE)
+      }
+      axis(2, tck = 0.01, labels = FALSE, at = seq(0.1, 0.9, by = 0.2))
+      axis(4, tck = 0.01, labels = FALSE, at = seq(0.1, 0.9, by = 0.2))
       n.aa.drawn <- n.aa.drawn + 1L
     }
 
@@ -338,7 +395,17 @@ plot.Rcpp_FONSEModel <- function(x, genome, samples = 100, mixture = 1,
     if(show.gene.hist) {
       phi.usr <- par("usr")
       rect(phi.usr[1L], phi.usr[3L], phi.usr[2L], 0, col = "grey80", border = NA)
-      segments(phi.usr[1L], 0, phi.usr[2L], 0, lwd = 1, col = "black")
+      if(!is.null(total.aa.bin.counts) && max(total.aa.bin.counts) > 0) {
+        n.b.ta   <- length(phi.breaks.global)
+        scale.ta <- (-0.02 - phi.usr[3L]) / max(total.aa.bin.counts)
+        rect(phi.breaks.global[-n.b.ta], phi.usr[3L],
+             phi.breaks.global[-1L],     phi.usr[3L] + total.aa.bin.counts * scale.ta,
+             col = "white", border = "black", lwd = 0.6)
+        text(phi.usr[1L] + 0.02 * (phi.usr[2L] - phi.usr[1L]), -0.01,
+             paste0("AA Count: ", format(total.aa.all, big.mark = ",")),
+             adj = c(0, 1), cex = 0.45, col = "black")
+      }
+      segments(phi.usr[1L], 0, phi.usr[2L], 0, lwd = 0.25, col = "grey50")
     }
     n.b <- length(h.phi$breaks)
     rect(h.phi$breaks[-n.b], 0,
@@ -346,7 +413,12 @@ plot.Rcpp_FONSEModel <- function(x, genome, samples = 100, mixture = 1,
          col = "grey80", border = "grey40", lwd = 0.5)
     at.phi <- seq(0, 1, by = 0.2)
     axis(4, las = 1, at = at.phi, labels = round(at.phi * max.phi), cex.axis = 0.8)
-    mtext("gene count", side = 4, las = 0, line = 1.5, cex = 0.65)
+    par(xpd = NA)
+    gc.usr <- par("usr")
+    one.line.x <- par("csi") / par("pin")[1L] * (gc.usr[2L] - gc.usr[1L])
+    text(gc.usr[2L] + 2.5 * one.line.x, mean(gc.usr[3:4]),
+         "Gene Count", srt = 270, cex = 0.65, adj = 0.5, font = 2)
+    par(xpd = FALSE)
     axis(1, cex.axis = 0.8)
     axis(2, tck = 0.02, labels = FALSE)
     axis(3, tck = 0.02, labels = FALSE)
@@ -355,8 +427,8 @@ plot.Rcpp_FONSEModel <- function(x, genome, samples = 100, mixture = 1,
     # x-label (two lines: formula + axis name)
     par(mar = c(0, 0, 0, 0), xpd = FALSE)
     plot(NULL, NULL, xlim = c(0, 1), ylim = c(0, 1), axes = FALSE)
-    text(0.5, 0.65, expression("log"[10]~"(Protein Synthesis Rate"~phi~")"), cex = 0.9)
-    text(0.5, 0.25, "Gene Expression", cex = 1.4, font = 2)
+    text(0.5, 0.55, "Gene Expression", cex = 1.4, font = 2)
+    text(0.5, 0.18, expression(bold(log[10]~"(Protein Synthesis Rate"~phi~")")), cex = 0.9)
 
     # y-label (bold, larger, shifted left)
     par(mar = c(0, 0, 0, 0), xpd = NA)
@@ -545,6 +617,9 @@ plotSinglePanel <- function(parameter, model, genome, expressionValues, samples,
   bin.mids   <- numeric(n.bins)
 
   # AA-count histogram: equal-width phi bins; drawn first so colored data appears on top
+  aa.bin.totals.ret <- NULL
+  phi.breaks.ret    <- NULL
+  total.aa.count    <- 0L
   if(show.gene.hist) {
     # par("usr") gives actual plot extents after axis expansion -- use for all geometry
     usr <- par("usr")
@@ -560,6 +635,9 @@ plotSinglePanel <- function(parameter, model, genome, expressionValues, samples,
       aa.bin.totals <- vapply(seq_len(n.hist.bins), function(b) {
                          sum(counts.aa[bin.idx == b])
                        }, numeric(1L))
+      aa.bin.totals.ret <- aa.bin.totals
+      phi.breaks.ret    <- breaks
+      total.aa.count    <- as.integer(sum(counts.aa))
       bar.max <- max(aa.bin.totals)
       if(bar.max > 0L) {
         scale <- (-0.02 - usr[3L]) / bar.max  # tallest bar stops 0.02 below separator
@@ -567,10 +645,18 @@ plotSinglePanel <- function(parameter, model, genome, expressionValues, samples,
              breaks[-1L],             usr[3L] + aa.bin.totals * scale,
              col = "white", border = "black", lwd = 0.6)
       }
+      # total observed AA count label: left of grey strip
+      total.aa <- sum(counts.aa)
+      text(usr[1L] + 0.02 * (usr[2L] - usr[1L]), -0.01,
+           paste0(aa, " Count: ", total.aa),
+           adj = c(0, 1), cex = 0.45, col = "black")
     }
-    # separator line at y=0 extending full width to panel frame edges
-    segments(usr[1L], 0, usr[2L], 0, lwd = 1, col = "black")
+    # separator line at y=0: lighter than panel frame so strip reads as part of panel above
+    segments(usr[1L], 0, usr[2L], 0, lwd = 0.25, col = "grey50")
   }
+
+  # reference line at uniform codon usage (1/n synonymous codons)
+  abline(h = 1 / ncol(codonCounts), col = "grey70", lty = 2, lwd = 0.8)
 
   for(i in 1:n.bins)
   {
@@ -610,6 +696,8 @@ plotSinglePanel <- function(parameter, model, genome, expressionValues, samples,
          bty = "o", bg = adjustcolor("white", alpha.f = 0.7), box.lwd = 0.5)
 
   invisible(list(xlimit = xlimit, codonCounts = codonCounts,
-                 codons = codons, bin.mids = bin.mids, bin.counts = bin.counts))
+                 codons = codons, bin.mids = bin.mids, bin.counts = bin.counts,
+                 aa.bin.totals = aa.bin.totals.ret, phi.breaks = phi.breaks.ret,
+                 total.aa.count = total.aa.count))
 }
 
