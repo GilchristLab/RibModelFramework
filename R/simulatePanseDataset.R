@@ -88,7 +88,14 @@ simulate_panse_dataset <- function(config, seed = NULL, verbose = TRUE) {
     truth_lambda_path <- sim_cfg$truth.lambda.file %||% stop("sim.truth.lambda.file missing")
 
     codon_table <- if (!is.null(sim_cfg$codon.table)) {
-        as.data.frame(do.call(rbind, sim_cfg$codon.table), stringsAsFactors = FALSE)
+        # sim_cfg$codon.table may arrive as a list of per-codon maps (YAML
+        # "- {AA: A, Codon: GCA}") -> each row is a named list, so rbind would
+        # leave list-valued columns.  Coerce explicitly to character columns.
+        raw <- sim_cfg$codon.table
+        data.frame(
+            AA    = vapply(raw, function(r) as.character(r[["AA"]]),    character(1)),
+            Codon = vapply(raw, function(r) as.character(r[["Codon"]]), character(1)),
+            stringsAsFactors = FALSE)
     } else {
         .default_codon_table()
     }
