@@ -19,7 +19,7 @@
 
 plot.Rcpp_ROCModel <- function(x, genome = NULL, samples = 100, mixture = 1,
                                simulated = FALSE, legacy.layout = FALSE,
-                               show.gene.hist = FALSE, ...)
+                               show.gene.hist = FALSE, show.date = TRUE, ...)
 {
   model <- x
   opar <- par(no.readonly = T)
@@ -56,7 +56,7 @@ plot.Rcpp_ROCModel <- function(x, genome = NULL, samples = 100, mixture = 1,
     bin.mids   <- NULL
 
     lay <- .buildModelLayout(20L)
-    par(oma = c(0, 3, 0, 2))
+    par(oma = c(0, 2, 0, 4))
     layout(lay$mat, lay$widths, lay$heights, respect = FALSE)
 
     # title
@@ -80,8 +80,20 @@ plot.Rcpp_ROCModel <- function(x, genome = NULL, samples = 100, mixture = 1,
         bin.mids   <- result$bin.mids
       }
       box()
-      text(mean(xlimit), 1, aa, cex = 1.5)
+      aa.x   <- mean(xlimit)
+      cex.aa <- 1.2
+      usr    <- par("usr")
+      pin    <- par("pin")
+      tick.y <- 0.02 * min(pin) / pin[2L] * (usr[4L] - usr[3L])
+      aa.y   <- usr[4L] - 4 * tick.y - strheight(aa, cex = cex.aa, font = 2) / 2
+      rect(aa.x - strwidth(aa,  cex = cex.aa, font = 2) * 0.65,
+           aa.y - strheight(aa, cex = cex.aa, font = 2) * 0.65,
+           aa.x + strwidth(aa,  cex = cex.aa, font = 2) * 0.65,
+           aa.y + strheight(aa, cex = cex.aa, font = 2) * 0.65,
+           col = adjustcolor("white", alpha.f = 0.75), border = NA)
+      text(aa.x, aa.y, aa, cex = cex.aa, font = 2)
       if(aa %in% c("A", "F", "K", "Q", "V")) axis(2, las = 1, at = seq(0, 1, by = 0.2))
+      if(aa %in% c("V", "Y", "Z"))             axis(1)
       if(aa %in% c("A", "C", "D", "E"))       axis(3)
       if(aa %in% c("E", "I", "P", "T"))       axis(4, las = 1, at = seq(0, 1, by = 0.2))
       axis(1, tck = 0.02, labels = FALSE)
@@ -91,33 +103,44 @@ plot.Rcpp_ROCModel <- function(x, genome = NULL, samples = 100, mixture = 1,
       n.aa.drawn <- n.aa.drawn + 1L
     }
 
-    # phi histogram (20th grid slot) -- styled like AA panels
+    # phi histogram (20th grid slot): ylim matches AA panels; sub-zero grey strip for alignment
     h.phi <- hist(expressionValues,
                   breaks = seq(xlimit.global[1L], xlimit.global[2L], length.out = 21L),
                   plot = FALSE)
+    max.phi        <- max(h.phi$counts)
+    hist.space.val <- if(show.gene.hist) 0.15 else 0.05
+    ylim.top.val   <- if(show.gene.hist) 1.02 else 1.05
     par(mar = c(0, 0, 0, 0))
     plot(NULL, NULL,
-         xlim = xlimit.global, ylim = c(0, max(h.phi$counts) * 1.15),
+         xlim = xlimit.global, ylim = c(-(hist.space.val + 0.02), ylim.top.val),
          axes = FALSE, xlab = "", ylab = "")
-    rect(h.phi$breaks[-length(h.phi$breaks)], 0,
-         h.phi$breaks[-1L],                   h.phi$counts,
+    if(show.gene.hist) {
+      phi.usr <- par("usr")
+      rect(phi.usr[1L], phi.usr[3L], phi.usr[2L], 0, col = "grey80", border = NA)
+      segments(phi.usr[1L], 0, phi.usr[2L], 0, lwd = 1, col = "black")
+    }
+    n.b <- length(h.phi$breaks)
+    rect(h.phi$breaks[-n.b], 0,
+         h.phi$breaks[-1L],  h.phi$counts / max.phi,
          col = "grey80", border = "grey40", lwd = 0.5)
-    axis(4, las = 1, cex.axis = 0.8)
+    at.phi <- seq(0, 1, by = 0.2)
+    axis(4, las = 1, at = at.phi, labels = round(at.phi * max.phi), cex.axis = 0.8)
     mtext("gene count", side = 4, las = 0, line = 1.5, cex = 0.65)
-    axis(1, tck = 0.02, labels = FALSE)
+    axis(1, cex.axis = 0.8)
     axis(2, tck = 0.02, labels = FALSE)
     axis(3, tck = 0.02, labels = FALSE)
     box()
 
-    # x-label
+    # x-label (two lines: formula + axis name)
     par(mar = c(0, 0, 0, 0), xpd = FALSE)
     plot(NULL, NULL, xlim = c(0, 1), ylim = c(0, 1), axes = FALSE)
-    text(0.5, 0.5, expression("log"[10]~"(Protein Synthesis Rate"~phi~")"))
+    text(0.5, 0.65, expression("log"[10]~"(Protein Synthesis Rate"~phi~")"), cex = 0.9)
+    text(0.5, 0.25, "Gene Expression", cex = 1.4, font = 2)
 
-    # y-label
-    par(mar = c(0, 0, 0, 0), xpd = FALSE)
+    # y-label (bold, larger, shifted left)
+    par(mar = c(0, 0, 0, 0), xpd = NA)
     plot(NULL, NULL, xlim = c(0, 1), ylim = c(0, 1), axes = FALSE)
-    text(0.5, 0.5, "Proportion", srt = 90)
+    text(0.2, 0.5, "Proportion", srt = 90, cex = 1.4, font = 2)
 
   } else {
     # -- legacy layout (original code, unchanged) --
@@ -127,8 +150,8 @@ plot.Rcpp_ROCModel <- function(x, genome = NULL, samples = 100, mixture = 1,
     nf <- layout(mat, c(3, rep(8, 4), 2), c(3, 8, 8, 8, 8, 8, 3), respect = FALSE)
     par(mar = c(0, 0, 0, 0))
     plot(NULL, NULL, xlim = c(0, 1), ylim = c(0, 1), axes = FALSE)
-    text(0.5, 0.6, main)
-    text(0.5, 0.4, date(), cex = 0.6)
+    text(0.5, 0.75, main, font = 2)
+    if(show.date) text(0.5, 0.3, date(), cex = 0.5)
 
     for(aa in names.aa) {
       if(aa == "M" || aa == "W" || aa == "X") next
@@ -138,9 +161,20 @@ plot.Rcpp_ROCModel <- function(x, genome = NULL, samples = 100, mixture = 1,
                                 samples, mixture, aa, codon.probability)
       xlimit <- result$xlimit
       box()
-      text(mean(xlimit), 1, aa, cex = 1.5)
+      aa.x   <- mean(xlimit)
+      cex.aa <- 1.2
+      usr    <- par("usr")
+      pin    <- par("pin")
+      tick.y <- 0.02 * min(pin) / pin[2L] * (usr[4L] - usr[3L])
+      aa.y   <- usr[4L] - 4 * tick.y - strheight(aa, cex = cex.aa, font = 2) / 2
+      rect(aa.x - strwidth(aa,  cex = cex.aa, font = 2) * 0.65,
+           aa.y - strheight(aa, cex = cex.aa, font = 2) * 0.65,
+           aa.x + strwidth(aa,  cex = cex.aa, font = 2) * 0.65,
+           aa.y + strheight(aa, cex = cex.aa, font = 2) * 0.65,
+           col = adjustcolor("white", alpha.f = 0.75), border = NA)
+      text(aa.x, aa.y, aa, cex = cex.aa, font = 2)
       if(aa %in% c("A", "F", "K", "Q", "V")) axis(2, las = 1)
-      if(aa %in% c("T", "V", "Y", "Z"))       axis(1)
+      if(aa %in% c("V", "Y", "Z"))             axis(1)
       if(aa %in% c("A", "C", "D", "E"))       axis(3)
       if(aa %in% c("E", "I", "P", "T"))       axis(4, las = 1)
       axis(1, tck = 0.02, labels = FALSE)
@@ -189,7 +223,8 @@ plot.Rcpp_ROCModel <- function(x, genome = NULL, samples = 100, mixture = 1,
 #'
 plot.Rcpp_FONSEModel <- function(x, genome, samples = 100, mixture = 1,
                                simulated = FALSE, codon.window = NULL,
-                               legacy.layout = FALSE, show.gene.hist = FALSE, ...)
+                               legacy.layout = FALSE, show.gene.hist = FALSE,
+                               show.date = TRUE, ...)
 {
   model <- x
   opar <- par(no.readonly = T)
@@ -241,7 +276,7 @@ plot.Rcpp_FONSEModel <- function(x, genome, samples = 100, mixture = 1,
     bin.mids      <- NULL
 
     lay <- .buildModelLayout(20L)
-    par(oma = c(0, 3, 0, 2))
+    par(oma = c(0, 2, 0, 4))
     layout(lay$mat, lay$widths, lay$heights, respect = FALSE)
 
     # title
@@ -266,8 +301,20 @@ plot.Rcpp_FONSEModel <- function(x, genome, samples = 100, mixture = 1,
         bin.mids   <- result$bin.mids
       }
       box()
-      text(mean(xlimit), 1, aa, cex = 1.5)
+      aa.x   <- mean(xlimit)
+      cex.aa <- 1.2
+      usr    <- par("usr")
+      pin    <- par("pin")
+      tick.y <- 0.02 * min(pin) / pin[2L] * (usr[4L] - usr[3L])
+      aa.y   <- usr[4L] - 4 * tick.y - strheight(aa, cex = cex.aa, font = 2) / 2
+      rect(aa.x - strwidth(aa,  cex = cex.aa, font = 2) * 0.65,
+           aa.y - strheight(aa, cex = cex.aa, font = 2) * 0.65,
+           aa.x + strwidth(aa,  cex = cex.aa, font = 2) * 0.65,
+           aa.y + strheight(aa, cex = cex.aa, font = 2) * 0.65,
+           col = adjustcolor("white", alpha.f = 0.75), border = NA)
+      text(aa.x, aa.y, aa, cex = cex.aa, font = 2)
       if(aa %in% c("A", "F", "K", "Q", "V")) axis(2, las = 1, at = seq(0, 1, by = 0.2))
+      if(aa %in% c("V", "Y", "Z"))             axis(1)
       if(aa %in% c("A", "C", "D", "E"))       axis(3)
       if(aa %in% c("E", "I", "P", "T"))       axis(4, las = 1, at = seq(0, 1, by = 0.2))
       axis(1, tck = 0.02, labels = FALSE)
@@ -277,33 +324,44 @@ plot.Rcpp_FONSEModel <- function(x, genome, samples = 100, mixture = 1,
       n.aa.drawn <- n.aa.drawn + 1L
     }
 
-    # phi histogram (20th grid slot) -- styled like AA panels
+    # phi histogram (20th grid slot): ylim matches AA panels; sub-zero grey strip for alignment
     h.phi <- hist(expressionValues,
                   breaks = seq(xlimit.global[1L], xlimit.global[2L], length.out = 21L),
                   plot = FALSE)
+    max.phi        <- max(h.phi$counts)
+    hist.space.val <- if(show.gene.hist) 0.15 else 0.05
+    ylim.top.val   <- if(show.gene.hist) 1.02 else 1.05
     par(mar = c(0, 0, 0, 0))
     plot(NULL, NULL,
-         xlim = xlimit.global, ylim = c(0, max(h.phi$counts) * 1.15),
+         xlim = xlimit.global, ylim = c(-(hist.space.val + 0.02), ylim.top.val),
          axes = FALSE, xlab = "", ylab = "")
-    rect(h.phi$breaks[-length(h.phi$breaks)], 0,
-         h.phi$breaks[-1L],                   h.phi$counts,
+    if(show.gene.hist) {
+      phi.usr <- par("usr")
+      rect(phi.usr[1L], phi.usr[3L], phi.usr[2L], 0, col = "grey80", border = NA)
+      segments(phi.usr[1L], 0, phi.usr[2L], 0, lwd = 1, col = "black")
+    }
+    n.b <- length(h.phi$breaks)
+    rect(h.phi$breaks[-n.b], 0,
+         h.phi$breaks[-1L],  h.phi$counts / max.phi,
          col = "grey80", border = "grey40", lwd = 0.5)
-    axis(4, las = 1, cex.axis = 0.8)
+    at.phi <- seq(0, 1, by = 0.2)
+    axis(4, las = 1, at = at.phi, labels = round(at.phi * max.phi), cex.axis = 0.8)
     mtext("gene count", side = 4, las = 0, line = 1.5, cex = 0.65)
-    axis(1, tck = 0.02, labels = FALSE)
+    axis(1, cex.axis = 0.8)
     axis(2, tck = 0.02, labels = FALSE)
     axis(3, tck = 0.02, labels = FALSE)
     box()
 
-    # x-label
+    # x-label (two lines: formula + axis name)
     par(mar = c(0, 0, 0, 0), xpd = FALSE)
     plot(NULL, NULL, xlim = c(0, 1), ylim = c(0, 1), axes = FALSE)
-    text(0.5, 0.5, expression("log"[10]~"(Protein Synthesis Rate"~phi~")"))
+    text(0.5, 0.65, expression("log"[10]~"(Protein Synthesis Rate"~phi~")"), cex = 0.9)
+    text(0.5, 0.25, "Gene Expression", cex = 1.4, font = 2)
 
-    # y-label
-    par(mar = c(0, 0, 0, 0), xpd = FALSE)
+    # y-label (bold, larger, shifted left)
+    par(mar = c(0, 0, 0, 0), xpd = NA)
     plot(NULL, NULL, xlim = c(0, 1), ylim = c(0, 1), axes = FALSE)
-    text(0.5, 0.5, "Proportion", srt = 90)
+    text(0.2, 0.5, "Proportion", srt = 90, cex = 1.4, font = 2)
 
   } else {
     # -- legacy layout (original code, unchanged) --
@@ -313,8 +371,8 @@ plot.Rcpp_FONSEModel <- function(x, genome, samples = 100, mixture = 1,
     nf <- layout(mat, c(3, rep(8, 4), 2), c(3, 8, 8, 8, 8, 8, 3), respect = FALSE)
     par(mar = c(0, 0, 0, 0))
     plot(NULL, NULL, xlim = c(0, 1), ylim = c(0, 1), axes = FALSE)
-    text(0.5, 0.6, main)
-    text(0.5, 0.4, date(), cex = 0.6)
+    text(0.5, 0.75, main, font = 2)
+    if(show.date) text(0.5, 0.3, date(), cex = 0.5)
 
     for(aa in names.aa) {
       if(aa == "M" || aa == "W" || aa == "X") next
@@ -328,7 +386,7 @@ plot.Rcpp_FONSEModel <- function(x, genome, samples = 100, mixture = 1,
       main.aa <- aa #TODO map to three letter code
       text(mean(xlimit), 1, main.aa, cex = 1.5)
       if(aa %in% c("A", "F", "K", "Q", "V")) axis(2, las = 1)
-      if(aa %in% c("T", "V", "Y", "Z"))       axis(1)
+      if(aa %in% c("V", "Y", "Z"))             axis(1)
       if(aa %in% c("A", "C", "D", "E"))       axis(3)
       if(aa %in% c("E", "I", "P", "T"))       axis(4, las = 1)
       axis(1, tck = 0.02, labels = FALSE)
@@ -428,7 +486,7 @@ calculateProbabilityVector <- function(parameter,model,expressionValues,mixture,
     list(
         mat      = mat,
         widths   = c(3, 8, 8, 8, 8),
-        heights  = c(3, rep(8, n.rows.data), 2),
+        heights  = c(3, rep(8, n.rows.data), 4),
         x.lbl    = x.lbl,
         y.lbl    = y.lbl
     )
@@ -488,10 +546,9 @@ plotSinglePanel <- function(parameter, model, genome, expressionValues, samples,
 
   # AA-count histogram: equal-width phi bins; drawn first so colored data appears on top
   if(show.gene.hist) {
-    y.floor <- -(hist.space + 0.02)
-    # grey background for the histogram strip
-    rect(xlimit[1L], y.floor, xlimit[2L], 0,
-         col = "grey80", border = NA)
+    # par("usr") gives actual plot extents after axis expansion -- use for all geometry
+    usr <- par("usr")
+    rect(usr[1L], usr[3L], usr[2L], 0, col = "grey80", border = NA)
     aa.present  <- !apply(is.na(codonCounts), 1L, all)
     phi.aa      <- expressionValues[aa.present]
     counts.aa   <- aa.count.per.gene[aa.present]
@@ -505,14 +562,14 @@ plotSinglePanel <- function(parameter, model, genome, expressionValues, samples,
                        }, numeric(1L))
       bar.max <- max(aa.bin.totals)
       if(bar.max > 0L) {
-        scale <- hist.space / bar.max  # tallest bar reaches y=0 from below
-        rect(breaks[-length(breaks)], y.floor,
-             breaks[-1L],             y.floor + aa.bin.totals * scale,
+        scale <- (-0.02 - usr[3L]) / bar.max  # tallest bar stops 0.02 below separator
+        rect(breaks[-length(breaks)], usr[3L],
+             breaks[-1L],             usr[3L] + aa.bin.totals * scale,
              col = "white", border = "black", lwd = 0.6)
       }
     }
-    # separator line between model area and histogram strip
-    segments(xlimit[1L], 0, xlimit[2L], 0, lwd = 1, col = "black")
+    # separator line at y=0 extending full width to panel frame edges
+    segments(usr[1L], 0, usr[2L], 0, lwd = 1, col = "black")
   }
 
   for(i in 1:n.bins)
@@ -549,7 +606,8 @@ plotSinglePanel <- function(parameter, model, genome, expressionValues, samples,
   # add indicator to optimal codon
   optim.codon.index <- which(min(c(selection, 0)) == c(selection, 0))
   codons[optim.codon.index] <- paste0(codons[optim.codon.index], "*")
-  legend("topleft", legend = codons, col=colors, bty = "n", lty=1, cex=0.75)
+  legend("topleft", legend = codons, col=colors, lty=1, cex=0.75,
+         bty = "o", bg = adjustcolor("white", alpha.f = 0.7), box.lwd = 0.5)
 
   invisible(list(xlimit = xlimit, codonCounts = codonCounts,
                  codons = codons, bin.mids = bin.mids, bin.counts = bin.counts))
