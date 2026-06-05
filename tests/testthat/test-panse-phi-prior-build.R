@@ -58,24 +58,26 @@ test_that("population/population: phi_prior_mu and sigma are G-length shared vec
     expect_true(all(sd$phi_prior_sigma > 0))
 })
 
-test_that("population/population: log_prob matches current model (regression)", {
+test_that("population/population: model compiles and samples with new data fields", {
     skip_if_no_cmdstan()
 
     fx  <- testthat::test_path("fixtures", "panse-stan", "builder")
     cfg <- .base_config(fx)
-    sd_new <- AnaCoDa::build_panse_stan_data(cfg, verbose = FALSE)
+    sd  <- AnaCoDa::build_panse_stan_data(cfg, verbose = FALSE)
 
-    # The generalized model with phi_prior_mu = rep(mphi, G) and
-    # phi_prior_sigma = rep(sphi, G) must give the same log_prob as the
-    # current model at the same parameter values.  Checked via log_prob()
-    # on the compiled model -- tolerance 1e-8 to allow floating-point order.
+    # phi_use_data=0 path must not break the model: compile and run a mini sample
     mod <- cmdstanr::cmdstan_model(
         AnaCoDa:::.panse_stan_file("panse_sphi_est_noncentered.stan"),
         dir = tempdir(), quiet = TRUE
     )
-    # Use truth values as a known evaluation point
-    lp_new <- mod$log_prob(sd_new, unconstrained_variables = FALSE)
-    expect_true(is.finite(lp_new), info = "log_prob must be finite at truth init")
+    suppressMessages(
+        fit <- mod$sample(data = sd, chains = 1L,
+                          iter_warmup = 5L, iter_sampling = 1L,
+                          refresh = 0, show_messages = FALSE, seed = 42L)
+    )
+    lp <- as.numeric(fit$lp())
+    expect_true(any(is.finite(lp)),
+                info = "population/population must produce finite lp__")
 })
 
 test_that("data/population: gene-specific mu from file; sigma shared", {
