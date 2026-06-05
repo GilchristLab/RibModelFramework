@@ -18,13 +18,27 @@
 #' initialization of the Parameter object.
 
 plot.Rcpp_ROCModel <- function(x, genome = NULL, samples = 100, mixture = 1,
-                               simulated = FALSE, legacy.layout = FALSE,
-                               show.gene.hist = FALSE, show.date = TRUE, ...)
+                               simulated = FALSE, layout = "original",
+                               show.gene.hist = FALSE, show.date = TRUE,
+                               options = NULL, ...)
 {
   model <- x
   opar <- par(no.readonly = T)
 
+  # Apply options list (overrides individual parameters when provided)
+  if(!is.null(options)) {
+    if(!is.null(options$layout))         layout         <- options$layout
+    if(!is.null(options$show.gene.hist)) show.gene.hist <- options$show.gene.hist
+    if(!is.null(options$show.date))      show.date      <- options$show.date
+  }
+
   input_list <- as.list(list(...))
+  # Backward compat: legacy.layout=FALSE -> layout="compact-v1"
+  if("legacy.layout" %in% names(input_list)) {
+    warning("'legacy.layout' is deprecated; use layout = \"compact-v1\" instead")
+    if(isFALSE(input_list$legacy.layout)) layout <- "compact-v1"
+    input_list$legacy.layout <- NULL
+  }
   if("main" %in% names(input_list)){
     main <- input_list$main
     input_list$main <- NULL
@@ -45,7 +59,7 @@ plot.Rcpp_ROCModel <- function(x, genome = NULL, samples = 100, mixture = 1,
   genome <- genome$getGenomeForGeneIndices(genes.in.mixture, simulated)
   names.aa <- aminoAcids()
 
-  if(!legacy.layout) {
+  if(layout %in% c("compact", "compact-v1")) {
     # -- compact layout: interleaved AA + marginal columns, n-per-bin strip --
     # Pre-compute bins (shared across all AA panels).
     quantiles  <- quantile(expressionValues, probs = seq(0.05, 0.95, 0.05), na.rm = TRUE)
@@ -171,7 +185,7 @@ plot.Rcpp_ROCModel <- function(x, genome = NULL, samples = 100, mixture = 1,
     par(mar = c(0, 0, 0, 0), xpd = FALSE)
     plot(NULL, NULL, xlim = c(0, 1), ylim = c(0, 1), axes = FALSE)
     text(0.5, 0.55, "Gene Expression", cex = 1.4, font = 2)
-    text(0.5, 0.18, expression(bold(log[10]~"(Protein Synthesis Rate"~phi~")")), cex = 0.9)
+    text(0.5, 0.28, expression(bold(log[10]~"(Protein Synthesis Rate"~phi~")")), cex = 0.9)
 
     # y-label (bold, larger, shifted left)
     par(mar = c(0, 0, 0, 0), xpd = NA)
@@ -179,7 +193,7 @@ plot.Rcpp_ROCModel <- function(x, genome = NULL, samples = 100, mixture = 1,
     text(0.2, 0.5, "Proportion", srt = 90, cex = 1.4, font = 2)
 
   } else {
-    # -- legacy layout (original code, unchanged) --
+    # -- original layout (default) --
     mat <- matrix(c(rep(1, 4), 2:21, rep(22, 4)),
                   nrow = 7, ncol = 4, byrow = TRUE)
     mat <- cbind(rep(23, 7), mat, rep(24, 7))
@@ -259,13 +273,27 @@ plot.Rcpp_ROCModel <- function(x, genome = NULL, samples = 100, mixture = 1,
 #'
 plot.Rcpp_FONSEModel <- function(x, genome, samples = 100, mixture = 1,
                                simulated = FALSE, codon.window = NULL,
-                               legacy.layout = FALSE, show.gene.hist = FALSE,
-                               show.date = TRUE, ...)
+                               layout = "original", show.gene.hist = FALSE,
+                               show.date = TRUE, options = NULL, ...)
 {
   model <- x
   opar <- par(no.readonly = T)
 
+  # Apply options list (overrides individual parameters when provided)
+  if(!is.null(options)) {
+    if(!is.null(options$layout))         layout         <- options$layout
+    if(!is.null(options$show.gene.hist)) show.gene.hist <- options$show.gene.hist
+    if(!is.null(options$show.date))      show.date      <- options$show.date
+    if(!is.null(options$codon.window))   codon.window   <- options$codon.window
+  }
+
   input_list <- as.list(list(...))
+  # Backward compat: legacy.layout=FALSE -> layout="compact-v1"
+  if("legacy.layout" %in% names(input_list)) {
+    warning("'legacy.layout' is deprecated; use layout = \"compact-v1\" instead")
+    if(isFALSE(input_list$legacy.layout)) layout <- "compact-v1"
+    input_list$legacy.layout <- NULL
+  }
   if("main" %in% names(input_list)){
     main <- input_list$main
     input_list$main <- NULL
@@ -304,7 +332,7 @@ plot.Rcpp_FONSEModel <- function(x, genome, samples = 100, mixture = 1,
   }
   names.aa <- aminoAcids()
 
-  if (!legacy.layout) {
+  if(layout %in% c("compact", "compact-v1")) {
     # -- compact layout: interleaved AA + marginal columns, n-per-bin strip --
     quantiles     <- quantile(expressionValues, probs = seq(0.05, 0.95, 0.05), na.rm = TRUE)
     xlimit.global <- range(expressionValues, na.rm = TRUE)
@@ -428,7 +456,7 @@ plot.Rcpp_FONSEModel <- function(x, genome, samples = 100, mixture = 1,
     par(mar = c(0, 0, 0, 0), xpd = FALSE)
     plot(NULL, NULL, xlim = c(0, 1), ylim = c(0, 1), axes = FALSE)
     text(0.5, 0.55, "Gene Expression", cex = 1.4, font = 2)
-    text(0.5, 0.18, expression(bold(log[10]~"(Protein Synthesis Rate"~phi~")")), cex = 0.9)
+    text(0.5, 0.28, expression(bold(log[10]~"(Protein Synthesis Rate"~phi~")")), cex = 0.9)
 
     # y-label (bold, larger, shifted left)
     par(mar = c(0, 0, 0, 0), xpd = NA)
@@ -436,7 +464,7 @@ plot.Rcpp_FONSEModel <- function(x, genome, samples = 100, mixture = 1,
     text(0.2, 0.5, "Proportion", srt = 90, cex = 1.4, font = 2)
 
   } else {
-    # -- legacy layout (original code, unchanged) --
+    # -- original layout (default) --
     mat <- matrix(c(rep(1, 4), 2:21, rep(22, 4)),
                   nrow = 7, ncol = 4, byrow = TRUE)
     mat <- cbind(rep(23, 7), mat, rep(24, 7))
@@ -520,6 +548,56 @@ calculateProbabilityVector <- function(parameter,model,expressionValues,mixture,
 }
 
 
+
+## Internal: common plot options shared by ROC and FONSE plot methods.
+.plotModelOptions.common <- function(
+    layout         = "original",
+    show.gene.hist = FALSE,
+    show.date      = TRUE
+) {
+    list(layout = layout, show.gene.hist = show.gene.hist, show.date = show.date)
+}
+
+#' Plot options for ROC model
+#'
+#' Returns a named list of plotting options for \code{plot.Rcpp_ROCModel}.
+#' Pass the result to the \code{options} argument of \code{plot()}.
+#'
+#' @param layout Character. Layout to use: \code{"original"} (default, classic
+#'   layout) or \code{"compact-v1"} (compact 4x5 grid with histogram strips).
+#' @param show.gene.hist Logical. When \code{TRUE} and layout is compact-v1,
+#'   draws per-AA gene-count histogram strips below each panel.
+#' @param show.date Logical. Whether to include a timestamp in the title panel.
+#' @return A named list of plot options to pass to \code{options} in \code{plot()}.
+#' @examples
+#' \dontrun{
+#'   opts <- plotROCOptions(layout = "compact-v1", show.gene.hist = TRUE)
+#'   plot(model, genome, samples = 500, main = "My fit", options = opts)
+#' }
+#' @export
+plotROCOptions <- function(...) {
+    .plotModelOptions.common(...)
+}
+
+#' Plot options for FONSE model
+#'
+#' Returns a named list of plotting options for \code{plot.Rcpp_FONSEModel}.
+#' Pass the result to the \code{options} argument of \code{plot()}.
+#'
+#' @inheritParams plotROCOptions
+#' @param codon.window Integer vector of codon positions to include.
+#'   \code{NULL} (default) uses all positions.
+#' @return A named list of plot options to pass to \code{options} in \code{plot()}.
+#' @examples
+#' \dontrun{
+#'   opts <- plotFONSEOptions(layout = "compact-v1", codon.window = c(1, 50))
+#'   plot(model, genome, samples = 500, options = opts)
+#' }
+#' @export
+plotFONSEOptions <- function(..., codon.window = NULL) {
+    opts <- .plotModelOptions.common(...)
+    c(opts, list(codon.window = codon.window))
+}
 
 ## Internal: build layout matrix for compact codon-freq vs phi plot.
 ## n.slots: number of data panel slots (20 for ROC). 19 slots show AA codon-freq

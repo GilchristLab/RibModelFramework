@@ -109,6 +109,54 @@ test_that(".buildTraceLayout n.slots=1 edge case", {
     expect_equal(lay$y.lbl, 5L)
 })
 
+# --- options functions ---
+
+test_that(".plotModelOptions.common returns correct defaults", {
+    opts <- .plotModelOptions.common()
+    expect_equal(opts$layout, "original")
+    expect_false(opts$show.gene.hist)
+    expect_true(opts$show.date)
+    expect_named(opts, c("layout", "show.gene.hist", "show.date"))
+})
+
+test_that("plotROCOptions returns common defaults", {
+    opts <- plotROCOptions()
+    expect_equal(opts$layout, "original")
+    expect_false(opts$show.gene.hist)
+    expect_true(opts$show.date)
+})
+
+test_that("plotROCOptions overrides work", {
+    opts <- plotROCOptions(layout = "compact-v1", show.gene.hist = TRUE, show.date = FALSE)
+    expect_equal(opts$layout, "compact-v1")
+    expect_true(opts$show.gene.hist)
+    expect_false(opts$show.date)
+})
+
+test_that("plotROCOptions accepts compact as layout value", {
+    opts <- plotROCOptions(layout = "compact")
+    expect_equal(opts$layout, "compact")
+})
+
+test_that("plotFONSEOptions includes codon.window with NULL default", {
+    opts <- plotFONSEOptions()
+    expect_null(opts$codon.window)
+    expect_equal(opts$layout, "original")
+    expect_named(opts, c("layout", "show.gene.hist", "show.date", "codon.window"))
+})
+
+test_that("plotFONSEOptions codon.window override works", {
+    opts <- plotFONSEOptions(codon.window = c(1, 100))
+    expect_equal(opts$codon.window, c(1, 100))
+})
+
+test_that("plotROCOptions and plotFONSEOptions share common fields", {
+    roc  <- plotROCOptions()
+    fons <- plotFONSEOptions()
+    common <- c("layout", "show.gene.hist", "show.date")
+    expect_equal(roc[common], fons[common])
+})
+
 # --- both helpers ---
 
 test_that("row count scales with n.slots for both layout helpers", {
