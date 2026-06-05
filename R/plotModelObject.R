@@ -18,7 +18,8 @@
 #' initialization of the Parameter object.
 
 plot.Rcpp_ROCModel <- function(x, genome = NULL, samples = 100, mixture = 1,
-                               simulated = FALSE, legacy.layout = FALSE, ...)
+                               simulated = FALSE, legacy.layout = FALSE,
+                               show.gene.hist = FALSE, ...)
 {
   model <- x
   opar <- par(no.readonly = T)
@@ -55,6 +56,7 @@ plot.Rcpp_ROCModel <- function(x, genome = NULL, samples = 100, mixture = 1,
     bin.mids   <- NULL
 
     lay <- .buildModelLayout(20L)
+    par(oma = c(0, 3, 0, 2))
     layout(lay$mat, lay$widths, lay$heights, respect = FALSE)
 
     # title
@@ -63,13 +65,15 @@ plot.Rcpp_ROCModel <- function(x, genome = NULL, samples = 100, mixture = 1,
     text(0.5, 0.6, main)
     text(0.5, 0.4, date(), cex = 0.6)
 
+    n.aa.drawn <- 0L
     for(aa in names.aa) {
       if(aa == "M" || aa == "W" || aa == "X") next
       codon.probability <- calculateProbabilityVector(
           parameter, model, expressionValues, mixture, samples, aa, model.type = "ROC")
       result <- plotSinglePanel(parameter, model, genome, expressionValues,
                                 samples, mixture, aa, codon.probability,
-                                precomputed.quantiles = quantiles)
+                                precomputed.quantiles = quantiles,
+                                show.gene.hist = show.gene.hist)
       xlimit <- result$xlimit
       if(is.null(bin.counts)) {
         bin.counts <- result$bin.counts
@@ -77,34 +81,35 @@ plot.Rcpp_ROCModel <- function(x, genome = NULL, samples = 100, mixture = 1,
       }
       box()
       text(mean(xlimit), 1, aa, cex = 1.5)
-      if(aa %in% c("A", "F", "K", "Q", "V")) axis(2, las = 1)
-      if(aa %in% c("T", "V", "Y", "Z"))       axis(1)
+      if(aa %in% c("A", "F", "K", "Q", "V")) axis(2, las = 1, at = seq(0, 1, by = 0.2))
       if(aa %in% c("A", "C", "D", "E"))       axis(3)
-      if(aa %in% c("E", "I", "P", "T"))       axis(4, las = 1)
+      if(aa %in% c("E", "I", "P", "T"))       axis(4, las = 1, at = seq(0, 1, by = 0.2))
       axis(1, tck = 0.02, labels = FALSE)
       axis(2, tck = 0.02, labels = FALSE)
       axis(3, tck = 0.02, labels = FALSE)
       axis(4, tck = 0.02, labels = FALSE)
-      # marginal ECDF panel (paired with this AA panel)
-      .plotCodonECDF(result$codonCounts, result$codons)
+      n.aa.drawn <- n.aa.drawn + 1L
     }
 
-    # phi histogram (right column, spans data rows)
-    hist.values <- hist(expressionValues, plot = FALSE, nclass = 30)
-    par(mar = c(2, 0.2, 0.5, 1.5))
-    plot(hist.values, axes = FALSE, main = "", xlab = "", ylab = "")
-    axis(1, cex.axis = 0.8); axis(4, las = 1, cex.axis = 0.8)
+    # phi histogram (20th grid slot) -- styled like AA panels
+    h.phi <- hist(expressionValues,
+                  breaks = seq(xlimit.global[1L], xlimit.global[2L], length.out = 21L),
+                  plot = FALSE)
+    par(mar = c(0, 0, 0, 0))
+    plot(NULL, NULL,
+         xlim = xlimit.global, ylim = c(0, max(h.phi$counts) * 1.15),
+         axes = FALSE, xlab = "", ylab = "")
+    rect(h.phi$breaks[-length(h.phi$breaks)], 0,
+         h.phi$breaks[-1L],                   h.phi$counts,
+         col = "grey80", border = "grey40", lwd = 0.5)
+    axis(4, las = 1, cex.axis = 0.8)
+    mtext("gene count", side = 4, las = 0, line = 1.5, cex = 0.65)
+    axis(1, tck = 0.02, labels = FALSE)
+    axis(2, tck = 0.02, labels = FALSE)
+    axis(3, tck = 0.02, labels = FALSE)
+    box()
 
-    # n-per-bin strip (type="h": vertical lines from 0, aligned to bin midpoints)
-    par(mar = c(1.5, 2.5, 0.2, 0.5))
-    plot(bin.mids, bin.counts, type = "h",
-         xlim = xlimit.global, ylim = c(0, max(bin.counts, na.rm = TRUE) * 1.15),
-         xlab = "", ylab = "", axes = FALSE, lwd = 3, col = "gray50", lend = 1)
-    axis(1, cex.axis = 0.8)
-    axis(2, las = 1, cex.axis = 0.7)
-    mtext("n", side = 2, las = 1, line = 1.5, cex = 0.7)
-
-    # x-label (xpd=FALSE prevents axis-call residue from bleeding into adjacent panels)
+    # x-label
     par(mar = c(0, 0, 0, 0), xpd = FALSE)
     plot(NULL, NULL, xlim = c(0, 1), ylim = c(0, 1), axes = FALSE)
     text(0.5, 0.5, expression("log"[10]~"(Protein Synthesis Rate"~phi~")"))
@@ -184,7 +189,7 @@ plot.Rcpp_ROCModel <- function(x, genome = NULL, samples = 100, mixture = 1,
 #'
 plot.Rcpp_FONSEModel <- function(x, genome, samples = 100, mixture = 1,
                                simulated = FALSE, codon.window = NULL,
-                               legacy.layout = FALSE, ...)
+                               legacy.layout = FALSE, show.gene.hist = FALSE, ...)
 {
   model <- x
   opar <- par(no.readonly = T)
@@ -236,6 +241,7 @@ plot.Rcpp_FONSEModel <- function(x, genome, samples = 100, mixture = 1,
     bin.mids      <- NULL
 
     lay <- .buildModelLayout(20L)
+    par(oma = c(0, 3, 0, 2))
     layout(lay$mat, lay$widths, lay$heights, respect = FALSE)
 
     # title
@@ -244,6 +250,7 @@ plot.Rcpp_FONSEModel <- function(x, genome, samples = 100, mixture = 1,
     text(0.5, 0.6, main)
     text(0.5, 0.4, date(), cex = 0.6)
 
+    n.aa.drawn <- 0L
     for(aa in names.aa) {
       if(aa == "M" || aa == "W" || aa == "X") next
       codon.probability <- calculateProbabilityVector(
@@ -251,7 +258,8 @@ plot.Rcpp_FONSEModel <- function(x, genome, samples = 100, mixture = 1,
           model.type = "FONSE", codon.window = codon.window)
       result <- plotSinglePanel(parameter, model, genome, expressionValues,
                                 samples, mixture, aa, codon.probability,
-                                precomputed.quantiles = quantiles)
+                                precomputed.quantiles = quantiles,
+                                show.gene.hist = show.gene.hist)
       xlimit <- result$xlimit
       if(is.null(bin.counts)) {
         bin.counts <- result$bin.counts
@@ -259,34 +267,35 @@ plot.Rcpp_FONSEModel <- function(x, genome, samples = 100, mixture = 1,
       }
       box()
       text(mean(xlimit), 1, aa, cex = 1.5)
-      if(aa %in% c("A", "F", "K", "Q", "V")) axis(2, las = 1)
-      if(aa %in% c("T", "V", "Y", "Z"))       axis(1)
+      if(aa %in% c("A", "F", "K", "Q", "V")) axis(2, las = 1, at = seq(0, 1, by = 0.2))
       if(aa %in% c("A", "C", "D", "E"))       axis(3)
-      if(aa %in% c("E", "I", "P", "T"))       axis(4, las = 1)
+      if(aa %in% c("E", "I", "P", "T"))       axis(4, las = 1, at = seq(0, 1, by = 0.2))
       axis(1, tck = 0.02, labels = FALSE)
       axis(2, tck = 0.02, labels = FALSE)
       axis(3, tck = 0.02, labels = FALSE)
       axis(4, tck = 0.02, labels = FALSE)
-      # marginal ECDF panel (paired with this AA panel)
-      .plotCodonECDF(result$codonCounts, result$codons)
+      n.aa.drawn <- n.aa.drawn + 1L
     }
 
-    # phi histogram (right column)
-    hist.values <- hist(expressionValues, plot = FALSE, nclass = 30)
-    par(mar = c(2, 0.2, 0.5, 1.5))
-    plot(hist.values, axes = FALSE, main = "", xlab = "", ylab = "")
-    axis(1, cex.axis = 0.8); axis(4, las = 1, cex.axis = 0.8)
+    # phi histogram (20th grid slot) -- styled like AA panels
+    h.phi <- hist(expressionValues,
+                  breaks = seq(xlimit.global[1L], xlimit.global[2L], length.out = 21L),
+                  plot = FALSE)
+    par(mar = c(0, 0, 0, 0))
+    plot(NULL, NULL,
+         xlim = xlimit.global, ylim = c(0, max(h.phi$counts) * 1.15),
+         axes = FALSE, xlab = "", ylab = "")
+    rect(h.phi$breaks[-length(h.phi$breaks)], 0,
+         h.phi$breaks[-1L],                   h.phi$counts,
+         col = "grey80", border = "grey40", lwd = 0.5)
+    axis(4, las = 1, cex.axis = 0.8)
+    mtext("gene count", side = 4, las = 0, line = 1.5, cex = 0.65)
+    axis(1, tck = 0.02, labels = FALSE)
+    axis(2, tck = 0.02, labels = FALSE)
+    axis(3, tck = 0.02, labels = FALSE)
+    box()
 
-    # n-per-bin strip
-    par(mar = c(1.5, 2.5, 0.2, 0.5))
-    plot(bin.mids, bin.counts, type = "h",
-         xlim = xlimit.global, ylim = c(0, max(bin.counts, na.rm = TRUE) * 1.15),
-         xlab = "", ylab = "", axes = FALSE, lwd = 3, col = "gray50", lend = 1)
-    axis(1, cex.axis = 0.8)
-    axis(2, las = 1, cex.axis = 0.7)
-    mtext("n", side = 2, las = 1, line = 1.5, cex = 0.7)
-
-    # x-label (xpd=FALSE prevents axis-call residue from bleeding into adjacent panels)
+    # x-label
     par(mar = c(0, 0, 0, 0), xpd = FALSE)
     plot(NULL, NULL, xlim = c(0, 1), ylim = c(0, 1), axes = FALSE)
     text(0.5, 0.5, expression("log"[10]~"(Protein Synthesis Rate"~phi~")"))
@@ -383,78 +392,58 @@ calculateProbabilityVector <- function(parameter,model,expressionValues,mixture,
 
 
 ## Internal: build layout matrix for compact codon-freq vs phi plot.
-## n.slots: number of AA panel slots to allocate (20 for ROC, covers 19 plotted AAs).
+## n.slots: number of data panel slots (20 for ROC). 19 slots show AA codon-freq
+## panels; the 20th slot (bottom-right of the grid) shows the phi histogram.
+## Skipped AAs (M/W/X) are not plotted, so the phi histogram naturally lands in
+## slot 20 after 19 AA plot.new() calls -- no blank fill needed.
 ## Panel numbering (in drawing order):
-##   1            = title
-##   2 .. 2*n+1   = n AA+marg pairs (AA=even offset, marg=odd)
-##   2*n+2        = phi histogram (right column)
-##   2*n+3        = n-per-bin strip
-##   2*n+4        = x-label
-##   2*n+5        = y-label (left column)
+##   1          = title
+##   2 .. n+1   = n data slots (19 AA panels + phi histogram as slot n)
+##   n+2        = x-label
+##   n+3        = y-label (left column)
 .buildModelLayout <- function(n.slots = 20L) {
     n.rows.data <- ceiling(n.slots / 4L)
-    base        <- 1L                     # title = panel 1
-    phi.hist    <- base + 2L * n.slots + 1L
-    n.strip     <- base + 2L * n.slots + 2L
-    x.lbl       <- base + 2L * n.slots + 3L
-    y.lbl       <- base + 2L * n.slots + 4L
+    base  <- 1L
+    x.lbl <- base + n.slots + 1L
+    y.lbl <- base + n.slots + 2L
 
-    # 8-column data block (4 wide AA cols interleaved with 4 narrow marg cols)
-    data.mat <- matrix(0L, nrow = n.rows.data, ncol = 8L)
+    # 4-column data block (one panel per column, no right phi.hist column)
+    data.mat <- matrix(0L, nrow = n.rows.data, ncol = 4L)
     pnum <- 2L
     for(r in seq_len(n.rows.data)) {
         for(cp in seq_len(4L)) {
-            j <- (cp - 1L) * 2L + 1L
-            if(pnum <= base + 2L * n.slots - 1L) {
-                data.mat[r, j]      <- pnum
-                data.mat[r, j + 1L] <- pnum + 1L
-                pnum <- pnum + 2L
+            if(pnum <= base + n.slots) {
+                data.mat[r, cp] <- pnum
+                pnum <- pnum + 1L
             }
         }
     }
 
-    # Assemble full matrix (n.rows.data+3 rows, 10 cols)
-    title.row  <- c(y.lbl, rep(1L, 8L),          phi.hist)
-    data.rows  <- cbind(y.lbl, data.mat,           phi.hist)
-    nstrip.row <- c(y.lbl, rep(n.strip, 8L),       phi.hist)
-    xlbl.row   <- c(y.lbl, rep(x.lbl,  8L),        0L)
-    mat <- rbind(title.row, data.rows, nstrip.row, xlbl.row)
+    # Assemble full matrix (n.rows.data+2 rows, 5 cols)
+    title.row  <- c(y.lbl, rep(1L,      4L))
+    data.rows  <- cbind(y.lbl, data.mat)
+    xlbl.row   <- c(y.lbl, rep(x.lbl, 4L))
+    mat <- rbind(title.row, data.rows, xlbl.row)
 
     list(
         mat      = mat,
-        widths   = c(3, 8, 3, 8, 3, 8, 3, 8, 3, 2),
-        heights  = c(3, rep(8, n.rows.data), 3, 2),
-        phi.hist = phi.hist,
-        n.strip  = n.strip,
+        widths   = c(3, 8, 8, 8, 8),
+        heights  = c(3, rep(8, n.rows.data), 2),
         x.lbl    = x.lbl,
         y.lbl    = y.lbl
     )
 }
 
-## Internal: draw rotated ECDF of per-gene codon proportions.
-## Each codon gets one step-function line; x = CDF (0->1), y = proportion.
-## y-scale is fixed at (-0.05, 1.05) to match its paired AA panel.
-.plotCodonECDF <- function(codonCounts, codons) {
-    par(mar = c(0.5, 0.2, 0.5, 1.2))
-    plot(NULL, NULL, xlim = c(0, 1), ylim = c(-0.05, 1.05),
-         axes = FALSE, xlab = "", ylab = "")
-    for(k in seq_along(codons)) {
-        vals <- sort(codonCounts[, k], na.last = NA)
-        n    <- length(vals)
-        if(n < 2L) next
-        lines(seq_len(n) / n, vals, type = "s",
-              col = .codonColors[[ codons[k] ]], lwd = 0.8)
-    }
-    axis(4, las = 1, tck = 0.04, cex.axis = 0.55)
-}
-
 # NOT EXPOSED
 # precomputed.quantiles: if provided (compact layout), use instead of recomputing.
+# show.gene.hist: if TRUE, draw a phi-binned gene-count histogram at the bottom
+#   of the panel (bars scaled to ~20% of panel height, same x-axis).
 # Returns a list(xlimit, codonCounts, codons, bin.mids, bin.counts) so the caller
-# can draw the marginal ECDF and n-per-bin strip without re-reading the genome.
+# can draw the n-per-bin strip without re-reading the genome.
 plotSinglePanel <- function(parameter, model, genome, expressionValues, samples,
                             mixture, aa, codon.probability,
-                            precomputed.quantiles = NULL)
+                            precomputed.quantiles = NULL,
+                            show.gene.hist = FALSE)
 {
   codons <- AAToCodon(aa, T)
   #
@@ -478,14 +467,17 @@ plotSinglePanel <- function(parameter, model, genome, expressionValues, samples,
     codonCounts[[i]] <- genome$getCodonCountsPerGene(codons[i])
   }
   codonCounts <- do.call("cbind", codonCounts)
+  aa.count.per.gene <- rowSums(codonCounts)  # raw AA occurrences per gene (before normalizing)
   # codon proportions
   codonCounts <- codonCounts / rowSums(codonCounts)
   codonCounts[is.nan(codonCounts)] <- NA # necessary if AA does not appear in gene
 
   # make empty plot
-  xlimit <- range(expressionValues, na.rm = T)
-  par(mar = c(0.5, 2, 0.5, 0.2))
-  plot(NULL, NULL, xlim=xlimit, ylim=c(-0.05,1.05),
+  xlimit    <- range(expressionValues, na.rm = T)
+  hist.space <- if(show.gene.hist) 0.15 else 0.05
+  ylim.top   <- if(show.gene.hist) 1.02 else 1.05
+  par(mar = c(0, 0, 0, 0))
+  plot(NULL, NULL, xlim=xlimit, ylim=c(-(hist.space + 0.02), ylim.top),
        xlab = "", ylab="", axes = FALSE)
   # bin expression values of genes
   quantiles <- if(!is.null(precomputed.quantiles)) precomputed.quantiles else
@@ -493,6 +485,36 @@ plotSinglePanel <- function(parameter, model, genome, expressionValues, samples,
   n.bins    <- length(quantiles)
   bin.counts <- integer(n.bins)
   bin.mids   <- numeric(n.bins)
+
+  # AA-count histogram: equal-width phi bins; drawn first so colored data appears on top
+  if(show.gene.hist) {
+    y.floor <- -(hist.space + 0.02)
+    # grey background for the histogram strip
+    rect(xlimit[1L], y.floor, xlimit[2L], 0,
+         col = "grey80", border = NA)
+    aa.present  <- !apply(is.na(codonCounts), 1L, all)
+    phi.aa      <- expressionValues[aa.present]
+    counts.aa   <- aa.count.per.gene[aa.present]
+    if(length(phi.aa) > 1L) {
+      n.hist.bins   <- 20L
+      breaks        <- seq(xlimit[1L], xlimit[2L], length.out = n.hist.bins + 1L)
+      bin.idx       <- findInterval(phi.aa, breaks, rightmost.closed = TRUE)
+      bin.idx       <- pmax(1L, pmin(bin.idx, n.hist.bins))
+      aa.bin.totals <- vapply(seq_len(n.hist.bins), function(b) {
+                         sum(counts.aa[bin.idx == b])
+                       }, numeric(1L))
+      bar.max <- max(aa.bin.totals)
+      if(bar.max > 0L) {
+        scale <- hist.space / bar.max  # tallest bar reaches y=0 from below
+        rect(breaks[-length(breaks)], y.floor,
+             breaks[-1L],             y.floor + aa.bin.totals * scale,
+             col = "white", border = "black", lwd = 0.6)
+      }
+    }
+    # separator line between model area and histogram strip
+    segments(xlimit[1L], 0, xlimit[2L], 0, lwd = 1, col = "black")
+  }
+
   for(i in 1:n.bins)
   {
     if(i == 1){
@@ -512,7 +534,7 @@ plotSinglePanel <- function(parameter, model, genome, expressionValues, samples,
     {
       points(bin.mids[i], means[k],
              col=.codonColors[[ codons[k] ]] , pch=19, cex = 0.5)
-      lines(rep(bin.mids[i], 2), c(means[k]-std[k], means[k]+std[k]),
+      lines(rep(bin.mids[i], 2), pmax(0, pmin(1, c(means[k]-std[k], means[k]+std[k]))),
             col=.codonColors[[ codons[k] ]], lwd=0.8)
     }
   }

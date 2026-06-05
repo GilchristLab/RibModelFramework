@@ -3,10 +3,14 @@ library(AnaCoDa)
 
 context("compact layout helpers")
 
-# .buildModelLayout: 10-col matrix (y.lbl | 4x(wide+narrow AA) | phi.hist)
-# Panels: 1=title, 2..(2n+1)=interleaved AA+ECDF pairs, phi.hist, n.strip, x.lbl, y.lbl
+# .buildModelLayout: 5-col matrix (y.lbl | 4x data panels)
+# 20 data slots: 19 AA codon-freq panels + 1 phi histogram (20th/bottom-right slot).
+# Skipped AAs (M/W/X) mean the phi histogram naturally lands in slot 20 after
+# 19 AA plot.new() calls -- no blank fill needed.
+# Panel numbering:
+#   1=title, 2..(n+1)=data slots, n+2=x.lbl, n+3=y.lbl
 #
-# .buildTraceLayout: 9-col matrix (y.lbl | 4x(wide+narrow trace) )
+# .buildTraceLayout: 9-col matrix (y.lbl | 4x(wide+narrow trace))
 # Panels: 1=title, 2..(2n+1)=interleaved trace+ECDF pairs, x.lbl, y.lbl
 
 # --- .buildModelLayout ---
@@ -15,16 +19,14 @@ test_that(".buildModelLayout returns correct structure for n.slots=20", {
     lay <- .buildModelLayout(20L)
     n.rows.data <- ceiling(20L / 4L)  # 5
 
-    expect_equal(nrow(lay$mat), n.rows.data + 3L)  # title + 5 data + n.strip + x.lbl
-    expect_equal(ncol(lay$mat), 10L)
-    expect_equal(length(lay$widths),  10L)
-    expect_equal(length(lay$heights), n.rows.data + 3L)
+    expect_equal(nrow(lay$mat), n.rows.data + 2L)  # title + 5 data + x.lbl
+    expect_equal(ncol(lay$mat), 5L)
+    expect_equal(length(lay$widths),  5L)
+    expect_equal(length(lay$heights), n.rows.data + 2L)
 
     # special panel indices
-    expect_equal(lay$phi.hist, 2L * 20L + 2L)  # 42
-    expect_equal(lay$n.strip,  2L * 20L + 3L)  # 43
-    expect_equal(lay$x.lbl,   2L * 20L + 4L)  # 44
-    expect_equal(lay$y.lbl,   2L * 20L + 5L)  # 45
+    expect_equal(lay$x.lbl, 20L + 2L)  # 22
+    expect_equal(lay$y.lbl, 20L + 3L)  # 23
 })
 
 test_that(".buildModelLayout y.lbl always fills left column", {
@@ -35,42 +37,31 @@ test_that(".buildModelLayout y.lbl always fills left column", {
     }
 })
 
-test_that(".buildModelLayout phi.hist fills right column except x-label row", {
+test_that(".buildModelLayout all data panels present and in order", {
     lay <- .buildModelLayout(20L)
     nr  <- nrow(lay$mat)
-    expect_true(all(lay$mat[-nr, 10L] == lay$phi.hist))
-    expect_equal(lay$mat[nr, 10L], 0L)  # x.lbl row has 0 in phi.hist column
-})
-
-test_that(".buildModelLayout AA+marginal panels are all present and in order", {
-    lay <- .buildModelLayout(20L)
-    nr  <- nrow(lay$mat)
-    # rows 2..(nr-2) cols 2..9 are the data block
-    data.block <- lay$mat[2L:(nr - 2L), 2L:9L]
+    # rows 2..(nr-1) cols 2..5 are the data block
+    data.block <- lay$mat[2L:(nr - 1L), 2L:5L]
     present    <- sort(data.block[data.block > 0L])
-    expect_equal(present, 2L:(2L * 20L + 1L))
+    expect_equal(present, 2L:(20L + 1L))
 })
 
 test_that(".buildModelLayout n.slots=1 edge case", {
     lay <- .buildModelLayout(1L)
-    expect_equal(nrow(lay$mat), 4L)   # title + 1 data row + n.strip + x.lbl
-    expect_equal(ncol(lay$mat), 10L)
-    expect_equal(lay$phi.hist, 4L)
-    expect_equal(lay$n.strip,  5L)
-    expect_equal(lay$x.lbl,   6L)
-    expect_equal(lay$y.lbl,   7L)
+    expect_equal(nrow(lay$mat), 3L)   # title + 1 data row + x.lbl
+    expect_equal(ncol(lay$mat), 5L)
+    expect_equal(lay$x.lbl, 3L)
+    expect_equal(lay$y.lbl, 4L)
 })
 
 test_that(".buildModelLayout n.slots=4 fits in one data row", {
     lay <- .buildModelLayout(4L)
-    expect_equal(ceiling(4L / 4L), 1L)
-    expect_equal(nrow(lay$mat), 4L)
+    expect_equal(nrow(lay$mat), 3L)
 })
 
 test_that(".buildModelLayout n.slots=5 spans two data rows", {
     lay <- .buildModelLayout(5L)
-    expect_equal(ceiling(5L / 4L), 2L)
-    expect_equal(nrow(lay$mat), 5L)
+    expect_equal(nrow(lay$mat), 4L)
 })
 
 # --- .buildTraceLayout ---
@@ -112,7 +103,7 @@ test_that(".buildTraceLayout x.lbl fills bottom row (excluding y.lbl column)", {
 
 test_that(".buildTraceLayout n.slots=1 edge case", {
     lay <- .buildTraceLayout(1L)
-    expect_equal(nrow(lay$mat), 3L)  # title + 1 data row + x.lbl
+    expect_equal(nrow(lay$mat), 3L)
     expect_equal(ncol(lay$mat), 9L)
     expect_equal(lay$x.lbl, 4L)
     expect_equal(lay$y.lbl, 5L)
@@ -125,7 +116,7 @@ test_that("row count scales with n.slots for both layout helpers", {
         ml <- .buildModelLayout(n)
         tl <- .buildTraceLayout(n)
         expected.data.rows <- ceiling(n / 4L)
-        expect_equal(nrow(ml$mat), expected.data.rows + 3L,
+        expect_equal(nrow(ml$mat), expected.data.rows + 2L,
                      info = paste("model n.slots =", n))
         expect_equal(nrow(tl$mat), expected.data.rows + 2L,
                      info = paste("trace n.slots =", n))
