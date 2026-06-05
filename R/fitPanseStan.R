@@ -596,8 +596,8 @@ fit_panse_stan <- function(config,
                             rep(seq_along(aa_names_loc), lengths(aa_map_loc)),
                             unlist(aa_map_loc, use.names = FALSE)
                         )
-                        aa_of_codon_vec <<- unname(c2a[attr(stan_data, "codon_order")])
-                        n_aa_groups     <<- length(aa_names_loc)
+                        aa_of_codon_vec <- unname(c2a[attr(stan_data, "codon_order")])
+                        n_aa_groups     <- length(aa_names_loc)
                     }
                     advi_stan_data$N_AA        <- n_aa_groups
                     advi_stan_data$aa_of_codon <- aa_of_codon_vec
