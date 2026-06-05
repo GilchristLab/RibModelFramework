@@ -170,7 +170,8 @@ fit_panse_stan <- function(config,
     aa_of_codon_vec <- NULL
     n_aa_groups     <- NULL
     if (aa_nse) {
-        aa_map          <- build_aa_codon_map()
+        aa_map <- .build_nse_aa_map()   # 21 groups: 19 bias + M + W singletons
+        aa_map          <- aa_map[sort(names(aa_map))]   # alphabetical order
         aa_names_ord    <- names(aa_map)
         codon_to_aa_idx <- setNames(
             rep(seq_along(aa_names_ord), lengths(aa_map)),
@@ -179,6 +180,9 @@ fit_panse_stan <- function(config,
         codon_order_local <- attr(stan_data, "codon_order")
         aa_of_codon_vec   <- unname(codon_to_aa_idx[codon_order_local])
         n_aa_groups       <- length(aa_names_ord)
+        if (any(is.na(aa_of_codon_vec)))
+            stop("[data] aa_of_codon_vec has NAs for codons: ",
+                 paste(codon_order_local[is.na(aa_of_codon_vec)], collapse = ", "))
         stan_data$N_AA        <- n_aa_groups
         stan_data$aa_of_codon <- aa_of_codon_vec
         cat("[data] AA-NSE model: N_AA =", n_aa_groups, "\n")
@@ -585,14 +589,15 @@ fit_panse_stan <- function(config,
                 if (!aa_nse) {
                     # Target is per-codon; build AA mapping on the fly for the source model.
                     if (is.null(aa_of_codon_vec)) {
-                        aa_map_loc       <- build_aa_codon_map()
-                        aa_names_loc     <- names(aa_map_loc)
-                        c2a              <- setNames(
+                        aa_map_loc  <- .build_nse_aa_map()
+                        aa_map_loc  <- aa_map_loc[sort(names(aa_map_loc))]
+                        aa_names_loc <- names(aa_map_loc)
+                        c2a          <- setNames(
                             rep(seq_along(aa_names_loc), lengths(aa_map_loc)),
                             unlist(aa_map_loc, use.names = FALSE)
                         )
-                        aa_of_codon_vec  <<- unname(c2a[attr(stan_data, "codon_order")])
-                        n_aa_groups      <<- length(aa_names_loc)
+                        aa_of_codon_vec <<- unname(c2a[attr(stan_data, "codon_order")])
+                        n_aa_groups     <<- length(aa_names_loc)
                     }
                     advi_stan_data$N_AA        <- n_aa_groups
                     advi_stan_data$aa_of_codon <- aa_of_codon_vec
@@ -937,4 +942,19 @@ fit_panse_stan <- function(config,
     init$log_NSERate_aa <- NULL
 
     list(init = init, inv_metric = inv_metric_expanded)
+}
+
+
+# Extended AA-to-codon map for NSE grouping.
+#
+# build_aa_codon_map() excludes Met (M) and Trp (W) because they have d=1
+# (no synonymous codons, no codon-bias selection).  For NSE rates, every codon
+# still has a rate, so we add singleton groups for M (ATG) and W (TGG).
+# This gives N_AA = 21 groups (19 bias + 2 singletons) in alphabetical order:
+# A C D E F G H I K L M N P Q R S T V W Y Z.
+.build_nse_aa_map <- function() {
+    aa_map        <- build_aa_codon_map()   # 19 groups; M and W excluded
+    aa_map[["M"]] <- "ATG"                  # Met singleton
+    aa_map[["W"]] <- "TGG"                  # Trp singleton
+    aa_map
 }
