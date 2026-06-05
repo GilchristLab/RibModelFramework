@@ -51,6 +51,75 @@ utils::globalVariables(c(
 
 
 # --------------------------------------------------------------------------
+# Phi prior helpers (internal)
+
+# Parse a phi prior column spec "data(path, col=name)" and return a G-length
+# numeric vector aligned to gene_ids.
+.load_phi_prior_col <- function(spec, gene_ids) {
+    m <- regexec("^data\\((.+),\\s*col=([^)]+)\\)$", trimws(spec))[[1]]
+    if (m[1] == -1L)
+        stop(".load_phi_prior_col: spec must be 'population' or ",
+             "'data(file, col=name)'; got: ", spec)
+    sub_m <- regmatches(spec, regexec("^data\\((.+),\\s*col=([^)]+)\\)$",
+                                      trimws(spec)))[[1]]
+    path <- trimws(sub_m[2])
+    col  <- trimws(sub_m[3])
+    if (!file.exists(path))
+        stop(".load_phi_prior_col: file not found: ", path)
+    tbl <- read.csv(path, stringsAsFactors = FALSE)
+    if (!"gene_id" %in% names(tbl))
+        stop(".load_phi_prior_col: file must have a 'gene_id' column: ", path)
+    if (!col %in% names(tbl))
+        stop(".load_phi_prior_col: column '", col, "' not found in ", path,
+             "; available: ", paste(names(tbl), collapse = ", "))
+    val_map <- setNames(tbl[[col]], tbl$gene_id)
+    missing <- setdiff(gene_ids, names(val_map))
+    if (length(missing) > 0L)
+        stop(".load_phi_prior_col: file ", path, " missing genes: ",
+             paste(head(missing, 5L), collapse = ", "))
+    unname(val_map[gene_ids])
+}
+
+# Parse the config$phi block and return a list:
+#   phi_use_data    0L (population) or 1L (any data-sourced component)
+#   phi_prior_mu    G-length numeric vector (placeholder rep(0,G) when population)
+#   phi_prior_sigma G-length numeric vector (placeholder rep(1,G) when population)
+.parse_phi_prior_spec <- function(phi_cfg, gene_ids) {
+    G <- length(gene_ids)
+    # Default: no phi block -> population/population
+    if (is.null(phi_cfg)) {
+        return(list(phi_use_data    = 0L,
+                    phi_prior_mu    = rep(0.0, G),
+                    phi_prior_sigma = rep(1.0, G)))
+    }
+    gene_cfg   <- phi_cfg$gene %||% list()
+    mu_spec    <- gene_cfg$prior.mu    %||% "population"
+    sigma_spec <- gene_cfg$prior.sigma %||% "population"
+
+    use_data_mu    <- !identical(mu_spec,    "population")
+    use_data_sigma <- !identical(sigma_spec, "population")
+    phi_use_data   <- as.integer(use_data_mu || use_data_sigma)
+
+    phi_prior_mu <- if (use_data_mu) {
+        .load_phi_prior_col(mu_spec, gene_ids)
+    } else {
+        rep(0.0, G)   # placeholder; Stan ignores when phi_use_data=0
+    }
+    phi_prior_sigma <- if (use_data_sigma) {
+        .load_phi_prior_col(sigma_spec, gene_ids)
+    } else {
+        rep(1.0, G)   # placeholder; Stan ignores when phi_use_data=0
+    }
+    if (any(phi_prior_sigma <= 0, na.rm = TRUE))
+        stop(".parse_phi_prior_spec: phi prior sigma must be > 0 for all genes")
+
+    list(phi_use_data    = phi_use_data,
+         phi_prior_mu    = phi_prior_mu,
+         phi_prior_sigma = phi_prior_sigma)
+}
+
+
+# --------------------------------------------------------------------------
 # Prior translation: natural-scale uniform -> log-scale normal (internal)
 
 .uniform_to_lognormal_prior <- function(lower, upper, tail_quantile = 0.995) {
@@ -282,6 +351,13 @@ build_panse_stan_data <- function(config,
             if (verbose) message(sprintf(
                 "with.phi = TRUE, sphi-est model: sphi is a parameter; half-normal(0, %.3f) prior",
                 sphi_prior_sd))
+            # Generalized phi prior spec (phi_use_data / phi_prior_mu / phi_prior_sigma)
+            phi_spec <- .parse_phi_prior_spec(config$phi, gene_ids)
+            stan_data$phi_use_data    <- phi_spec$phi_use_data
+            stan_data$phi_prior_mu    <- phi_spec$phi_prior_mu
+            stan_data$phi_prior_sigma <- phi_spec$phi_prior_sigma
+            if (verbose && phi_spec$phi_use_data == 1L)
+                message("phi prior: gene-specific mu/sigma from data")
         } else {
             stan_data$sphi <- as.numeric(sphi_fixed)
             if (verbose) message(sprintf(
