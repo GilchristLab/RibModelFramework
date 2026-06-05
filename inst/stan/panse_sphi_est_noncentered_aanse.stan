@@ -10,8 +10,9 @@
  * biologically the right grouping because codon-anticodon mismatch rates are
  * driven by tRNA identity, which operates at the AA-family level.
  *
- * Codons are grouped into N_AA families (typically 19 with S/Z Ser split; see
- * CLAUDE.md serine convention).  The mapping is passed in as aa_of_codon[C].
+ * Codons are grouped into N_AA families (typically 21: 19 synonymous families
+ * with S/Z Ser split + Met and Trp singletons; see CLAUDE.md serine convention).
+ * The mapping is passed in as aa_of_codon[C].
  *
  * Changes vs the per-codon variant:
  *   data    : + int N_AA; + array[C] int aa_of_codon
