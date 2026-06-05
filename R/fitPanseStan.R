@@ -34,6 +34,7 @@
         "sphi-est:centered"              = "panse_sphi_est_centered",
         "sphi-est-sharednse:centered"    = "panse_sphi_est_centered_sharednse",
         "sphi-est:noncentered"           = "panse_sphi_est_noncentered",
+        "sphi-est-pointval:noncentered"  = "panse_sphi_est_noncentered_pointval",
         "sphi-est-sharednse:noncentered" = "panse_sphi_est_noncentered_sharednse",
         "sphi-est-sharednse:sumzero"     = "panse_sphi_est_sumzero_sharednse",
         "sphi-est-aanse:noncentered"     = "panse_sphi_est_noncentered_aanse",
@@ -46,12 +47,12 @@
                                             "sphi-est-sharednse"),
         aa_nse           = model_key == "sphi-est-aanse",
         samples_phi      = model_key %in% c("basic", "basic-sharednse",
-                                            "sphi-est", "sphi-est-sharednse",
-                                            "sphi-est-aanse"),
-        estimates_sphi   = model_key %in% c("sphi-est", "sphi-est-sharednse",
-                                            "sphi-est-aanse"),
-        noncentered_phi  = (model_key %in% c("sphi-est", "sphi-est-sharednse",
-                                             "sphi-est-aanse") &&
+                                            "sphi-est", "sphi-est-pointval",
+                                            "sphi-est-sharednse", "sphi-est-aanse"),
+        estimates_sphi   = model_key %in% c("sphi-est", "sphi-est-pointval",
+                                            "sphi-est-sharednse", "sphi-est-aanse"),
+        noncentered_phi  = (model_key %in% c("sphi-est", "sphi-est-pointval",
+                                             "sphi-est-sharednse", "sphi-est-aanse") &&
                             parameterization %in% c("noncentered", "sumzero")),
         sumzero_phi      = (model_key %in% c("sphi-est", "sphi-est-sharednse") &&
                             parameterization == "sumzero")
