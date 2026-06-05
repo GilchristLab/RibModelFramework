@@ -370,10 +370,13 @@ fit_panse_stan <- function(config,
         } else {
             cat("[warn] warm-start: inv_metric extraction failed; will re-adapt from scratch\n")
         }
-    } else if (init_mode == "advi") {
+    } else if (init_mode %in% c("advi", "advi-cross")) {
         # ADVI warm-start: use fixed CSP init here; ADVI runs after phi/sphi
         # init is fully resolved (see "ADVI warm-start" block below).
-        cat("[init] mode = advi (CSP init = fixed; ADVI will run before sampling)\n")
+        # advi       -- ADVI on the same model as HMC (per-codon or shared-NSE)
+        # advi-cross -- ADVI on shared-NSE model; HMC on per-codon NSE
+        cat(sprintf("[init] mode = %s (CSP init = fixed; ADVI will run before sampling)\n",
+                    init_mode))
         init_fn <- function(chain_id = 1) {
             log_nse <- pmin(pmax(log(init_nse),
                                  stan_data$log_nse_lower + 1e-6),
@@ -386,7 +389,7 @@ fit_panse_stan <- function(config,
         }
     } else {
         stop("init.mode must be one of: fixed, rmf-posterior, scuo, enc_prime, ",
-             "mixed_scuo_encp, warm-start, advi; got: ", init_mode)
+             "mixed_scuo_encp, warm-start, advi, advi-cross; got: ", init_mode)
     }
 
     # Shared-NSE collapse: log_NSERate[C] -> log_NSERate_shared scalar
@@ -501,23 +504,47 @@ fit_panse_stan <- function(config,
     }
 
     # ---- ADVI warm-start (runs after phi/sphi init is fully resolved) --------
-    if (init_mode == "advi") {
+    if (init_mode %in% c("advi", "advi-cross")) {
         advi_n_chains  <- chains  %||% (config$stan %||% list())$chains            %||% 4L
         advi_n_threads <- threads %||% (config$stan %||% list())$threads_per_chain %||% 1L
         advi_threads   <- advi_n_chains * advi_n_threads
         advi_seed      <- seed %||% (config$stan %||% list())$seed %||% 20260523L
         advi_metric    <- (config$stan %||% list())$metric %||% "diag_e"
 
+        if (init_mode == "advi-cross") {
+            # Cross-model: compile shared-NSE model for ADVI; HMC runs on per-codon NSE.
+            # shared-NSE has simpler geometry (1 NSERate scalar vs 61), converges faster.
+            advi_model_file <- .panse_stan_file("panse_sphi_est_noncentered_sharednse.stan")
+            advi_build_dir  <- tools::R_user_dir("AnaCoDa", "cache")
+            if (!dir.exists(advi_build_dir)) dir.create(advi_build_dir, recursive = TRUE)
+            cat("[advi-cross] compiling shared-NSE model for ADVI...\n")
+            mod_vi <- cmdstanr::cmdstan_model(
+                advi_model_file, dir = advi_build_dir,
+                cpp_options = list(stan_threads = TRUE)
+            )
+            raw <- init_fn(chain_id = 1)
+            advi_start <- list(
+                log_alpha          = raw$log_alpha,
+                log_lambdaPrime    = raw$log_lambdaPrime,
+                log_NSERate_shared = mean(raw$log_NSERate),
+                sphi               = if (!is.null(raw$sphi)) raw$sphi else 1.0,
+                z_phi              = if (!is.null(raw$z_phi)) raw$z_phi
+                                     else rep(0.0, stan_data$G)
+            )
+        } else {
+            mod_vi     <- mod
+            advi_start <- init_fn(chain_id = 1)
+        }
+
         cat(sprintf("[advi] running variational inference (threads=%d, seed=%d)...\n",
                     advi_threads, advi_seed))
-        advi_start <- init_fn(chain_id = 1)
         t0_vi <- proc.time()[["elapsed"]]
         fit_vi <- tryCatch(
-            mod$variational(data    = stan_data,
-                            init    = list(advi_start),
-                            threads = advi_threads,
-                            seed    = advi_seed,
-                            refresh = 200L),
+            mod_vi$variational(data    = stan_data,
+                               init    = list(advi_start),
+                               threads = advi_threads,
+                               seed    = advi_seed,
+                               refresh = 200L),
             error = function(e) {
                 cat("[warn] ADVI failed: ", conditionMessage(e), "\n", sep = "")
                 NULL
@@ -527,7 +554,10 @@ fit_panse_stan <- function(config,
         cat(sprintf("[advi] wall = %.1f sec\n", t_vi))
 
         if (!is.null(fit_vi)) {
-            ws    <- .panse_advi_warm_start(fit_vi, stan_data, shared_nse)
+            advi_shared <- (init_mode == "advi-cross") || shared_nse
+            ws    <- .panse_advi_warm_start(fit_vi, stan_data, advi_shared)
+            if (init_mode == "advi-cross")
+                ws <- .expand_cross_advi_metric(ws, stan_data)
             inv_m <- ws$inv_metric
             inv_m[!is.finite(inv_m) | inv_m <= 0] <- 1.0
             cat(sprintf("[advi] inv_metric diagonal: n=%d  range=[%.3e, %.3e]\n",
@@ -685,8 +715,43 @@ fit_panse_stan <- function(config,
 
     z_var <- as.numeric(apply(draws[, z_cols, drop = FALSE], 2L, var))
     z_var[!is.finite(z_var) | z_var <= 0] <- 1.0
+    # ADVI mean-field underestimates z_phi variance (noncentered prior is N(0,1));
+    # floor at 1.0 so the seeded inv_metric does not produce pathologically tiny steps.
+    z_var <- pmax(z_var, 1.0)
 
     inv_metric <- c(a_var, l_var, nse_var, sphi_var, z_var)
 
     list(init = init, inv_metric = inv_metric)
+}
+
+
+# Expand a shared-NSE warm-start (424 dims) to per-codon NSE layout (484 dims).
+#
+# Shared-NSE inv_metric order: a[C], l[C], nse_shared(1), sphi, z[G]
+# Per-codon   inv_metric order: a[C], l[C], nse[C],        sphi, z[G]
+#
+# Transformation: replicate the single nse_shared variance C times.
+# Also updates the init list: log_NSERate_shared -> log_NSERate[C].
+.expand_cross_advi_metric <- function(ws_shared, stan_data) {
+    C     <- stan_data$C
+    inv_m <- ws_shared$inv_metric
+
+    # Locate the nse_shared scalar at index 2C+1
+    idx_nse   <- 2L * C + 1L
+    nse_var   <- inv_m[idx_nse]
+    after_nse <- inv_m[(idx_nse + 1L):length(inv_m)]   # sphi_var + z_var[G]
+
+    inv_metric_expanded <- c(
+        inv_m[seq_len(2L * C)],   # a_var[C] + l_var[C]
+        rep(nse_var, C),           # nse_var replicated to C codons
+        after_nse                   # sphi_var, z_var[G]
+    )
+
+    # Expand init: log_NSERate_shared scalar -> log_NSERate[C] vector
+    init <- ws_shared$init
+    nse_mean               <- init$log_NSERate_shared
+    init$log_NSERate        <- rep(nse_mean, C)
+    init$log_NSERate_shared <- NULL
+
+    list(init = init, inv_metric = inv_metric_expanded)
 }
