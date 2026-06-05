@@ -18,7 +18,8 @@
     "panse_basic_sharednse.stan",
     "panse_sphi_est_noncentered.stan",
     "panse_sphi_est_centered_sharednse.stan",
-    "panse_sphi_est_noncentered_sharednse.stan"
+    "panse_sphi_est_noncentered_sharednse.stan",
+    "panse_sphi_est_noncentered_aanse.stan"
 )
 
 
