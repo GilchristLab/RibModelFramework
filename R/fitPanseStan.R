@@ -36,6 +36,7 @@
         "sphi-est:noncentered"           = "panse_sphi_est_noncentered",
         "sphi-est-sharednse:noncentered" = "panse_sphi_est_noncentered_sharednse",
         "sphi-est-sharednse:sumzero"     = "panse_sphi_est_sumzero_sharednse",
+        "sphi-est-aanse:noncentered"     = "panse_sphi_est_noncentered_aanse",
         stop("Unsupported fit.model + parameterization combo: ", model_key,
              " / ", parameterization)
     )
@@ -43,10 +44,14 @@
         stan_basename    = stan_basename,
         shared_nse       = model_key %in% c("csp-only-sharednse", "basic-sharednse",
                                             "sphi-est-sharednse"),
+        aa_nse           = model_key == "sphi-est-aanse",
         samples_phi      = model_key %in% c("basic", "basic-sharednse",
-                                            "sphi-est", "sphi-est-sharednse"),
-        estimates_sphi   = model_key %in% c("sphi-est", "sphi-est-sharednse"),
-        noncentered_phi  = (model_key %in% c("sphi-est", "sphi-est-sharednse") &&
+                                            "sphi-est", "sphi-est-sharednse",
+                                            "sphi-est-aanse"),
+        estimates_sphi   = model_key %in% c("sphi-est", "sphi-est-sharednse",
+                                            "sphi-est-aanse"),
+        noncentered_phi  = (model_key %in% c("sphi-est", "sphi-est-sharednse",
+                                             "sphi-est-aanse") &&
                             parameterization %in% c("noncentered", "sumzero")),
         sumzero_phi      = (model_key %in% c("sphi-est", "sphi-est-sharednse") &&
                             parameterization == "sumzero")
@@ -124,6 +129,7 @@ fit_panse_stan <- function(config,
     ms <- .panse_select_model(config)
     stan_basename  <- ms$stan_basename
     shared_nse     <- ms$shared_nse
+    aa_nse         <- ms$aa_nse
     samples_phi    <- ms$samples_phi
     estimates_sphi <- ms$estimates_sphi
     noncentered_phi <- ms$noncentered_phi
@@ -156,6 +162,27 @@ fit_panse_stan <- function(config,
     cat("[data] G =", stan_data$G, " C =", stan_data$C, " P =", stan_data$P,
         " Y =", sum(stan_data$y), " U =", round(stan_data$U, 6),
         " emit_log_lik =", stan_data$emit_log_lik, "\n")
+
+    # ---- AA-codon mapping (aanse model) ----------------------------------------
+    # Computed here (before init block) only because aanse stan_data needs N_AA
+    # and aa_of_codon.  For ADVI with aa-nse source on a non-aanse target, the
+    # mapping is built lazily in the ADVI block below.
+    aa_of_codon_vec <- NULL
+    n_aa_groups     <- NULL
+    if (aa_nse) {
+        aa_map          <- build_aa_codon_map()
+        aa_names_ord    <- names(aa_map)
+        codon_to_aa_idx <- setNames(
+            rep(seq_along(aa_names_ord), lengths(aa_map)),
+            unlist(aa_map, use.names = FALSE)
+        )
+        codon_order_local <- attr(stan_data, "codon_order")
+        aa_of_codon_vec   <- unname(codon_to_aa_idx[codon_order_local])
+        n_aa_groups       <- length(aa_names_ord)
+        stan_data$N_AA        <- n_aa_groups
+        stan_data$aa_of_codon <- aa_of_codon_vec
+        cat("[data] AA-NSE model: N_AA =", n_aa_groups, "\n")
+    }
 
     # ---- Compile (or load existing exe) -------------------------------------
     exe_path <- file.path(build_dir, stan_basename)
@@ -404,6 +431,22 @@ fit_panse_stan <- function(config,
         }
     }
 
+    # AA-NSE collapse: log_NSERate[C] -> log_NSERate_aa[N_AA] via aa_of_codon
+    if (aa_nse) {
+        cat("[init] AA-NSE model: grouping log_NSERate by AA family (N_AA =",
+            n_aa_groups, ")\n")
+        inner_init_fn <- init_fn
+        aoc <- aa_of_codon_vec   # close over local copy
+        naa <- n_aa_groups
+        init_fn <- function(chain_id = 1) {
+            ll <- inner_init_fn(chain_id)
+            ll$log_NSERate_aa <- vapply(seq_len(naa), function(i)
+                mean(ll$log_NSERate[aoc == i]), 0.0)
+            ll$log_NSERate <- NULL
+            ll
+        }
+    }
+
     # Phi init for phi-sampling models
     init_phi_attr <- attr(stan_data, "init_phi")
 
@@ -511,36 +554,87 @@ fit_panse_stan <- function(config,
         advi_seed      <- seed %||% (config$stan %||% list())$seed %||% 20260523L
         advi_metric    <- (config$stan %||% list())$metric %||% "diag_e"
 
-        if (init_mode == "advi-cross") {
-            # Cross-model: compile shared-NSE model for ADVI; HMC runs on per-codon NSE.
-            # shared-NSE has simpler geometry (1 NSERate scalar vs 61), converges faster.
-            advi_model_file <- .panse_stan_file("panse_sphi_est_noncentered_sharednse.stan")
+        # init.advi.source: which model to run ADVI on (may differ from HMC target).
+        # advi-cross (legacy) == init.mode:advi + init.advi.source:sharednse on per-codon.
+        # NULL means ADVI on the same model as HMC.
+        advi_source <- config$fit$init.advi.source %||%
+            if (init_mode == "advi-cross") "sharednse" else NULL
+
+        if (!is.null(advi_source)) {
+            # Cross-model ADVI: compile source model, strip/augment stan_data as needed.
+            advi_src_stan <- switch(advi_source,
+                "sharednse" = "panse_sphi_est_noncentered_sharednse.stan",
+                "aa-nse"    = "panse_sphi_est_noncentered_aanse.stan",
+                stop("Unknown init.advi.source: ", advi_source)
+            )
+            advi_model_file <- .panse_stan_file(advi_src_stan)
             advi_build_dir  <- tools::R_user_dir("AnaCoDa", "cache")
             if (!dir.exists(advi_build_dir)) dir.create(advi_build_dir, recursive = TRUE)
-            cat("[advi-cross] compiling shared-NSE model for ADVI...\n")
+            cat("[advi-cross] compiling source model (", advi_source,
+                ") for ADVI...\n", sep = "")
             mod_vi <- cmdstanr::cmdstan_model(
                 advi_model_file, dir = advi_build_dir,
                 cpp_options = list(stan_threads = TRUE)
             )
+            # Build advi_stan_data: strip or add AA fields to match source model.
+            advi_stan_data <- stan_data
+            if (advi_source == "sharednse") {
+                advi_stan_data$N_AA        <- NULL   # sharednse has no N_AA/aa_of_codon
+                advi_stan_data$aa_of_codon <- NULL
+            } else if (advi_source == "aa-nse") {
+                if (!aa_nse) {
+                    # Target is per-codon; build AA mapping on the fly for the source model.
+                    if (is.null(aa_of_codon_vec)) {
+                        aa_map_loc       <- build_aa_codon_map()
+                        aa_names_loc     <- names(aa_map_loc)
+                        c2a              <- setNames(
+                            rep(seq_along(aa_names_loc), lengths(aa_map_loc)),
+                            unlist(aa_map_loc, use.names = FALSE)
+                        )
+                        aa_of_codon_vec  <<- unname(c2a[attr(stan_data, "codon_order")])
+                        n_aa_groups      <<- length(aa_names_loc)
+                    }
+                    advi_stan_data$N_AA        <- n_aa_groups
+                    advi_stan_data$aa_of_codon <- aa_of_codon_vec
+                }
+                # If target is aanse, N_AA/aa_of_codon already present in stan_data.
+            }
             raw <- init_fn(chain_id = 1)
-            advi_start <- list(
-                log_alpha          = raw$log_alpha,
-                log_lambdaPrime    = raw$log_lambdaPrime,
-                log_NSERate_shared = mean(raw$log_NSERate),
-                sphi               = if (!is.null(raw$sphi)) raw$sphi else 1.0,
-                z_phi              = if (!is.null(raw$z_phi)) raw$z_phi
-                                     else rep(0.0, stan_data$G)
-            )
+            if (advi_source == "sharednse") {
+                nse_mean <- if (!is.null(raw$log_NSERate_aa)) mean(raw$log_NSERate_aa)
+                            else mean(raw$log_NSERate)
+                advi_start <- list(
+                    log_alpha          = raw$log_alpha,
+                    log_lambdaPrime    = raw$log_lambdaPrime,
+                    log_NSERate_shared = nse_mean,
+                    sphi               = if (!is.null(raw$sphi)) raw$sphi else 1.0,
+                    z_phi              = if (!is.null(raw$z_phi)) raw$z_phi
+                                         else rep(0.0, stan_data$G)
+                )
+            } else {   # aa-nse source
+                nse_aa <- if (!is.null(raw$log_NSERate_aa)) raw$log_NSERate_aa
+                          else vapply(seq_len(n_aa_groups), function(i)
+                                  mean(raw$log_NSERate[aa_of_codon_vec == i]), 0.0)
+                advi_start <- list(
+                    log_alpha       = raw$log_alpha,
+                    log_lambdaPrime = raw$log_lambdaPrime,
+                    log_NSERate_aa  = nse_aa,
+                    sphi            = if (!is.null(raw$sphi)) raw$sphi else 1.0,
+                    z_phi           = if (!is.null(raw$z_phi)) raw$z_phi
+                                      else rep(0.0, stan_data$G)
+                )
+            }
         } else {
-            mod_vi     <- mod
-            advi_start <- init_fn(chain_id = 1)
+            mod_vi         <- mod
+            advi_stan_data <- stan_data
+            advi_start     <- init_fn(chain_id = 1)
         }
 
         cat(sprintf("[advi] running variational inference (threads=%d, seed=%d)...\n",
                     advi_threads, advi_seed))
         t0_vi <- proc.time()[["elapsed"]]
         fit_vi <- tryCatch(
-            mod_vi$variational(data    = stan_data,
+            mod_vi$variational(data    = advi_stan_data,
                                init    = list(advi_start),
                                threads = advi_threads,
                                seed    = advi_seed,
@@ -554,10 +648,21 @@ fit_panse_stan <- function(config,
         cat(sprintf("[advi] wall = %.1f sec\n", t_vi))
 
         if (!is.null(fit_vi)) {
-            advi_shared <- (init_mode == "advi-cross") || shared_nse
-            ws    <- .panse_advi_warm_start(fit_vi, stan_data, advi_shared)
-            if (init_mode == "advi-cross")
-                ws <- .expand_cross_advi_metric(ws, stan_data)
+            advi_src_type <- if (is.null(advi_source)) {
+                if (shared_nse) "sharednse" else if (aa_nse) "aa-nse" else "percodon"
+            } else advi_source
+            ws <- .panse_advi_warm_start(fit_vi, advi_stan_data, advi_src_type)
+
+            # Expand metric from source model dims to HMC target model dims
+            if (!is.null(advi_source) && advi_source == "sharednse" && !shared_nse) {
+                if (aa_nse) {
+                    ws <- .expand_shared_to_aa_metric(ws, stan_data)
+                } else {
+                    ws <- .expand_cross_advi_metric(ws, stan_data)  # shared -> per-codon
+                }
+            } else if (!is.null(advi_source) && advi_source == "aa-nse" && !aa_nse) {
+                ws <- .expand_aa_to_percodon_metric(ws, stan_data)
+            }
             inv_m <- ws$inv_metric
             inv_m[!is.finite(inv_m) | inv_m <= 0] <- 1.0
             cat(sprintf("[advi] inv_metric diagonal: n=%d  range=[%.3e, %.3e]\n",
@@ -660,9 +765,13 @@ fit_panse_stan <- function(config,
 # sphi (lower=0) uses var(log(sphi)) as the unconstrained variance proxy.
 # z_phi is unconstrained; raw variance used directly.
 #
-# Stan parameter declaration order (both per-codon and shared-NSE models):
-#   log_alpha[1..C], log_lambdaPrime[1..C], log_NSERate[1..C or scalar], sphi, z_phi[1..G]
-.panse_advi_warm_start <- function(fit_vi, stan_data, shared_nse) {
+# Stan parameter declaration order:
+#   log_alpha[1..C], log_lambdaPrime[1..C],
+#   log_NSERate[1..C] or log_NSERate_shared(1) or log_NSERate_aa[1..N_AA],
+#   sphi, z_phi[1..G]
+#
+# src_type: "sharednse" | "aa-nse" | "percodon"
+.panse_advi_warm_start <- function(fit_vi, stan_data, src_type) {
     draws <- fit_vi$draws(format = "df")
     C <- stan_data$C
     G <- stan_data$G
@@ -678,9 +787,13 @@ fit_panse_stan <- function(config,
         sphi            = mean(draws[["sphi"]]),
         z_phi           = as.numeric(colMeans(draws[, z_cols, drop = FALSE]))
     )
-    if (shared_nse) {
+    if (src_type == "sharednse") {
         init$log_NSERate_shared <- mean(draws[["log_NSERate_shared"]])
-    } else {
+    } else if (src_type == "aa-nse") {
+        N_AA <- stan_data$N_AA
+        nse_aa_cols <- paste0("log_NSERate_aa[", seq_len(N_AA), "]")
+        init$log_NSERate_aa <- as.numeric(colMeans(draws[, nse_aa_cols, drop = FALSE]))
+    } else {   # percodon
         nse_cols <- paste0("log_NSERate[", seq_len(C), "]")
         init$log_NSERate <- as.numeric(colMeans(draws[, nse_cols, drop = FALSE]))
     }
@@ -701,8 +814,13 @@ fit_panse_stan <- function(config,
     l_var <- vapply(l_cols, function(col)
                         .logit_unc_var(draws[[col]], l_lo, l_hi), 0.0)
 
-    if (shared_nse) {
+    if (src_type == "sharednse") {
         nse_var <- .logit_unc_var(draws[["log_NSERate_shared"]], n_lo, n_hi)
+    } else if (src_type == "aa-nse") {
+        N_AA <- stan_data$N_AA
+        nse_aa_cols <- paste0("log_NSERate_aa[", seq_len(N_AA), "]")
+        nse_var  <- vapply(nse_aa_cols, function(col)
+                               .logit_unc_var(draws[[col]], n_lo, n_hi), 0.0)
     } else {
         nse_cols <- paste0("log_NSERate[", seq_len(C), "]")
         nse_var  <- vapply(nse_cols, function(col)
@@ -752,6 +870,71 @@ fit_panse_stan <- function(config,
     nse_mean               <- init$log_NSERate_shared
     init$log_NSERate        <- rep(nse_mean, C)
     init$log_NSERate_shared <- NULL
+
+    list(init = init, inv_metric = inv_metric_expanded)
+}
+
+
+# Expand a shared-NSE warm-start (2C+2+G dims) to AA-NSE layout (2C+N_AA+1+G dims).
+#
+# Shared-NSE inv_metric order: a[C], l[C], nse_shared(1), sphi, z[G]
+# AA-NSE      inv_metric order: a[C], l[C], nse_aa[N_AA],  sphi, z[G]
+#
+# Transformation: replicate the single nse_shared variance N_AA times.
+# Also updates init: log_NSERate_shared -> log_NSERate_aa[N_AA].
+.expand_shared_to_aa_metric <- function(ws_shared, stan_data) {
+    C    <- stan_data$C
+    N_AA <- stan_data$N_AA
+    inv_m <- ws_shared$inv_metric
+
+    idx_nse   <- 2L * C + 1L
+    nse_var   <- inv_m[idx_nse]
+    after_nse <- inv_m[(idx_nse + 1L):length(inv_m)]   # sphi_var + z_var[G]
+
+    inv_metric_expanded <- c(
+        inv_m[seq_len(2L * C)],
+        rep(nse_var, N_AA),
+        after_nse
+    )
+
+    init <- ws_shared$init
+    nse_mean              <- init$log_NSERate_shared
+    init$log_NSERate_aa   <- rep(nse_mean, N_AA)
+    init$log_NSERate_shared <- NULL
+
+    list(init = init, inv_metric = inv_metric_expanded)
+}
+
+
+# Expand an AA-NSE warm-start (2C+N_AA+1+G dims) to per-codon NSE (2C+C+1+G dims).
+#
+# AA-NSE    inv_metric order: a[C], l[C], nse_aa[N_AA], sphi, z[G]
+# Per-codon inv_metric order: a[C], l[C], nse[C],       sphi, z[G]
+#
+# Transformation: replicate each AA-group variance to all codons in that group.
+# Also updates init: log_NSERate_aa[N_AA] -> log_NSERate[C].
+.expand_aa_to_percodon_metric <- function(ws_aa, stan_data) {
+    C           <- stan_data$C
+    N_AA        <- stan_data$N_AA
+    aa_of_codon <- stan_data$aa_of_codon
+    inv_m <- ws_aa$inv_metric
+
+    idx_nse   <- 2L * C + 1L
+    nse_vars  <- inv_m[idx_nse:(idx_nse + N_AA - 1L)]   # N_AA values
+    after_nse <- inv_m[(idx_nse + N_AA):length(inv_m)]   # sphi_var + z_var[G]
+
+    # Expand N_AA variances to C codons via aa_of_codon index
+    nse_var_percodon <- nse_vars[aa_of_codon]
+
+    inv_metric_expanded <- c(
+        inv_m[seq_len(2L * C)],
+        nse_var_percodon,
+        after_nse
+    )
+
+    init <- ws_aa$init
+    init$log_NSERate    <- init$log_NSERate_aa[aa_of_codon]
+    init$log_NSERate_aa <- NULL
 
     list(init = init, inv_metric = inv_metric_expanded)
 }
