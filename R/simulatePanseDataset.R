@@ -205,8 +205,9 @@ simulate_panse_dataset <- function(config, seed = NULL, verbose = TRUE) {
             y    <- rpois(gene_length, mu)
             rows[[g]] <- data.table(
                 GeneID   = gene_ids[[g]],
-                Position = seq_len(gene_length) - 1L,
+                Position = seq_len(gene_length),         # 1-based (PANSE format)
                 Codon    = codon_order[cidx],
+                Mixture  = 1L,                            # all positions in likelihood (no 5' ramp in sim)
                 RFPCount = as.integer(y)
             )
         }
@@ -219,8 +220,9 @@ simulate_panse_dataset <- function(config, seed = NULL, verbose = TRUE) {
             y    <- rnbinom(gene_length, size = truth_alpha[cidx], mu = mu)
             rows[[g]] <- data.table(
                 GeneID   = gene_ids[[g]],
-                Position = seq_len(gene_length) - 1L,
+                Position = seq_len(gene_length),         # 1-based (PANSE format)
                 Codon    = codon_order[cidx],
+                Mixture  = 1L,                            # all positions in likelihood (no 5' ramp in sim)
                 RFPCount = as.integer(y)
             )
         }
