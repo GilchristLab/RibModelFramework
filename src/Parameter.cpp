@@ -46,6 +46,9 @@ const unsigned Parameter::PHI_STATISTIC_VARIANCE = 3;
 const unsigned Parameter::PHI_STATISTIC_SD       = 4;
 const unsigned Parameter::PHI_MU_CONSTRAINED     = 0;
 const unsigned Parameter::PHI_MU_FIXED           = 1;
+const unsigned Parameter::PHI_MU_ESTIMATED       = 2;
+const unsigned Parameter::PHI_MU_PRIOR_FLAT      = 0;
+const unsigned Parameter::PHI_MU_PRIOR_NORMAL    = 1;
 const unsigned Parameter::SPHI_PRIOR_FLAT        = 0;
 const unsigned Parameter::SPHI_PRIOR_NORMAL      = 1;
 const unsigned Parameter::SPHI_PRIOR_UNIFORM     = 2;
@@ -89,6 +92,14 @@ Parameter::Parameter()
 	phiMuMode         = PHI_MU_CONSTRAINED;
 	phiConstraintValue = 1.0;
 	phiMuFixed         = 0.0;
+	// mPhi estimated mode storage (resized in initParameterSet).
+	muSynthesisRate.resize(1, 0.0);
+	muSynthesisRate_proposed.resize(1, 0.0);
+	std_muSynthesisRate          = 0.1;
+	numAcceptForMuSynthesisRate  = 0u;
+	phiMuPriorType = PHI_MU_PRIOR_FLAT;
+	phiMuPriorMu   = 0.0;
+	phiMuPriorSd   = 1.0;
 	sphiPriorType      = SPHI_PRIOR_FLAT;
 	sphiPriorLow       = 0.0;
 	sphiPriorHigh      = 10.0;
@@ -163,6 +174,14 @@ Parameter::Parameter(unsigned _maxGrouping)
 	phiMuMode         = PHI_MU_CONSTRAINED;
 	phiConstraintValue = 1.0;
 	phiMuFixed         = 0.0;
+	// mPhi estimated mode storage (resized in initParameterSet).
+	muSynthesisRate.resize(1, 0.0);
+	muSynthesisRate_proposed.resize(1, 0.0);
+	std_muSynthesisRate          = 0.1;
+	numAcceptForMuSynthesisRate  = 0u;
+	phiMuPriorType = PHI_MU_PRIOR_FLAT;
+	phiMuPriorMu   = 0.0;
+	phiMuPriorSd   = 1.0;
 	sphiPriorType      = SPHI_PRIOR_FLAT;
 	sphiPriorLow       = 0.0;
 	sphiPriorHigh      = 10.0;
@@ -294,6 +313,13 @@ Parameter& Parameter::operator=(const Parameter& rhs)
 	phiMuMode          = rhs.phiMuMode;
 	phiConstraintValue  = rhs.phiConstraintValue;
 	phiMuFixed          = rhs.phiMuFixed;
+	muSynthesisRate          = rhs.muSynthesisRate;
+	muSynthesisRate_proposed = rhs.muSynthesisRate_proposed;
+	std_muSynthesisRate          = rhs.std_muSynthesisRate;
+	numAcceptForMuSynthesisRate  = rhs.numAcceptForMuSynthesisRate;
+	phiMuPriorType = rhs.phiMuPriorType;
+	phiMuPriorMu   = rhs.phiMuPriorMu;
+	phiMuPriorSd   = rhs.phiMuPriorSd;
 	sphiPriorType       = rhs.sphiPriorType;
 	sphiPriorLow        = rhs.sphiPriorLow;
 	sphiPriorHigh       = rhs.sphiPriorHigh;
@@ -395,6 +421,11 @@ void Parameter::initParameterSet(std::vector<double> _stdDevSynthesisRate, unsig
 
 	stdDevSynthesisRate = _stdDevSynthesisRate;
 	stdDevSynthesisRate_proposed = _stdDevSynthesisRate;
+
+	// mPhi estimated mode: one entry per synthesis rate category, defaulting to 0.
+	unsigned nCat = (unsigned)_stdDevSynthesisRate.size();
+	muSynthesisRate.assign(nCat, 0.0);
+	muSynthesisRate_proposed.assign(nCat, 0.0);
 
 	bias_stdDevSynthesisRate = 0;
 	std_stdDevSynthesisRate = 0.1;
@@ -709,6 +740,24 @@ void Parameter::initBaseValuesFromFile(std::string filename)
 				}
 				else if (variableName == "phiMuFixed") {
 					iss.str(tmp); iss >> phiMuFixed;
+				}
+				else if (variableName == "muSynthesisRate") {
+					double val; iss.str(tmp);
+					muSynthesisRate.resize(0);
+					while (iss >> val) muSynthesisRate.push_back(val);
+					muSynthesisRate_proposed = muSynthesisRate;
+				}
+				else if (variableName == "std_muSynthesisRate") {
+					iss.str(tmp); iss >> std_muSynthesisRate;
+				}
+				else if (variableName == "phiMuPriorType") {
+					iss.str(tmp); iss >> phiMuPriorType;
+				}
+				else if (variableName == "phiMuPriorMu") {
+					iss.str(tmp); iss >> phiMuPriorMu;
+				}
+				else if (variableName == "phiMuPriorSd") {
+					iss.str(tmp); iss >> phiMuPriorSd;
 				}
 				else if (variableName == "sphiPriorType") {
 					iss.str(tmp); iss >> sphiPriorType;
@@ -1026,6 +1075,13 @@ void Parameter::writeBasicRestartFile(std::string filename)
 		oss << ">phiMuMode:\n"           << phiMuMode           << "\n";
 		oss << ">phiConstraintValue:\n"  << phiConstraintValue  << "\n";
 		oss << ">phiMuFixed:\n"          << phiMuFixed          << "\n";
+		oss << ">muSynthesisRate:\n";
+		for (i = 0; i < muSynthesisRate.size(); i++)
+			oss << muSynthesisRate[i] << ((i + 1 == muSynthesisRate.size()) ? "\n" : " ");
+		oss << ">std_muSynthesisRate:\n" << std_muSynthesisRate << "\n";
+		oss << ">phiMuPriorType:\n"      << phiMuPriorType      << "\n";
+		oss << ">phiMuPriorMu:\n"        << phiMuPriorMu        << "\n";
+		oss << ">phiMuPriorSd:\n"        << phiMuPriorSd        << "\n";
 		oss << ">sphiPriorType:\n"       << sphiPriorType       << "\n";
 		oss << ">sphiPriorLow:\n"        << sphiPriorLow        << "\n";
 		oss << ">sphiPriorHigh:\n"       << sphiPriorHigh       << "\n";
@@ -3158,11 +3214,58 @@ void Parameter::setPhiPriorConstraint(unsigned constraint)
 
 // ---- phi spec: mPhi mode + constraint parameters ----
 unsigned Parameter::getPhiMuMode()               { return phiMuMode; }
-void     Parameter::setPhiMuMode(unsigned mode)   { if (mode <= PHI_MU_FIXED) phiMuMode = mode; }
+void     Parameter::setPhiMuMode(unsigned mode)   { if (mode <= PHI_MU_ESTIMATED) phiMuMode = mode; }
 double   Parameter::getPhiConstraintValue()       { return phiConstraintValue; }
 void     Parameter::setPhiConstraintValue(double v){ if (v > 0.0) phiConstraintValue = v; }
 double   Parameter::getPhiMuFixed()               { return phiMuFixed; }
 void     Parameter::setPhiMuFixed(double v)        { phiMuFixed = v; }
+
+// ---- phi spec: mphi estimated mode methods ----
+double Parameter::getMuSynthesisRate(unsigned cat, bool proposed)
+{
+	if (cat >= muSynthesisRate.size()) return 0.0;
+	return proposed ? muSynthesisRate_proposed[cat] : muSynthesisRate[cat];
+}
+
+void Parameter::setMuSynthesisRate(double value, unsigned cat)
+{
+	if (cat >= muSynthesisRate.size()) return;
+	muSynthesisRate[cat]          = value;
+	muSynthesisRate_proposed[cat] = value;
+}
+
+void Parameter::proposeMuSynthesisRate()
+{
+	if (phiMuMode != PHI_MU_ESTIMATED) return;
+	for (unsigned i = 0u; i < muSynthesisRate.size(); i++)
+		muSynthesisRate_proposed[i] = randNorm(muSynthesisRate[i], std_muSynthesisRate);
+}
+
+void Parameter::updateMuSynthesisRate()
+{
+	for (unsigned i = 0u; i < muSynthesisRate.size(); i++)
+		muSynthesisRate[i] = muSynthesisRate_proposed[i];
+	numAcceptForMuSynthesisRate++;
+}
+
+void Parameter::adaptMuSynthesisRateProposalWidth(unsigned adaptationWidth, bool adapt)
+{
+	double acceptanceLevel = (double)numAcceptForMuSynthesisRate / (double)adaptationWidth;
+	if (adapt) {
+		if (acceptanceLevel < 0.2) std_muSynthesisRate *= 0.8;
+		if (acceptanceLevel > 0.3) std_muSynthesisRate *= 1.2;
+	}
+	numAcceptForMuSynthesisRate = 0u;
+}
+
+unsigned Parameter::getNumAcceptForMuSynthesisRate() { return numAcceptForMuSynthesisRate; }
+
+unsigned Parameter::getPhiMuPriorType()             { return phiMuPriorType; }
+void     Parameter::setPhiMuPriorType(unsigned t)   { if (t <= PHI_MU_PRIOR_NORMAL) phiMuPriorType = t; }
+double   Parameter::getPhiMuPriorMu()               { return phiMuPriorMu; }
+void     Parameter::setPhiMuPriorMu(double mu)      { phiMuPriorMu = mu; }
+double   Parameter::getPhiMuPriorSd()               { return phiMuPriorSd; }
+void     Parameter::setPhiMuPriorSd(double sd)      { if (sd > 0.0) phiMuPriorSd = sd; }
 
 // ---- phi spec: sphi prior type + bounds ----
 unsigned Parameter::getSphiPriorType()             { return sphiPriorType; }
@@ -3314,6 +3417,10 @@ double Parameter::getLogPhiPrior(double phi, unsigned mixtureCategory)
 		if (phiMuMode == PHI_MU_FIXED)
 		{
 			mPhi = phiMuFixed;
+		}
+		else if (phiMuMode == PHI_MU_ESTIMATED)
+		{
+			mPhi = muSynthesisRate[mixtureCategory];
 		}
 		else // PHI_MU_CONSTRAINED
 		{

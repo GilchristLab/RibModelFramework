@@ -242,7 +242,25 @@ print.prior_dist <- function(x, ...) {
       parameter$setPhiMuMode(1L)  # PHI_MU_FIXED
       parameter$setPhiMuFixed(phi.mphi$value)
     } else if (inherits(phi.mphi, "phi_spec_estimated")) {
-      stop("phi.mphi = estimated() is not yet implemented (deferred to a future release)\n")
+      parameter$setPhiMuMode(2L)  # PHI_MU_ESTIMATED
+      # Set initial mphi value for each synthesis rate category
+      n_cat <- parameter$getNumSynthesisRateCategories()
+      init_val <- if (!is.null(phi.mphi$init)) phi.mphi$init else 0.0
+      for (i in seq_len(n_cat))
+        parameter$setMuSynthesisRate(init_val, i - 1L)
+      # Wire prior
+      prior <- phi.mphi$prior
+      if (is.null(prior)) {
+        parameter$setPhiMuPriorType(0L)  # flat
+      } else if (prior$dist == "normal") {
+        parameter$setPhiMuPriorType(1L)
+        parameter$setPhiMuPriorMu(prior$mean)
+        parameter$setPhiMuPriorSd(prior$sd)
+      } else if (prior$dist == "uniform") {
+        parameter$setPhiMuPriorType(0L)  # treat as flat
+      } else {
+        stop("Only flat/uniform and normal priors are supported for phi.mphi = estimated()\n")
+      }
     }
   }
 

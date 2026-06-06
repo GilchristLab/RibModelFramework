@@ -53,8 +53,10 @@
     identical to the previous default behavior.
   - `fixed(value)` — holds mPhi (or sphi) at a constant.
   - `estimated(prior)` — mPhi/sphi is sampled during MCMC with an optional
-    prior distribution.  Currently implemented for sphi only; `phi.mphi =
-    estimated(...)` is reserved for a future release.
+    prior distribution.  Now implemented for both `phi.sphi` and `phi.mphi`.
+    `phi.mphi = estimated(prior)` adds a Metropolis–Hastings update on mPhi
+    each iteration, fixing issue #47 (deta_scale_anchor was a no-op when
+    mphi was deterministic).
 
   *Prior distribution constructors* (used inside `estimated()`):
   - `prior_uniform(low, high)` — default for sphi; `prior_uniform(0, 10)` is
