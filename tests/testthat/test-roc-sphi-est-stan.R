@@ -53,6 +53,14 @@ if (has_cmdstan) {
   )
 
   if (!is.null(stan_mod)) {
+    # stan_base pins the phi spec to the package defaults shared by BOTH backends:
+    #   phi.mphi = constrained("mean", 1)          matches the MCMC native default
+    #                                              (PHI_MU_CONSTRAINED, MEAN, 1.0).
+    #   phi.sphi = estimated(prior_uniform(0, 10)) matches the MCMC default reached
+    #                                              via initializeParameterObject(sphi = NA),
+    #                                              which resolves to the same Uniform(0,10).
+    # These are the apples-to-apples cross-backend defaults, not arbitrary choices.
+    # (The legacy unbounded-flat sphi prior is still available via estimated(NULL).)
     stan_base <- suppressWarnings(
       initializeStan(genome_g, scuo = scuo_g,
                      phi.mphi = constrained("mean", 1),
@@ -80,16 +88,20 @@ if (has_cmdstan) {
 }
 
 # Build a fixed unconstrained theta.
-# Parameter order: dM[K], dEta[K], latent_phi[G], sphi_unconstrained.
+# Parameter order: dM[K], dEta[K], latent_phi[G], sphi_unconstrained, mphi_param.
+# mphi_param is ALWAYS in the parameters block (post-PR#50, fixes #47); in modes
+# 0/1 it is pinned via std_normal() and contributes -0.5*mphi_param^2 to the
+# log-prob, so two log-probs compared at the SAME mphi_param value cancel that term.
 # sphi Uniform(0,10): unconstrained = logit(sphi/10) = log(sphi/(10-sphi)).
 # dEta must be NON-ZERO so the likelihood depends on mphi when scale_anchor=0.
-.make_theta <- function(K, G, seed = 42L, sphi = 1.0, sphi_high = 10.0) {
+.make_theta <- function(K, G, seed = 42L, sphi = 1.0, sphi_high = 10.0, mphi = 0.0) {
   set.seed(seed)
   sphi_u <- log(sphi / (sphi_high - sphi))
   c(rnorm(K, 0, 0.3),   # dM
     rnorm(K, 0, 0.5),   # dEta (non-zero)
     rnorm(G, 0, 1.0),   # latent_phi
-    sphi_u)
+    sphi_u,             # sphi (unconstrained)
+    mphi)               # mphi_param
 }
 
 # Build data with phi_mphi_mode=1 (fixed mphi), noncentered=nc, deta_scale_anchor=sa.
@@ -103,6 +115,29 @@ if (has_cmdstan) {
                    deta_anchor_ref   = 0.0,
                    deta_phi_center   = 0.0)
   )$data
+}
+
+# Build data with phi_mphi_mode=2 (ESTIMATED mphi, FLAT prior), noncentered=nc,
+# deta_scale_anchor=sa.  A flat prior (estimated(NULL)) puts NO prior term on
+# mphi_param, so the log-prob is a pure function of the likelihood + sphi prior.
+# This is the configuration in which deta_scale_anchor actually collapses the
+# dEta-phi ridge (the original purpose of issue #47).
+.d_est_mphi <- function(noncentered = 1L, scale_anchor = 1L) {
+  suppressWarnings(
+    initializeStan(genome_g, scuo = scuo_g,
+                   phi.mphi = estimated(NULL),                 # flat prior on mphi
+                   phi.sphi = estimated(prior_uniform(0, 10)),
+                   noncentered       = noncentered,
+                   deta_scale_anchor = scale_anchor,
+                   deta_anchor_ref   = 0.0,
+                   deta_phi_center   = 0.0)
+  )$data
+}
+
+# Replace the mphi_param element (last entry) of an unconstrained theta vector.
+.set_mphi_param <- function(theta, val) {
+  theta[length(theta)] <- val
+  theta
 }
 
 
@@ -156,13 +191,15 @@ test_that("phi spec data fields have correct types for default constrained('mean
   expect_equal(d$sphi_prior_type,    0L)   # uniform (bounds only)
 })
 
-test_that("initializeStan() init list has expected fields (no mphi_param)", {
+test_that("initializeStan() init list includes mphi_param (always in parameters block)", {
   skip_if(!has_cmdstan, "cmdstan not available")
   skip_if(is.null(stan_mod), "compilation failed")
 
-  expected <- c("dM", "dEta", "latent_phi", "sphi")
+  # Post-PR#50 (fixes #47), mphi_param is always declared in the Stan parameters
+  # block (free when estimated, pinned via std_normal() otherwise), so the init
+  # list must always supply it.
+  expected <- c("dM", "dEta", "latent_phi", "sphi", "mphi_param")
   expect_true(all(expected %in% names(stan_base$init)))
-  expect_false("mphi_param" %in% names(stan_base$init))
 })
 
 
@@ -253,6 +290,43 @@ test_that("scale_anchor=0, noncentered=1: log-prob IS sensitive to phi_mphi_fixe
             label = "log-prob changes with phi_mphi_fixed when scale_anchor=0 (dEta*phi depends on mphi)")
 })
 
+# --- estimated() mphi: the configuration deta_scale_anchor was built for -------
+#
+# With phi_mphi_mode=2 and a FLAT prior, mphi = mphi_param is a free parameter
+# with no prior term.  These tests vary the mphi_param ELEMENT of theta (not a
+# data field), which is the genuine test of whether the scale-anchor decorrelates
+# the sampled mphi from the rest of the posterior (issue #47).
+
+test_that("estimated() flat prior, scale_anchor=1, noncentered=1: log-prob is zero-invariant to mphi_param value", {
+  skip_if(!has_cmdstan, "cmdstan not available")
+  skip_if(is.null(stan_mod), "compilation failed")
+
+  d     <- .d_est_mphi(noncentered = 1L, scale_anchor = 1L)
+  theta <- .make_theta(K_g, G_g)
+
+  lp1 <- .lp_at(d, .set_mphi_param(theta, -0.2))
+  lp2 <- .lp_at(d, .set_mphi_param(theta,  0.3))
+
+  expect_true(is.finite(lp1) && is.finite(lp2))
+  expect_lt(abs(lp1 - lp2), 1e-9,
+            label = "free mphi_param does not affect log-prob when scale_anchor=1, noncentered=1, flat prior")
+})
+
+test_that("estimated() flat prior, scale_anchor=0, noncentered=1: log-prob IS sensitive to mphi_param value (contrast)", {
+  skip_if(!has_cmdstan, "cmdstan not available")
+  skip_if(is.null(stan_mod), "compilation failed")
+
+  d     <- .d_est_mphi(noncentered = 1L, scale_anchor = 0L)
+  theta <- .make_theta(K_g, G_g)
+
+  lp1 <- .lp_at(d, .set_mphi_param(theta, -0.2))
+  lp2 <- .lp_at(d, .set_mphi_param(theta,  0.3))
+
+  expect_true(is.finite(lp1) && is.finite(lp2))
+  expect_gt(abs(lp1 - lp2), 0.01,
+            label = "free mphi_param changes log-prob when scale_anchor=0 (dEta*phi depends on mphi)")
+})
+
 
 # ============================================================================
 # Section 6: computeMPhi formula in Stan == R formula (constrained mode)
@@ -269,7 +343,8 @@ context("roc_sphi_est.stan: computeMPhi formula consistency")
 .theta_sphi1 <- if (!is.null(K_g) && !is.null(G_g)) {
   set.seed(42L)
   sphi_u <- log(1.0 / 9.0)   # logit(1/10) = log(1/9)
-  c(rnorm(K_g, 0, 0.3), rnorm(K_g, 0, 0.5), rnorm(G_g, 0, 1.0), sphi_u)
+  # trailing 0.0 is mphi_param (always last in the parameters block post-PR#50)
+  c(rnorm(K_g, 0, 0.3), rnorm(K_g, 0, 0.5), rnorm(G_g, 0, 1.0), sphi_u, 0.0)
 } else {
   NULL
 }
