@@ -1769,8 +1769,26 @@ unsigned long PANSEModel::getProbSuccessBreachCount()
 //Log probability of elongation at current codon
 double PANSEModel::elongationProbabilityLog(double currAlpha, double currLambda, double currNSE)
 {
-    double tmp = std::exp(std::log(currLambda) + std::log(currNSE));
-    double x = tmp + currAlpha * std::log(currLambda)  + currAlpha * std::log(currNSE) + UpperIncompleteGammaLog(1.0-currAlpha,tmp);
+    // Boundary guard (2026-06-06): the forward-Lentz upper-incomplete-gamma CF is
+    // singular as tmp = lambda*NSE -> 0 and undefined for non-positive params.  An
+    // unguarded NaN here poisons the adaptive block-MH proposal covariance and
+    // cascades -- every subsequent proposal becomes NaN (observed: 214k survival
+    // warnings, partition-function acceptance pinned at 0, run unusable).  Keep the
+    // return value FINITE so a pathological proposal is simply rejected via a very
+    // negative log-prob, never NaN.  The valid-range computation is unchanged
+    // (tmp = lambda*NSE, as before via exp(log+log)).
+    const double REJECT = -1.0e10;  // finite stand-in for "reject this proposal"
+    if (!(currAlpha > 0.0) || !(currLambda > 0.0) || !(currNSE > 0.0))
+        return REJECT;
+
+    double tmp = currLambda * currNSE;          // CF argument x
+    if (!(tmp > 0.0) || !std::isfinite(tmp))
+        return 0.0;                             // lambda*NSE -> 0 : survival -> 1, log -> 0
+
+    double x = tmp + currAlpha * std::log(currLambda) + currAlpha * std::log(currNSE)
+               + UpperIncompleteGammaLog(1.0 - currAlpha, tmp);
+    if (!std::isfinite(x))
+        return REJECT;                          // CF non-convergence / pathology
     return x;
 }
 
