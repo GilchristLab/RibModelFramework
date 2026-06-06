@@ -18,6 +18,7 @@
     "panse_basic_sharednse.stan",
     "panse_sphi_est_noncentered.stan",
     "panse_sphi_est_sumzero.stan",
+    "panse_sphi_est_sumzero_geomean.stan",
     "panse_sphi_est_centered_sharednse.stan",
     "panse_sphi_est_noncentered_sharednse.stan"
 )
