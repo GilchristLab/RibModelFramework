@@ -344,10 +344,15 @@ void ROCModel::calculateLogLikelihoodRatioForHyperParameters(Genome &genome, uns
 		currentStdDevSynthesisRate[i]  = getStdDevSynthesisRate(i, false);
 		proposedStdDevSynthesisRate[i] = getStdDevSynthesisRate(i, true);
 
-		// mPhi under fixed mode is constant -- its ratio cancels in the M-H
-		// ratio, so both current and proposed mPhi are the same and we can
-		// skip computing them.  Under constrained mode, mPhi varies with sphi.
-		if (phiMuMode == Parameter::PHI_MU_FIXED)
+		// Compute mPhi for current and proposed sphi.
+		// FIXED: ratio cancels (constant); CONSTRAINED: derived from sphi each step;
+		// ESTIMATED: use proposed/current sampled mphi values directly.
+		if (phiMuMode == Parameter::PHI_MU_ESTIMATED)
+		{
+			currentMphi[i]  = parameter->getMuSynthesisRate(i, false);
+			proposedMphi[i] = parameter->getMuSynthesisRate(i, true);
+		}
+		else if (phiMuMode == Parameter::PHI_MU_FIXED)
 		{
 			currentMphi[i]  = parameter->getPhiMuFixed();
 			proposedMphi[i] = parameter->getPhiMuFixed();
@@ -357,7 +362,8 @@ void ROCModel::calculateLogLikelihoodRatioForHyperParameters(Genome &genome, uns
 			currentMphi[i]  = Parameter::computeMPhi(currentStdDevSynthesisRate[i],  statistic, cvalue);
 			proposedMphi[i] = Parameter::computeMPhi(proposedStdDevSynthesisRate[i], statistic, cvalue);
 		}
-		// take the Jacobian into account for the non-linear transformation from logN to N distribution
+		// Jacobian for the log-normal sphi proposal (normal on log scale).
+		// mphi uses a symmetric normal proposal so no Jacobian needed for mphi.
 		lpr -= (std::log(currentStdDevSynthesisRate[i]) - std::log(proposedStdDevSynthesisRate[i]));
 	}
 
@@ -411,6 +417,22 @@ void ROCModel::calculateLogLikelihoodRatioForHyperParameters(Genome &genome, uns
 			{
 				lpr += Parameter::densityNorm(proposedStdDevSynthesisRate[i], sphiMu, sphiSd, true)
 					 - Parameter::densityNorm(currentStdDevSynthesisRate[i], sphiMu, sphiSd, true);
+			}
+		}
+	}
+
+	// mphi prior contribution when estimated (flat contributes 0).
+	if (phiMuMode == Parameter::PHI_MU_ESTIMATED &&
+	    parameter->getPhiMuPriorType() == Parameter::PHI_MU_PRIOR_NORMAL)
+	{
+		double mu = parameter->getPhiMuPriorMu();
+		double sd = parameter->getPhiMuPriorSd();
+		if (sd > 0.0)
+		{
+			for (unsigned i = 0u; i < selectionCategory; i++)
+			{
+				lpr += Parameter::densityNorm(proposedMphi[i], mu, sd, true)
+					 - Parameter::densityNorm(currentMphi[i],  mu, sd, true);
 			}
 		}
 	}
@@ -730,6 +752,7 @@ void ROCModel::adaptCodonSpecificParameterProposalWidth(unsigned adaptiveWidth, 
 void ROCModel::adaptHyperParameterProposalWidths(unsigned adaptiveWidth, bool adapt)
 {
 	adaptStdDevSynthesisRateProposalWidth(adaptiveWidth, adapt);
+	parameter->adaptMuSynthesisRateProposalWidth(adaptiveWidth, adapt);  // no-op unless PHI_MU_ESTIMATED
 	// Task #12c.2: adapt phi-mixture proposal widths (no-op for SINGLE_LN).
 	parameter->adaptPhiMixtureProposalWidths(adaptiveWidth, adapt);
 	if (withPhi)
@@ -802,6 +825,7 @@ void ROCModel::proposeCodonSpecificParameter()
 void ROCModel::proposeHyperParameters()
 {
 	parameter->proposeStdDevSynthesisRate();
+	parameter->proposeMuSynthesisRate();  // no-op unless PHI_MU_ESTIMATED
 	if (withPhi)
 		parameter->proposeNoiseOffset();
 }
@@ -871,6 +895,7 @@ void ROCModel::updateCodonSpecificParameter(std::string grouping, std::string pa
 void ROCModel::updateAllHyperParameter()
 {
 	updateStdDevSynthesisRate();
+	parameter->updateMuSynthesisRate();  // no-op unless PHI_MU_ESTIMATED
 	for (unsigned i = 0; i < parameter->getNumObservedPhiSets(); i++)
 	{
 		updateNoiseOffset(i);
@@ -880,10 +905,12 @@ void ROCModel::updateAllHyperParameter()
 
 void ROCModel::updateHyperParameter(unsigned hp)
 {
-	if (hp == 0)
+	if (hp == 0) {
 		updateStdDevSynthesisRate();
-	else if (hp > 0 && withPhi)
+		parameter->updateMuSynthesisRate();  // no-op unless PHI_MU_ESTIMATED
+	} else if (hp > 0 && withPhi) {
 		updateNoiseOffset(hp - 1);
+	}
 }
 
 

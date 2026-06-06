@@ -74,6 +74,11 @@ class Parameter {
 		// phiMuMode codes: how mPhi is determined each MCMC step.
 		static const unsigned PHI_MU_CONSTRAINED; // = 0; mPhi = computeMPhi(sphi, statistic, value)
 		static const unsigned PHI_MU_FIXED;       // = 1; mPhi = phiMuFixed (user constant)
+		static const unsigned PHI_MU_ESTIMATED;   // = 2; mPhi is a free sampled parameter
+
+		// phiMuPriorType codes (used when PHI_MU_ESTIMATED).
+		static const unsigned PHI_MU_PRIOR_FLAT;   // = 0; improper flat
+		static const unsigned PHI_MU_PRIOR_NORMAL; // = 1; Normal(mu, sd)
 
 		// sphiPriorType codes.
 		static const unsigned SPHI_PRIOR_FLAT;    // = 0; improper flat (legacy default)
@@ -174,6 +179,20 @@ class Parameter {
 		double   getSphiPriorHigh();
 		void     setSphiPriorHigh(double high);
 		void     setSphiPriorBounds(double low, double high);
+
+		// Phi spec: mphi estimated mode -- storage, proposal, and prior.
+		double   getMuSynthesisRate(unsigned selectionCategory, bool proposed = false);
+		void     setMuSynthesisRate(double value, unsigned selectionCategory);
+		void     proposeMuSynthesisRate();
+		void     updateMuSynthesisRate();
+		void     adaptMuSynthesisRateProposalWidth(unsigned adaptationWidth, bool adapt);
+		unsigned getNumAcceptForMuSynthesisRate();
+		unsigned getPhiMuPriorType();
+		void     setPhiMuPriorType(unsigned type);
+		double   getPhiMuPriorMu();
+		void     setPhiMuPriorMu(double mu);
+		double   getPhiMuPriorSd();
+		void     setPhiMuPriorSd(double sd);
 
 		// E[phi] sanity bounds for getLogPhiPrior().
 		double   getPhiFloor();
@@ -588,9 +607,20 @@ class Parameter {
 		unsigned phiPriorConstraint; // statistic code (0=mean..4=sd); restart key kept for compat
 
 		// mPhi specification (phi spec redesign).
-		unsigned phiMuMode;       // PHI_MU_CONSTRAINED or PHI_MU_FIXED
+		unsigned phiMuMode;       // PHI_MU_CONSTRAINED, PHI_MU_FIXED, or PHI_MU_ESTIMATED
 		double   phiConstraintValue; // target value for constrained mode (default 1.0)
 		double   phiMuFixed;      // mPhi constant for PHI_MU_FIXED mode
+
+		// mPhi estimated mode: per-category storage + proposal.
+		std::vector<double> muSynthesisRate;          // current mPhi per category
+		std::vector<double> muSynthesisRate_proposed; // proposed mPhi per category
+		double   std_muSynthesisRate;                 // MH proposal width (normal proposal)
+		unsigned numAcceptForMuSynthesisRate;         // acceptance counter for adaptation
+
+		// mPhi prior (used when PHI_MU_ESTIMATED).
+		unsigned phiMuPriorType; // PHI_MU_PRIOR_FLAT or PHI_MU_PRIOR_NORMAL
+		double   phiMuPriorMu;
+		double   phiMuPriorSd;
 
 		// sphi prior type (phi spec redesign).
 		unsigned sphiPriorType;   // SPHI_PRIOR_FLAT / NORMAL / UNIFORM

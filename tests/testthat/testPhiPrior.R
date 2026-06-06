@@ -358,14 +358,36 @@ test_that("phi.mphi=fixed() sets phiMuMode=1 and phiMuFixed", {
     expect_equal(p$getPhiMuFixed(), -0.2)
 })
 
-test_that("phi.mphi=estimated() raises not-yet-implemented error", {
+test_that("phi.mphi=estimated() sets PHI_MU_ESTIMATED mode and flat prior", {
     ga <- .genome_and_assign()
-    expect_error(
-        initializeParameterObject(
-            genome = ga$genome, sphi = 1, num.mixtures = 1,
-            gene.assignment = ga$gene_assign,
-            phi.mphi = estimated(prior = prior_uniform(0, 10))),
-        "not yet implemented")
+    p  <- initializeParameterObject(
+              genome = ga$genome, sphi = 1, num.mixtures = 1,
+              gene.assignment = ga$gene_assign,
+              phi.mphi = estimated())
+    expect_equal(p$getPhiMuMode(), 2L)   # PHI_MU_ESTIMATED
+    expect_equal(p$getPhiMuPriorType(), 0L)  # PHI_MU_PRIOR_FLAT
+    expect_equal(p$getMuSynthesisRate(0L, FALSE), 0.0)  # default init
+})
+
+test_that("phi.mphi=estimated(prior_normal) sets normal prior on mphi", {
+    ga <- .genome_and_assign()
+    p  <- initializeParameterObject(
+              genome = ga$genome, sphi = 1, num.mixtures = 1,
+              gene.assignment = ga$gene_assign,
+              phi.mphi = estimated(prior = prior_normal(mean = 0.5, sd = 2.0)))
+    expect_equal(p$getPhiMuMode(),      2L)    # PHI_MU_ESTIMATED
+    expect_equal(p$getPhiMuPriorType(), 1L)    # PHI_MU_PRIOR_NORMAL
+    expect_equal(p$getPhiMuPriorMu(),   0.5)
+    expect_equal(p$getPhiMuPriorSd(),   2.0)
+})
+
+test_that("phi.mphi=estimated(init=...) sets custom initial mphi", {
+    ga <- .genome_and_assign()
+    p  <- initializeParameterObject(
+              genome = ga$genome, sphi = 1, num.mixtures = 1,
+              gene.assignment = ga$gene_assign,
+              phi.mphi = estimated(init = -0.5))
+    expect_equal(p$getMuSynthesisRate(0L, FALSE), -0.5)
 })
 
 

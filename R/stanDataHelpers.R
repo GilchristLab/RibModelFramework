@@ -16,7 +16,6 @@
 #'     \code{value} (log-space mean, i.e.\ \code{meanlog}).  sphi is still
 #'     estimated.}
 #' }
-#' \code{estimated()} for phi.mphi is not yet implemented (deferred).
 #'
 #' @section phi.sphi modes:
 #' \describe{
@@ -241,7 +240,11 @@ initializeStan <- function(genome,
     dM         = rep(0.0, K),
     dEta       = rep(0.0, K),
     latent_phi = latent_init,
-    sphi       = sphi.init
+    sphi       = sphi.init,
+    mphi_param = if (inherits(phi.mphi, "phi_spec_estimated"))
+                   .computeMPhiR(phi.mphi, sphi.init)
+                 else
+                   0.0  # placeholder init (pinned by std_normal() in model)
   )
 
   list(data = stan_data, init = stan_init)
@@ -355,17 +358,39 @@ adviToWarmStart <- function(fit, data) {
 
   # --- phi.mphi ---
   if (inherits(phi.mphi, "phi_spec_estimated")) {
-    stop("phi.mphi = estimated() is not yet implemented for Stan\n")
+    result$phi_mphi_mode      <- 2L
+    result$phi_mphi_statistic <- 0L   # placeholder
+    result$phi_mphi_value     <- 1.0  # placeholder; must be > 0 for Stan constraint
+    result$phi_mphi_fixed     <- 0.0  # placeholder
+    prior <- phi.mphi$prior
+    if (is.null(prior) || prior$dist == "uniform") {
+      # Treat uniform and NULL as improper flat on the real line
+      result$phi_mphi_prior_type <- 0L
+      result$phi_mphi_prior_mean <- 0.0
+      result$phi_mphi_prior_sd   <- 1.0
+    } else if (prior$dist == "normal") {
+      result$phi_mphi_prior_type <- 1L
+      result$phi_mphi_prior_mean <- as.double(prior$mean)
+      result$phi_mphi_prior_sd   <- as.double(prior$sd)
+    } else {
+      stop("Only flat/uniform and normal priors are currently supported for phi.mphi in Stan\n")
+    }
   } else if (inherits(phi.mphi, "phi_spec_constrained")) {
-    result$phi_mphi_mode      <- 0L
-    result$phi_mphi_statistic <- phi.mphi$statistic_code
-    result$phi_mphi_value     <- as.double(phi.mphi$value)
-    result$phi_mphi_fixed     <- 0.0   # placeholder; Stan requires the field
+    result$phi_mphi_mode       <- 0L
+    result$phi_mphi_statistic  <- phi.mphi$statistic_code
+    result$phi_mphi_value      <- as.double(phi.mphi$value)
+    result$phi_mphi_fixed      <- 0.0   # placeholder
+    result$phi_mphi_prior_type <- 0L    # placeholder; not used in modes 0/1
+    result$phi_mphi_prior_mean <- 0.0
+    result$phi_mphi_prior_sd   <- 1.0
   } else if (inherits(phi.mphi, "phi_spec_fixed")) {
-    result$phi_mphi_mode      <- 1L
-    result$phi_mphi_statistic <- 0L    # placeholder
-    result$phi_mphi_value     <- 1.0   # placeholder; must be > 0 for Stan constraint
-    result$phi_mphi_fixed     <- as.double(phi.mphi$value)
+    result$phi_mphi_mode       <- 1L
+    result$phi_mphi_statistic  <- 0L    # placeholder
+    result$phi_mphi_value      <- 1.0   # placeholder; must be > 0 for Stan constraint
+    result$phi_mphi_fixed      <- as.double(phi.mphi$value)
+    result$phi_mphi_prior_type <- 0L    # placeholder
+    result$phi_mphi_prior_mean <- 0.0
+    result$phi_mphi_prior_sd   <- 1.0
   } else {
     stop("Unrecognised phi.mphi class\n")
   }
@@ -411,8 +436,13 @@ adviToWarmStart <- function(fit, data) {
 .computeMPhiR <- function(phi.mphi, sphi) {
   if (inherits(phi.mphi, "phi_spec_fixed"))
     return(phi.mphi$value)
+  if (inherits(phi.mphi, "phi_spec_estimated")) {
+    # Use explicit init if provided, else default: median(phi)=1 => mphi=0
+    if (!is.null(phi.mphi$init)) return(phi.mphi$init)
+    return(0.0)
+  }
   if (!inherits(phi.mphi, "phi_spec_constrained"))
-    stop("phi.mphi = estimated() not yet implemented\n")
+    stop("Unrecognised phi.mphi class in .computeMPhiR()\n")
   s2 <- sphi^2
   v  <- phi.mphi$value
   switch(phi.mphi$statistic,

@@ -356,9 +356,8 @@ context("initializeStan: phi initialisation (init list)")
 stan_init <- suppressWarnings(initializeStan(genome, scuo = scuo_vals))$init
 
 test_that("initializeStan $init has the required parameter fields", {
-  required <- c("dM", "dEta", "latent_phi", "sphi")
+  required <- c("dM", "dEta", "latent_phi", "sphi", "mphi_param")
   expect_true(all(required %in% names(stan_init)))
-  expect_false("mphi_param" %in% names(stan_init))  # removed in phi-spec API
 })
 
 test_that("latent_phi has length G", {
@@ -411,8 +410,8 @@ test_that("sphi.init controls the spread of latent_phi", {
 # ======================================================================
 # Section 6: adviToWarmStart() -- init + inv_metric from ADVI fit
 # ======================================================================
-# Build a synthetic ADVI-like draws data frame to test adviToWarmStart()
-# without running actual Stan. Draws match the new model (no mphi_param).
+# Build a synthetic ADVI-like draws data frame to test adviToWarmStart().
+# mphi_param is always present in the new model (pinned via std_normal when not estimated).
 
 local({
   G_s <- stan_d$G   # 8
@@ -428,7 +427,8 @@ local({
            dimnames = list(NULL, paste0("dEta[", 1:K_s, "]"))),
     matrix(rnorm(N * G_s, mean = 0.0, sd = 0.8), nrow = N,
            dimnames = list(NULL, paste0("latent_phi[", 1:G_s, "]"))),
-    sphi = abs(rnorm(N, mean = 1.3, sd = 0.15)),
+    sphi       = abs(rnorm(N, mean = 1.3, sd = 0.15)),
+    mphi_param = rnorm(N, mean = 0.0, sd = 1.0),  # always present; ~N(0,1) in modes 0/1
     check.names = FALSE
   )
 
@@ -440,8 +440,8 @@ test_that("adviToWarmStart returns init and inv_metric", {
   expect_named(ws, c("init", "inv_metric"))
 })
 
-test_that("init has all required parameter fields (no mphi_param)", {
-  expect_named(ws$init, c("dM", "dEta", "latent_phi", "sphi"),
+test_that("init has all required parameter fields including mphi_param", {
+  expect_named(ws$init, c("dM", "dEta", "latent_phi", "sphi", "mphi_param"),
                ignore.order = TRUE)
 })
 
@@ -452,8 +452,8 @@ test_that("init field lengths match data dimensions", {
   expect_length(ws$init$sphi,       1L)
 })
 
-test_that("inv_metric length is 2K + G + 1 (no mphi_param)", {
-  expect_length(ws$inv_metric, 2L * stan_d$K + stan_d$G + 1L)
+test_that("inv_metric length is 2K + G + 2 (includes mphi_param)", {
+  expect_length(ws$inv_metric, 2L * stan_d$K + stan_d$G + 2L)
 })
 
 test_that("all inv_metric values are strictly positive", {

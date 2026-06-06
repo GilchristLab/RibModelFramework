@@ -326,6 +326,16 @@ RCPP_MODULE(Parameter_mod)
 		.method("getPhiMuFixed",         &Parameter::getPhiMuFixed)
 		.method("setPhiMuFixed",         &Parameter::setPhiMuFixed)
 
+		// Phi spec: mphi estimated mode methods.
+		.method("getMuSynthesisRate",    &Parameter::getMuSynthesisRate)
+		.method("setMuSynthesisRate",    &Parameter::setMuSynthesisRate)
+		.method("getPhiMuPriorType",     &Parameter::getPhiMuPriorType)
+		.method("setPhiMuPriorType",     &Parameter::setPhiMuPriorType)
+		.method("getPhiMuPriorMu",       &Parameter::getPhiMuPriorMu)
+		.method("setPhiMuPriorMu",       &Parameter::setPhiMuPriorMu)
+		.method("getPhiMuPriorSd",       &Parameter::getPhiMuPriorSd)
+		.method("setPhiMuPriorSd",       &Parameter::setPhiMuPriorSd)
+
 		// Phi spec: sphi prior type + bounds.
 		.method("getSphiPriorType",      &Parameter::getSphiPriorType)
 		.method("setSphiPriorType",      &Parameter::setSphiPriorType)
@@ -374,6 +384,7 @@ RCPP_MODULE(Parameter_mod)
 		.property("numMutationCategories", &Parameter::getNumMutationCategories, &Parameter::setNumMutationCategories)
 		.property("numSelectionCategories", &Parameter::getNumSelectionCategories, &Parameter::setNumSelectionCategories)
 		.property("numMixtures", &Parameter::getNumMixtureElements, &Parameter::setNumMixtureElements)
+		.method("getNumSynthesisRateCategories", &Parameter::getNumSynthesisRateCategories)
 		.property("numElongationMixtures", &Parameter::getNumElongationMixtures, &Parameter::setNumElongationMixtures)
 ;
 
