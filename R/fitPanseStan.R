@@ -35,6 +35,7 @@
         "sphi-est-sharednse:centered"    = "panse_sphi_est_centered_sharednse",
         "sphi-est:noncentered"           = "panse_sphi_est_noncentered",
         "sphi-est:sumzero"               = "panse_sphi_est_sumzero",
+        "sphi-est:sumzero-gm"            = "panse_sphi_est_sumzero_geomean",
         "sphi-est-pointval:noncentered"  = "panse_sphi_est_noncentered_pointval",
         "sphi-est-sharednse:noncentered" = "panse_sphi_est_noncentered_sharednse",
         "sphi-est-sharednse:sumzero"     = "panse_sphi_est_sumzero_sharednse",
@@ -54,9 +55,9 @@
                                             "sphi-est-sharednse", "sphi-est-aanse"),
         noncentered_phi  = (model_key %in% c("sphi-est", "sphi-est-pointval",
                                              "sphi-est-sharednse", "sphi-est-aanse") &&
-                            parameterization %in% c("noncentered", "sumzero")),
+                            parameterization %in% c("noncentered", "sumzero", "sumzero-gm")),
         sumzero_phi      = (model_key %in% c("sphi-est", "sphi-est-sharednse") &&
-                            parameterization == "sumzero")
+                            parameterization %in% c("sumzero", "sumzero-gm"))
     )
 }
 
