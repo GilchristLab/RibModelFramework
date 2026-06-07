@@ -1,6 +1,8 @@
 # Codon-frequency vs log(phi) plotting: generalization design
 
-Status: design agreed 2026-06-07; implementation pending.
+Status: design agreed 2026-06-07. Stage 1 DONE (grouping builder + panels= arg,
+commits bb17bb3/9d97f5c); Stage 2 DONE for per-AA panel (codonModelData, 3dbea5f).
+Remaining: extend codonModelData to split groupings; then ggplot engine.
 Branch: feat/compact-trace-and-codon-plots (RMF).
 
 ## Problem
