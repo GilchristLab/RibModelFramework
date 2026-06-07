@@ -270,15 +270,17 @@ test_that("getPhiMuFixed / setPhiMuFixed round-trips", {
     expect_equal(p$getPhiMuFixed(), 0.0)
 })
 
-test_that("getSphiPriorType / setSphiPriorType default is 0 (SPHI_PRIOR_FLAT)", {
+test_that("getSphiPriorType / setSphiPriorType: R-path default is UNIFORM; round-trips", {
+    # sphi=<numeric> via initializeParameterObject resolves to estimated(uniform)
+    # -> sphiPriorType=2 (SPHI_PRIOR_UNIFORM).  Round-trip set/get still works.
     p <- .make_param()
-    expect_equal(p$getSphiPriorType(), 0L)
+    expect_equal(p$getSphiPriorType(), 2L)
     p$setSphiPriorType(1L)
     expect_equal(p$getSphiPriorType(), 1L)
-    p$setSphiPriorType(2L)
-    expect_equal(p$getSphiPriorType(), 2L)
     p$setSphiPriorType(0L)
     expect_equal(p$getSphiPriorType(), 0L)
+    p$setSphiPriorType(2L)
+    expect_equal(p$getSphiPriorType(), 2L)
 })
 
 test_that("getSphiPriorLow / getSphiPriorHigh / setSphiPriorBounds round-trips", {

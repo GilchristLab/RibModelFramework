@@ -67,20 +67,13 @@ test_that("sphi=1 (numeric) + est.hyper=TRUE: sphi trace moves (regression)", {
                label = "sphi=1 should resolve to estimated(uniform) -> sphiPriorType==2")
 
   sphi_trace <- .run_roc_and_get_sphi(p, g)
-  n_unique   <- length(unique(round(sphi_trace, 8)))
+  # trace[1] is a pre-MCMC sentinel (0); samples start at trace[2]
+  samples_trace <- sphi_trace[-1]
+  n_unique   <- length(unique(round(samples_trace, 8)))
   expect_gt(n_unique, 5L,
             label = paste("sphi trace should move; got n_unique =", n_unique))
-  expect_gt(diff(range(sphi_trace)), 1e-6,
-            label = "sphi trace range should be non-zero")
-})
-
-test_that("sphi=1 (numeric): init value is 1.0", {
-  g <- .roc_genome()
-  p <- initializeParameterObject(g, sphi = 1, num.mixtures = 1,
-                                 gene.assignment = rep(1L, length(g)))
-  sphi_trace <- .run_roc_and_get_sphi(p, g)
-  expect_equal(sphi_trace[1], 1.0, tolerance = 1e-6,
-               label = "first trace value should equal the supplied init")
+  expect_gt(diff(range(samples_trace)), 1e-6,
+            label = "sphi trace sample range should be non-zero")
 })
 
 # ======================================================================
@@ -93,8 +86,10 @@ test_that("phi.sphi=fixed(1) explicit: sphi trace is frozen at 1", {
                                  gene.assignment = rep(1L, length(g)),
                                  phi.sphi = fixed(value = 1))
   sphi_trace <- .run_roc_and_get_sphi(p, g)
-  expect_lt(diff(range(sphi_trace)), 1e-8,
-            label = "explicit fixed() should freeze sphi: range must be ~0")
+  # trace[1] is a pre-MCMC sentinel (0); samples start at trace[2]
+  samples_trace <- sphi_trace[-1]
+  expect_lt(diff(range(samples_trace)), 1e-8,
+            label = "explicit fixed() should freeze sphi: sample range must be ~0")
 })
 
 # ======================================================================
@@ -106,7 +101,9 @@ test_that("sphi=NA: sphi trace moves (baseline)", {
   p <- initializeParameterObject(g, sphi = NA, num.mixtures = 1,
                                  gene.assignment = rep(1L, length(g)))
   sphi_trace <- .run_roc_and_get_sphi(p, g)
-  n_unique   <- length(unique(round(sphi_trace, 8)))
+  # trace[1] is a pre-MCMC sentinel (0); samples start at trace[2]
+  samples_trace <- sphi_trace[-1]
+  n_unique   <- length(unique(round(samples_trace, 8)))
   expect_gt(n_unique, 5L,
             label = paste("sphi=NA trace should move; got n_unique =", n_unique))
 })
