@@ -866,6 +866,117 @@ plotSinglePanel <- function(parameter, model, genome, expressionValues, samples,
 }
 
 ## ============================================================
+## Tidy data layer (Stage 2)
+##
+## codonModelData() returns the data behind a codon-frequency vs log(phi) panel
+## as a tidy long data frame -- the ggplot-ready interface.  The base-R panel
+## renderers above compute the same quantities; this function is the single
+## source the eventual ggplot engine will consume.  Adding it does not change
+## any rendered output (renderers are untouched).
+## ============================================================
+
+# Bin per-gene proportions by phi quantile and summarise each series (column of
+# `prop`) within each bin.  Returns a tidy data frame: one row per (series,bin).
+# Same arithmetic as the renderers' in-panel binning loop.
+.binnedProportionSummary <- function(prop, phi, quantiles) {
+    n.bins <- length(quantiles)
+    series <- colnames(prop)
+    rows   <- vector("list", n.bins)
+    for(i in seq_len(n.bins)) {
+        if(i == 1L)            id <- phi < quantiles[i]
+        else if(i == n.bins)   id <- phi > quantiles[i]
+        else                   id <- phi > quantiles[i] & phi < quantiles[i + 1L]
+        sub <- prop[id, , drop = FALSE]
+        rows[[i]] <- data.frame(
+            series = series,
+            bin    = i,
+            phi    = median(phi[id], na.rm = TRUE),
+            mean   = as.numeric(colMeans(sub, na.rm = TRUE)),
+            sd     = as.numeric(apply(sub, 2L, sd, na.rm = TRUE)),
+            n      = sum(id, na.rm = TRUE),
+            stringsAsFactors = FALSE)
+    }
+    do.call(rbind, rows)
+}
+
+#' Tidy data behind a codon-frequency vs log(phi) panel (one amino acid)
+#'
+#' Returns the data used to draw the standard per-amino-acid ROC/FONSE model
+#' panel as a tidy long data frame, with three roles:
+#' \itemize{
+#'   \item \code{"data"}: binned empirical codon proportions (mean +/- sd per
+#'     phi-quantile bin); \code{lower}/\code{upper} are the error-bar ends.
+#'   \item \code{"model"}: the fitted model curve over a phi grid.
+#'   \item \code{"gene"}: per-gene codon proportions (for e.g. violin geoms);
+#'     included when \code{include.genes = TRUE}.
+#' }
+#' Denominator is the total count of the amino acid per gene.  This is the
+#' ggplot-ready interface; the base-R renderer computes the same quantities.
+#'
+#' @param parameter,model,genome AnaCoDa objects.
+#' @param expressionValues Numeric vector of per-gene log10(phi) estimates.
+#' @param aa Amino-acid letter.
+#' @param samples,mixture Posterior samples to use and mixture index.
+#' @param model.type "ROC" or "FONSE".
+#' @param codon.window FONSE codon window (ignored for ROC).
+#' @param probs Quantile probabilities defining the phi bins.
+#' @param include.genes Whether to include per-gene rows.
+#' @return A data frame with columns \code{aa, codon, codon.group, role, phi,
+#'   proportion, lower, upper, n}.
+#' @export
+codonModelData <- function(parameter, model, genome, expressionValues, aa,
+                           samples = 100, mixture = 1,
+                           model.type = "ROC", codon.window = c(1, 300),
+                           probs = seq(0.05, 0.95, 0.05),
+                           include.genes = TRUE) {
+    codons <- AAToCodon(aa, FALSE)
+    grp    <- .aaCodonGroup(aa)
+
+    # Per-gene codon proportions (denominator = AA total per gene).
+    counts <- do.call(cbind, lapply(codons, function(cd)
+        genome$getCodonCountsPerGene(cd)))
+    prop <- counts / rowSums(counts)
+    prop[is.nan(prop)] <- NA
+    colnames(prop) <- codons
+
+    # role "data": binned mean +/- sd per codon.
+    quantiles <- quantile(expressionValues, probs = probs, na.rm = TRUE)
+    summ <- .binnedProportionSummary(prop, expressionValues, quantiles)
+    data.rows <- data.frame(
+        aa = aa, codon = summ$series, codon.group = grp, role = "data",
+        phi = summ$phi, proportion = summ$mean,
+        lower = pmax(0, summ$mean - summ$sd),
+        upper = pmin(1, summ$mean + summ$sd),
+        n = summ$n, stringsAsFactors = FALSE)
+
+    # role "model": fitted curve over a phi grid.
+    cp <- calculateProbabilityVector(parameter, model, expressionValues, mixture,
+                                     samples, aa, model.type = model.type,
+                                     codon.window = codon.window)
+    phis <- seq(min(expressionValues, na.rm = TRUE),
+                max(expressionValues, na.rm = TRUE), by = 0.01)
+    model.rows <- do.call(rbind, lapply(seq_along(codons), function(k)
+        data.frame(aa = aa, codon = codons[k], codon.group = grp, role = "model",
+                   phi = phis, proportion = cp[, k],
+                   lower = NA_real_, upper = NA_real_, n = NA_integer_,
+                   stringsAsFactors = FALSE)))
+
+    out <- rbind(data.rows, model.rows)
+
+    # role "gene": per-gene proportions (optional).
+    if(include.genes) {
+        gene.rows <- do.call(rbind, lapply(seq_along(codons), function(k)
+            data.frame(aa = aa, codon = codons[k], codon.group = grp, role = "gene",
+                       phi = expressionValues, proportion = prop[, k],
+                       lower = NA_real_, upper = NA_real_, n = 1L,
+                       stringsAsFactors = FALSE)))
+        out <- rbind(out, gene.rows)
+    }
+    rownames(out) <- NULL
+    out
+}
+
+## ============================================================
 ## Wobble-split layout helpers
 ## ============================================================
 
