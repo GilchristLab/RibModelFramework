@@ -24,6 +24,15 @@
 .panse_select_model <- function(config) {
     model_key       <- config$fit$model          %||% "csp-only"
     parameterization <- config$fit$parameterization %||% "centered"
+    # Orthogonal dwell-time-distribution axis (model comparison via LOO).
+    # gamma    : W ~ Gamma(alpha, lambda)  -> NB2 counts + exact survival (current)
+    # singular : W = E[W] deterministic    -> Poisson counts + point-value survival
+    # invgamma : W ~ InvGamma(alpha,lambda)-> Sichel counts (NB2 surrogate) + exact survival
+    # See panse/notes/dwell-time-distributions.md (Analyses-RibModelFramework).
+    dwell_dist <- config$fit$dwell.dist %||% "gamma"
+    if (!dwell_dist %in% c("gamma", "singular", "invgamma"))
+        stop("Unsupported fit.dwell.dist '", dwell_dist,
+             "'; valid: gamma, singular, invgamma")
     stan_basename <- switch(
         paste0(model_key, ":", parameterization),
         "csp-only:centered"              = "panse_csp_only",
@@ -43,7 +52,23 @@
         stop("Unsupported fit.model + parameterization combo: ", model_key,
              " / ", parameterization)
     )
+    # Apply the dwell.dist axis.  Only the per-codon-NSE sphi-est:noncentered
+    # base has singular/invgamma variants; gamma is the unchanged default for
+    # every combo.  Reject non-gamma dwell on combos that lack a variant so a
+    # misplaced dwell.dist fails loudly instead of silently fitting gamma.
+    if (dwell_dist != "gamma") {
+        if (stan_basename != "panse_sphi_est_noncentered")
+            stop("fit.dwell.dist '", dwell_dist, "' is only supported with ",
+                 "fit.model 'sphi-est' + parameterization 'noncentered' ",
+                 "(resolved base '", stan_basename, "')")
+        stan_basename <- switch(
+            dwell_dist,
+            "singular" = "panse_sphi_est_noncentered_singular",
+            "invgamma" = "panse_sphi_est_noncentered_invgamma"
+        )
+    }
     list(
+        dwell_dist       = dwell_dist,
         stan_basename    = stan_basename,
         shared_nse       = model_key %in% c("csp-only-sharednse", "basic-sharednse",
                                             "sphi-est-sharednse"),

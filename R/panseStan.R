@@ -18,6 +18,8 @@
     "panse_basic_sharednse.stan",
     "panse_sphi_est_noncentered.stan",
     "panse_sphi_est_noncentered_pointval.stan",
+    "panse_sphi_est_noncentered_singular.stan",   # dwell.dist=singular (Poisson + point-value)
+    "panse_sphi_est_noncentered_invgamma.stan",   # dwell.dist=invgamma (Sichel surrogate + exact surv)
     "panse_sphi_est_sumzero.stan",
     "panse_sphi_est_sumzero_geomean.stan",
     "panse_sphi_est_centered.stan",
