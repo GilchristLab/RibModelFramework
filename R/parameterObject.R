@@ -199,8 +199,9 @@ initializeParameterObject <- function(genome = NULL, sphi = NULL, num.mixtures =
   # Translate legacy sphi= convention and phi.mphi/phi.sphi args into resolved
   # phi_spec objects before the integrity checks.
   if (is.null(init.with.restart.file)) {
-    # sphi = NA  -> estimate with default prior + mean anchor
-    # sphi = num -> fix at that value (legacy behavior)
+    # sphi = NA  -> estimate with default prior; init at 1.0 per mixture
+    # sphi = num -> estimate with default prior; init at that value per mixture
+    #              (use phi.sphi=fixed() or est.hyper=FALSE to freeze sphi)
     # phi.sphi arg overrides sphi when provided
     if (is.null(phi.sphi)) {
       if (is.null(sphi)) {
@@ -209,7 +210,8 @@ initializeParameterObject <- function(genome = NULL, sphi = NULL, num.mixtures =
         phi.sphi <- estimated(prior = prior_uniform(low = 0, high = 10))
         sphi     <- rep(1.0, num.mixtures)  # dummy init; not used for estimation start
       } else {
-        phi.sphi <- fixed(value = mean(sphi))
+        phi.sphi <- estimated(prior = prior_uniform(low = 0, high = 10))
+        # sphi vector kept as-is: used as per-mixture init below
       }
     }
     if (is.null(phi.mphi)) {
