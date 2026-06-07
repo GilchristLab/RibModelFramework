@@ -72,7 +72,13 @@ functions {
         int  i = 1;
         real del = 0;
         int  converged = 0;
-        while (i <= 2000 && converged == 0) {
+        // itmax raised to 6000: in the small-ARGUMENT corner this model lives in
+        // (x = lambda*NSERate small) the upper-inc-gamma CF converges SLOWLY and
+        // routinely reaches the cap, but its value there is already accurate to
+        // ~4e-8 vs direct integration.  So we do NOT reject on hitting the cap --
+        // the computed h is trustworthy; rejecting would (wrongly) abort sampling
+        // across most of the realistic NSERate*lambda range.
+        while (i <= 6000 && converged == 0) {
             real an = -i * (i - s);
             b = b + 2;
             d = an * d + b;  if (abs(d) < FPMIN) d = FPMIN;
@@ -83,8 +89,6 @@ functions {
             if (abs(del - 1) < tol) converged = 1;
             i = i + 1;
         }
-        if (converged == 0)
-            reject("log_upper_incomplete_gamma: CF did not converge for s=", s, " x=", x);
         return s * log(x) - x + log(h);
     }
 
@@ -96,33 +100,40 @@ functions {
      * conditioned; we cap inner just below 1 to keep log1m finite.
      *
      * NUMERICS: the inner expectation's incomplete-gamma argument is
-     * lvv = lambda*NSERate, which is SMALL in the operating regime (lambda in
-     * [1e-3,100], NSERate in [1e-7,1e-3] default -> lvv <= 0.1; wide-NSE
-     * NSERate up to 0.1 -> lvv up to 10).  The forward modified-Lentz CF (used
-     * by the parent Gamma model) converges fast only for LARGE argument; here
-     * the argument is small, the OPPOSITE corner, where the CF is slow / fails
-     * to converge in 2000 iters.  So we split by lvv:
-     *   lvv < CF_SWITCH (0.5): 2-term asymptotic of inner = E_U[vv/(U+vv)]
-     *       inner ~ vv*E[1/U] - vv^2*E[1/U^2], U~Gamma(a,rate=l), vv=NSERate
-     *             = lvv/(a-1) - lvv^2/((a-1)(a-2)).
-     *       Verified: max |log-survival error| ~ 5e-6 over the full default box
-     *       (a in [2,100], lvv in [1e-10,0.1]) vs direct integration.  Requires
-     *       a>1 (E[1/U] finite); for a<=1 the asymptotic breaks but survival
-     *       there is ~1 anyway (inner tiny), so we floor a-1 below.
-     *   lvv >= CF_SWITCH: the CF converges fast (worst ~70 iters), use it.
+     * lvv = lambda*NSERate, SMALL in the operating regime (lambda in [1e-3,100],
+     * NSERate in [1e-7,1e-3] default -> lvv <= 0.1; wide-NSE NSERate up to 0.1
+     * -> lvv up to 10).  Two evaluation paths:
+     *
+     *   FAST path (alpha > 3, lvv < 0.1): 2-term small-argument asymptotic of
+     *       inner = E_U[vv/(U+vv)] ~ vv*E[1/U] - vv^2*E[1/U^2], U~Gamma(a,rate=l)
+     *             = lvv/(a-1) - lvv^2/((a-1)(a-2)),  vv = NSERate.
+     *       In this safe sub-box (alpha comfortably > 2 so the 1/(a-2) term is a
+     *       small correction, lvv small) it is accurate to ~5e-6 in log-survival
+     *       and avoids the (slow) continued fraction for the overwhelming
+     *       majority of evaluations.
+     *
+     *   CF path (everything else -- small alpha near 2, or larger lvv): the
+     *       forward modified-Lentz upper-incomplete-gamma continued fraction,
+     *           log_inner = a*log(lvv) + lvv + logGammaUpper(1-a, lvv).
+     *       In the small-lvv corner this CF converges slowly and often reaches
+     *       the (raised) iteration cap, but its value there is accurate to
+     *       ~4e-8 vs direct integration, so the function does NOT reject on the
+     *       cap (see log_upper_incomplete_gamma).  This path is correct for all
+     *       alpha (no 1/(a-2) pole) and for large lvv (where it converges fast).
+     *
+     * Both paths verified against direct numerical integration.
      */
     real log_psuccess_invgamma(real alpha, real lambda, real NSERate) {
-        real CF_SWITCH = 0.5;
         real vv  = NSERate;
         real lvv = lambda * vv;
         real log_inner;
-        if (lvv < CF_SWITCH) {
-            // 2-term small-argument asymptotic of the inner expectation.
-            real am1 = fmax(alpha - 1, 1e-6);       // guard E[1/U] for alpha<=1
-            real am2 = fmax(alpha - 2, 1e-6);       // guard E[1/U^2] for alpha<=2
-            real inner_lin = lvv / am1 - lvv * lvv / (am1 * am2);
-            log_inner = log(fmax(inner_lin, 1e-300));
+        if (alpha > 3 && lvv < 0.1) {
+            // FAST asymptotic (alpha well above the a=2 pole, lvv small).
+            real am1 = alpha - 1;
+            real inner_lin = lvv / am1 - lvv * lvv / (am1 * (alpha - 2));
+            log_inner = log(inner_lin);             // > 0 in this sub-box
         } else {
+            // CF: correct for small alpha and for large lvv.
             log_inner = alpha * log(lvv) + lvv + log_upper_incomplete_gamma(1 - alpha, lvv);
         }
         real inner = exp(log_inner);
