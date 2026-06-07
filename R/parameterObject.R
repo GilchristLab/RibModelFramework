@@ -4,10 +4,12 @@
 #' The default value is NULL.
 #' 
 #' @param sphi Initial value(s) for sphi (log-space SD of the phi prior, equivalent
-#' to \code{sdlog} in \code{\link{dlnorm}}). Numeric vector of length numMixtures, or
-#' \code{NA} to estimate sphi with the default weakly informative prior (see
-#' \code{phi.sphi}). Will be superseded by \code{phi.sphi} when that argument is
-#' provided.
+#' to \code{sdlog} in \code{\link{dlnorm}}). Numeric vector of length numMixtures
+#' sets the per-mixture starting point; sphi is \emph{estimated} by default using a
+#' Uniform(0,10) prior. \code{NA} (or \code{rep(NA, numMixtures)}) also estimates
+#' sphi, starting from 1.0. To freeze sphi at a fixed value use
+#' \code{phi.sphi = fixed(value)} or set \code{est.hyper = FALSE}. Superseded by
+#' \code{phi.sphi} when that argument is provided.
 #'
 #' @param phi.mphi Optional specification of the phi-prior location (mPhi), built
 #' with \code{\link{constrained}} or \code{\link{fixed}}; e.g.
