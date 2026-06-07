@@ -100,7 +100,7 @@ Parameter::Parameter()
 	phiMuPriorType = PHI_MU_PRIOR_FLAT;
 	phiMuPriorMu   = 0.0;
 	phiMuPriorSd   = 1.0;
-	sphiPriorType      = SPHI_PRIOR_FLAT;
+	sphiPriorType      = SPHI_PRIOR_UNIFORM;  // belt-and-suspenders: R path always overwrites via .applyPhiSpec()
 	sphiPriorLow       = 0.0;
 	sphiPriorHigh      = 10.0;
 	phiFloor           = 1e-6;
@@ -182,7 +182,7 @@ Parameter::Parameter(unsigned _maxGrouping)
 	phiMuPriorType = PHI_MU_PRIOR_FLAT;
 	phiMuPriorMu   = 0.0;
 	phiMuPriorSd   = 1.0;
-	sphiPriorType      = SPHI_PRIOR_FLAT;
+	sphiPriorType      = SPHI_PRIOR_UNIFORM;  // belt-and-suspenders: R path always overwrites via .applyPhiSpec()
 	sphiPriorLow       = 0.0;
 	sphiPriorHigh      = 10.0;
 	phiFloor           = 1e-6;
