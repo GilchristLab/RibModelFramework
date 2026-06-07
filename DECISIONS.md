@@ -56,18 +56,20 @@ never existed. So numeric sphi was historically ESTIMATED (seeded at the value).
 
 ## Implementation plan (commit after each)
 
-- [ ] C1: edit `R/parameterObject.R` resolution block (numeric -> estimated + init).
-- [ ] C2: update roxygen for `sphi` (+ regenerate man/ if doc build is set up).
-- [ ] C3: regression tests (new file `tests/testthat/testSphiNumericEstimated.R`):
+- [x] C1: edit `R/parameterObject.R` resolution block (numeric -> estimated + init).
+- [x] C2: update roxygen for `sphi` (+ regenerate man/ if doc build is set up).
+- [x] C3: regression tests (new file `tests/testthat/testSphiNumericEstimated.R`):
       (a) sphi=1 + est.hyper=TRUE -> sphi trace moves (n_unique large);
       (b) phi.sphi=fixed(1) -> sphi frozen (n_unique==1 among samples);
       (c) sphi=NA -> moves (baseline);
       (d) smoke: all four models initialize without error via initializeParameterObject.
-- [ ] C4: empirical multi-model verification script + record results here
-      (ROC/FONSE via genome.fasta; PA/PANSE need RFP-count input — use package
-      test data; if unavailable, document the limitation rather than fake it).
-- [ ] C5: NEWS.md entry (regression fix; restores estimation for numeric sphi).
-- [ ] C6: build + full relevant test run; iterate to green.
+- [x] C4: empirical multi-model verification script + record results in decision log.
+      ROC/FONSE: confirmed moving (n_unique~85, range>0.8, prior_type=2).
+      PA/PANSE: init smoke OK (mini_rfp.csv, prior_type=2). MCMC not run (too small).
+- [x] C5: NEWS.md entry (regression fix; restores estimation for numeric sphi).
+- [x] C6: build + full relevant test run; all green.
+      Tested: testSphiNumericEstimated.R, testPhiPrior.R, testPhiMixturePrior.R,
+      testROCLogLikelihood.R, testROCNumerical.R, testPAModelBasic.R, testMCMCPANSE.R.
 - [ ] C7: also Issue #52 — SEPARATE branch/PR: flip C++ ctor
       `sphiPriorType = SPHI_PRIOR_FLAT` -> `SPHI_PRIOR_UNIFORM` (both ctors,
       src/Parameter.cpp ~lines 103, 185; bounds already [0,10]); update any
