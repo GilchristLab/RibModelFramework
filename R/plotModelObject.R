@@ -1537,13 +1537,15 @@ plotWobbleSplitPanel <- function(parameter, model, genome, expressionValues,
             y.ndc <- (8L + 8L * (n.rows.data - row.pos)) /
                      (7L + 8L * n.rows.data)
             # Row label: the group's override if set, else auto from codon count.
+            # Always black -- color.codon.groups colors the panels (frames/axes),
+            # not the row group labels.
             row.lbl <- if(!is.null(pd$group.label)) pd$group.label
                        else grp.labels[[pd$codon.group]]
             row.label.list[[length(row.label.list) + 1L]] <- list(
                 x.ndc = col.right.ndc + offset.ndc,
                 y.ndc = y.ndc,
                 label = row.lbl,
-                col   = grp.col
+                col   = "black"
             )
         }
     }
