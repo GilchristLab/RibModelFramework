@@ -98,3 +98,14 @@ never existed. So numeric sphi was historically ESTIMATED (seeded at the value).
 ## Decision log (append as work proceeds)
 
 - 2026-06-06: worktree + branch created off origin/main 1ee783a. Spec locked.
+- 2026-06-07: C1-C4 complete. Empirical multi-model verification (100 samples, set.seed(42)):
+  ROC  sphi=1 numeric: n_unique=86, range=0.807, prior_type=2 (UNIFORM) -- MOVING
+  ROC  sphi=NA       : n_unique=86, range=0.906, prior_type=2 (UNIFORM) -- MOVING
+  FONSE sphi=1 numeric: n_unique=84, range=2.401, prior_type=2 (UNIFORM) -- MOVING
+  FONSE sphi=NA       : n_unique=83, range=2.627, prior_type=2 (UNIFORM) -- MOVING
+  PA    sphi=1.5 init : OK, prior_type=2 (UNIFORM) -- smoke only, no MCMC
+  PANSE sphi=1.5 init : OK, prior_type=2 (UNIFORM) -- smoke only, no MCMC
+  (PA/PANSE RFP-count genomes require specific fixture; mini_rfp.csv used for init smoke)
+- 2026-06-07: testSphiNumericEstimated.R trace[1]=0 sentinel found; excluded in tests.
+- 2026-06-07: testPhiPrior.R getSphiPriorType default assertion updated: now 2 (UNIFORM)
+  not 0 (FLAT), because numeric sphi= now resolves through estimated(uniform) not fixed().
