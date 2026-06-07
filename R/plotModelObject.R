@@ -21,6 +21,7 @@ plot.Rcpp_ROCModel <- function(x, genome = NULL, samples = 100, mixture = 1,
                                simulated = FALSE, layout = "original",
                                show.gene.hist = FALSE, show.date = TRUE,
                                color.codon.groups = FALSE, aa.include = NULL,
+                               panels = NULL, subtitle = NULL,
                                options = NULL, ...)
 {
   model <- x
@@ -33,6 +34,8 @@ plot.Rcpp_ROCModel <- function(x, genome = NULL, samples = 100, mixture = 1,
     if(!is.null(options$show.date))          show.date          <- options$show.date
     if(!is.null(options$color.codon.groups)) color.codon.groups <- options$color.codon.groups
     if(!is.null(options$aa.include))         aa.include         <- options$aa.include
+    if(!is.null(options$panels))             panels             <- options$panels
+    if(!is.null(options$subtitle))           subtitle           <- options$subtitle
   }
 
   input_list <- as.list(list(...))
@@ -198,14 +201,16 @@ plot.Rcpp_ROCModel <- function(x, genome = NULL, samples = 100, mixture = 1,
          xlab = "", ylab = "")
     text(0.2, 0.5, "Proportion", srt = 90, cex = 1.4, font = 2)
 
-  } else if(layout %in% c("split-ag", "split-ct", "split-ry", "split-6codon")) {
-    # -- split wobble layout --
+  } else if(!is.null(panels) ||
+            layout %in% c("split-ag", "split-ct", "split-ry", "split-6codon")) {
+    # -- split wobble layout (preset name, or user-supplied panels=) --
     .runSplitLayout(layout, main, show.date, show.gene.hist, color.codon.groups,
                     aa.include,
                     parameter, model, genome, expressionValues, samples, mixture,
                     prob.fn = function(aa)
                         calculateProbabilityVector(parameter, model, expressionValues,
-                            mixture, samples, aa, model.type = "ROC"))
+                            mixture, samples, aa, model.type = "ROC"),
+                    panels = panels, subtitle = subtitle)
 
   } else {
     # -- original layout (default) --
@@ -293,7 +298,8 @@ plot.Rcpp_FONSEModel <- function(x, genome, samples = 100, mixture = 1,
                                simulated = FALSE, codon.window = NULL,
                                layout = "original", show.gene.hist = FALSE,
                                show.date = TRUE, color.codon.groups = FALSE,
-                               aa.include = NULL, options = NULL, ...)
+                               aa.include = NULL, panels = NULL, subtitle = NULL,
+                               options = NULL, ...)
 {
   model <- x
   opar <- par(no.readonly = T)
@@ -306,6 +312,8 @@ plot.Rcpp_FONSEModel <- function(x, genome, samples = 100, mixture = 1,
     if(!is.null(options$codon.window))       codon.window       <- options$codon.window
     if(!is.null(options$color.codon.groups)) color.codon.groups <- options$color.codon.groups
     if(!is.null(options$aa.include))         aa.include         <- options$aa.include
+    if(!is.null(options$panels))             panels             <- options$panels
+    if(!is.null(options$subtitle))           subtitle           <- options$subtitle
   }
 
   input_list <- as.list(list(...))
@@ -487,15 +495,17 @@ plot.Rcpp_FONSEModel <- function(x, genome, samples = 100, mixture = 1,
          xlab = "", ylab = "")
     text(0.2, 0.5, "Proportion", srt = 90, cex = 1.4, font = 2)
 
-  } else if(layout %in% c("split-ag", "split-ct", "split-ry", "split-6codon")) {
-    # -- split wobble layout --
+  } else if(!is.null(panels) ||
+            layout %in% c("split-ag", "split-ct", "split-ry", "split-6codon")) {
+    # -- split wobble layout (preset name, or user-supplied panels=) --
     .runSplitLayout(layout, main, show.date, show.gene.hist, color.codon.groups,
                     aa.include,
                     parameter, model, genome, expressionValues, samples, mixture,
                     prob.fn = function(aa)
                         calculateProbabilityVector(parameter, model, expressionValues,
                             mixture, samples, aa,
-                            model.type = "FONSE", codon.window = codon.window))
+                            model.type = "FONSE", codon.window = codon.window),
+                    panels = panels, subtitle = subtitle)
 
   } else {
     # -- original layout (default) --
@@ -600,10 +610,13 @@ plotLayoutVersion <- function() .PLOT_LAYOUT_VERSION
     show.gene.hist     = FALSE,
     show.date          = TRUE,
     color.codon.groups = FALSE,
-    aa.include         = NULL
+    aa.include         = NULL,
+    panels             = NULL,
+    subtitle           = NULL
 ) {
     list(layout = layout, show.gene.hist = show.gene.hist, show.date = show.date,
-         color.codon.groups = color.codon.groups, aa.include = aa.include)
+         color.codon.groups = color.codon.groups, aa.include = aa.include,
+         panels = panels, subtitle = subtitle)
 }
 
 #' Plot options for ROC model
@@ -923,53 +936,121 @@ plotSinglePanel <- function(parameter, model, genome, expressionValues, samples,
 #   block: "4", "2", "all", or NULL
 #   type:  "ag" | "tc" | "ry" | "4v2" | "ry-all6"
 #   label: display label placed inside the panel
+# ---------------------------------------------------------------------------
+# Grouping-driven panel construction
+#
+# A split plot is described as a list of GROUPS, each = a grouping description
+# applied to a list of amino acids (aaGroup(grouping, aa)).  The grouping names
+# are user-facing aliases for the internal panel `type`/`block` fields consumed
+# by plotWobbleSplitPanel; .expandGrouping() is the single place that encodes
+# how each grouping expands one AA into its panel(s).  Pre-designed layouts
+# (.SPLIT.PRESETS) and a user-supplied `panels=` argument both flow through the
+# same builder (.buildSplitPanels) -- no per-layout switch.
+# ---------------------------------------------------------------------------
+
+# Recognised grouping descriptions (user-facing names).
+.SPLIT.GROUPINGS <- c("wobble-purine", "wobble-pyrimidine", "ry-aggregate",
+                      "block-4v2", "r-block", "6codon-detail")
+
+# Codon-count class of an AA: "2","3","4","6" (19-AA convention; Ser split S/Z).
+.aaCodonGroup <- function(aa) {
+    if(aa %in% c("C","D","E","F","H","K","N","Q","Y","Z")) "2"
+    else if(aa == "I")                                     "3"
+    else if(aa %in% c("A","G","P","S","T","V"))            "4"
+    else                                                    "6"
+}
+
+# One panel descriptor (fields consumed downstream by plotWobbleSplitPanel).
+.panelDescriptor <- function(aa, block = NULL, type, label = aa, sublabel = NULL) {
+    list(aa = aa, block = block, type = type, label = label,
+         sublabel = sublabel, codon.group = .aaCodonGroup(aa))
+}
+
+# Expand one (grouping, aa) into its panel descriptor(s).
+.expandGrouping <- function(grouping, aa) {
+    cc <- .aaCodonGroup(aa)
+    P  <- .panelDescriptor
+    switch(grouping,
+        "wobble-purine" =
+            if(cc == "6")
+                list(P(aa, "4", "ag", sublabel = "4 Codon Block"),
+                     P(aa, "2", "ag", sublabel = "2 Codon Block"))
+            else list(P(aa, type = "ag")),
+        "wobble-pyrimidine" =
+            if(cc == "6")
+                list(P(aa, "4", "tc", sublabel = "4 Codon Block"))
+            else list(P(aa, type = "tc")),
+        "ry-aggregate" =
+            if(cc == "6")
+                list(P(aa, "4", "ry"), P(aa, "all", "ry-all6"))
+            else list(P(aa, type = "ry")),
+        "block-4v2" = list(P(aa, "all", "4v2")),
+        "r-block"   = list(P(aa, NULL,  "r-block")),
+        "6codon-detail" = list(
+            P(aa, "all", "4v2",     sublabel = "Block Proportion"),
+            P(aa, NULL,  "r-block", sublabel = "R-Wobble Block"),
+            P(aa, "4",   "tc",      sublabel = "Y-Wobble")),
+        stop("unknown grouping: ", grouping))
+}
+
+#' Describe a group of amino-acid panels for a split codon plot
+#'
+#' Building block for the \code{panels} argument of \code{plotROCOptions}: a
+#' grouping description applied to a list of amino acids.  The same constructor
+#' defines the built-in layouts and any user-defined plot.
+#'
+#' @param grouping Character. One of \code{"wobble-purine"},
+#'   \code{"wobble-pyrimidine"}, \code{"ry-aggregate"}, \code{"block-4v2"},
+#'   \code{"r-block"}, \code{"6codon-detail"}.
+#' @param aa Character vector of amino-acid letters (19-AA convention; Ser
+#'   split into \code{S}=TCN and \code{Z}=AGY).
+#' @return A group spec consumed by the split-layout builder.
+#' @examples
+#' \dontrun{
+#'   plotROCOptions(panels = list(
+#'       aaGroup("wobble-purine", c("E","K","Q")),
+#'       aaGroup("block-4v2",     c("L","R"))))
+#' }
+#' @export
+aaGroup <- function(grouping, aa) {
+    grouping <- match.arg(grouping, .SPLIT.GROUPINGS)
+    list(grouping = grouping, aa = aa)
+}
+
+# Flatten a list of aaGroup() specs into a flat list of panel descriptors.
+.buildSplitPanels <- function(group.list) {
+    do.call(c, lapply(group.list, function(g)
+        do.call(c, lapply(g$aa, function(a) .expandGrouping(g$grouping, a)))))
+}
+
+# Pre-designed layouts expressed as group lists (the former hard-coded switch).
+.SPLIT.PRESETS <- list(
+    # 2-codon (pure R) -> 4-codon -> 6-codon (each 4-block + 2-block).
+    "split-ag" = list(
+        aaGroup("wobble-purine", c("E","K","Q")),
+        aaGroup("wobble-purine", c("A","G","P","S","T","V")),
+        aaGroup("wobble-purine", c("L","R"))),
+    # 2-codon (pure Y) -> 3-codon (Ile) -> 4-codon -> 6-codon (4-block only).
+    "split-ct" = list(
+        aaGroup("wobble-pyrimidine", c("C","D","N","H","F","Y","Z")),
+        aaGroup("wobble-pyrimidine", "I"),
+        aaGroup("wobble-pyrimidine", c("A","G","P","S","T","V")),
+        aaGroup("wobble-pyrimidine", c("L","R"))),
+    # 3-codon (Ile) -> 4-codon -> 6-codon (4-block + all-6 R/Y).
+    "split-ry" = list(
+        aaGroup("ry-aggregate", "I"),
+        aaGroup("ry-aggregate", c("A","G","P","S","T","V")),
+        aaGroup("ry-aggregate", c("L","R"))),
+    # 6-codon AA (Leu, Arg) block-structure page: 4v2 / r-block / Y-wobble per AA.
+    "split-6codon" = list(
+        aaGroup("6codon-detail", c("L","R")))
+)
+
+# Resolve a preset layout name to its flat panel-descriptor list.
 .getSplitPanels <- function(layout.type) {
-    p <- function(aa, block = NULL, type, label = aa, sublabel = NULL) {
-        grp <- if(aa %in% c("C","D","E","F","H","K","N","Q","Y","Z")) "2"
-               else if(aa == "I") "3"
-               else if(aa %in% c("A","G","P","S","T","V"))            "4"
-               else                                                    "6"
-        list(aa = aa, block = block, type = type, label = label,
-             sublabel = sublabel, codon.group = grp)
-    }
-    if(layout.type == "split-ag") {
-        # Order: 2-codon (pure R) -> 4-codon -> 6-codon (L then R, each 4-block+2-block).
-        c(lapply(c("E","K","Q"), p, type = "ag"),
-          lapply(c("A","G","P","S","T","V"), p, type = "ag"),
-          list(p("L", block = "4", type = "ag", sublabel = "4 Codon Block"),
-               p("L", block = "2", type = "ag", sublabel = "2 Codon Block"),
-               p("R", block = "4", type = "ag", sublabel = "4 Codon Block"),
-               p("R", block = "2", type = "ag", sublabel = "2 Codon Block")))
-    } else if(layout.type == "split-ct") {
-        # Order: 2-codon (pure Y) -> 3-codon (Ile) -> 4-codon -> 6-codon.
-        # TT*/AG* 2-blocks absent (all purine-ending).
-        c(lapply(c("C","D","N","H","F","Y","Z"), p, type = "tc"),
-          list(p("I", type = "tc")),
-          lapply(c("A","G","P","S","T","V"), p, type = "tc"),
-          list(p("L", block = "4", type = "tc", sublabel = "4 Codon Block"),
-               p("R", block = "4", type = "tc", sublabel = "4 Codon Block")))
-    } else if(layout.type == "split-ry") {
-        # Order: 3-codon (Ile) -> 4-codon -> 6-codon (L panels then R panels).
-        # 4v2 panels moved to split-6codon page.
-        c(list(p("I", type = "ry")),
-          lapply(c("A","G","P","S","T","V"), p, type = "ry"),
-          list(p("L", block = "4",   type = "ry"),
-               p("L", block = "all", type = "ry-all6"),
-               p("R", block = "4",   type = "ry"),
-               p("R", block = "all", type = "ry-all6")))
-    } else if(layout.type == "split-6codon") {
-        # 6-codon AA (Leu, Arg) block-structure page.
-        # For each: 4v2 (block proportion), r-block (R-wobble block split),
-        # Y-wobble within the 4-codon block (duplicated from split-ct for completeness).
-        list(p("L", block = "all", type = "4v2",     sublabel = "Block Proportion"),
-             p("L", block = NULL,  type = "r-block",  sublabel = "R-Wobble Block"),
-             p("L", block = "4",   type = "tc",       sublabel = "Y-Wobble"),
-             p("R", block = "all", type = "4v2",     sublabel = "Block Proportion"),
-             p("R", block = NULL,  type = "r-block",  sublabel = "R-Wobble Block"),
-             p("R", block = "4",   type = "tc",       sublabel = "Y-Wobble"))
-    } else {
-        list()
-    }
+    preset <- .SPLIT.PRESETS[[layout.type]]
+    if(is.null(preset)) return(list())
+    .buildSplitPanels(preset)
 }
 
 # Pad each codon-count group to a row boundary (multiple of n.cols) by
@@ -1246,9 +1327,12 @@ plotWobbleSplitPanel <- function(parameter, model, genome, expressionValues,
 .runSplitLayout <- function(layout, main, show.date, show.gene.hist, color.codon.groups,
                              aa.include,
                              parameter, model, genome, expressionValues,
-                             samples, mixture, prob.fn)
+                             samples, mixture, prob.fn,
+                             panels = NULL, subtitle = NULL)
 {
-    panels <- .getSplitPanels(layout)
+    # Panels come from a user-supplied list of aaGroup() specs, else the named
+    # preset for `layout`.  Both flow through the same builder.
+    panels <- if(!is.null(panels)) .buildSplitPanels(panels) else .getSplitPanels(layout)
 
     # Filter and reorder by aa.include (order of aa.include = panel order).
     if(!is.null(aa.include)) {
@@ -1266,7 +1350,8 @@ plotWobbleSplitPanel <- function(parameter, model, genome, expressionValues,
     lay           <- .buildModelLayout(as.integer(n.slots), n.rows = 5L)
     n.rows.data   <- lay$n.rows.data
     last.data.row <- if(last.real > 0L) ((last.real - 1L) %/% 4L) + 1L else n.rows.data
-    subtitle <- switch(layout,
+    # Page subtitle: explicit user value wins, else the preset's default.
+    subtitle <- if(!is.null(subtitle)) subtitle else switch(layout,
         "split-ag"      = "Purine (A/G) Wobble Codons",
         "split-ct"      = "Pyrimidine (C/T) Wobble Codons",
         "split-ry"      = "Purine vs Pyrimidine (R/Y) Wobble Codons",
