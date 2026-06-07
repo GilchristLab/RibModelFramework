@@ -1004,23 +1004,38 @@ plotSinglePanel <- function(parameter, model, genome, expressionValues, samples,
 #'   \code{"r-block"}, \code{"6codon-detail"}.
 #' @param aa Character vector of amino-acid letters (19-AA convention; Ser
 #'   split into \code{S}=TCN and \code{Z}=AGY).
+#' @param label Character or \code{NULL}. Right-margin row label for the rows
+#'   this group occupies. \code{NULL} (default) auto-derives it from the codon
+#'   count ("2/3/4/6 Codon AAs"); supply a string to override.
 #' @return A group spec consumed by the split-layout builder.
 #' @examples
 #' \dontrun{
 #'   plotROCOptions(panels = list(
 #'       aaGroup("wobble-purine", c("E","K","Q")),
-#'       aaGroup("block-4v2",     c("L","R"))))
+#'       aaGroup("block-4v2",     c("L","R"), label = "Leu / Arg")))
 #' }
 #' @export
-aaGroup <- function(grouping, aa) {
+aaGroup <- function(grouping, aa, label = NULL) {
     grouping <- match.arg(grouping, .SPLIT.GROUPINGS)
-    list(grouping = grouping, aa = aa)
+    list(grouping = grouping, aa = aa, label = label)
 }
 
 # Flatten a list of aaGroup() specs into a flat list of panel descriptors.
+# Each panel is tagged with group.id (1-based index of its source aaGroup, used
+# to band rows) and group.label (the group's row-label override, or NULL).
 .buildSplitPanels <- function(group.list) {
-    do.call(c, lapply(group.list, function(g)
-        do.call(c, lapply(g$aa, function(a) .expandGrouping(g$grouping, a)))))
+    out <- list()
+    for(gid in seq_along(group.list)) {
+        g <- group.list[[gid]]
+        for(a in g$aa) {
+            for(pd in .expandGrouping(g$grouping, a)) {
+                pd$group.id    <- gid
+                pd$group.label <- g$label   # NULL unless user overrode it
+                out[[length(out) + 1L]] <- pd
+            }
+        }
+    }
+    out
 }
 
 # Pre-designed layouts expressed as group lists (the former hard-coded switch).
@@ -1053,17 +1068,18 @@ aaGroup <- function(grouping, aa) {
     .buildSplitPanels(preset)
 }
 
-# Pad each codon-count group to a row boundary (multiple of n.cols) by
+# Pad each source group (aaGroup) to a row boundary (multiple of n.cols) by
 # appending NULL entries.  NULL slots are drawn as empty panels (plot.new()).
-# Groups are ordered 2->3->4->6 so they appear on consecutive row bands.
+# Banding by group.id (in spec order) lets two groups of the same codon count
+# occupy separate, separately-labelled row bands.  For the built-in presets each
+# group is exactly one codon-count class, so this is identical to the former
+# codon-count banding.
 .padGroupsToRows <- function(panels, n.cols = 4L) {
     if(length(panels) == 0L) return(list())
-    grp.order <- c("2", "3", "4", "6")
-    present   <- sapply(panels, `[[`, "codon.group")
-    groups    <- grp.order[grp.order %in% present]
-    result    <- list()
-    for(g in groups) {
-        grp.panels <- Filter(function(pd) pd$codon.group == g, panels)
+    gids   <- vapply(panels, function(pd) pd$group.id, integer(1L))
+    result <- list()
+    for(g in unique(gids)) {
+        grp.panels <- panels[gids == g]
         n   <- length(grp.panels)
         pad <- (n.cols - n %% n.cols) %% n.cols
         result <- c(result, grp.panels, vector("list", pad))
@@ -1520,10 +1536,13 @@ plotWobbleSplitPanel <- function(parameter, model, genome, expressionValues,
             offset.ndc <- 4.0 * par("csi") / din[1L]
             y.ndc <- (8L + 8L * (n.rows.data - row.pos)) /
                      (7L + 8L * n.rows.data)
+            # Row label: the group's override if set, else auto from codon count.
+            row.lbl <- if(!is.null(pd$group.label)) pd$group.label
+                       else grp.labels[[pd$codon.group]]
             row.label.list[[length(row.label.list) + 1L]] <- list(
                 x.ndc = col.right.ndc + offset.ndc,
                 y.ndc = y.ndc,
-                grp   = pd$codon.group,
+                label = row.lbl,
                 col   = grp.col
             )
         }
@@ -1548,7 +1567,7 @@ plotWobbleSplitPanel <- function(parameter, model, genome, expressionValues,
     for(info in row.label.list) {
         x.usr <- grconvertX(info$x.ndc, "ndc", "user")
         y.usr <- grconvertY(info$y.ndc, "ndc", "user")
-        text(x.usr, y.usr, grp.labels[[info$grp]],
+        text(x.usr, y.usr, info$label,
              srt = 270, font = 2L, col = info$col, cex = 1.0,
              adj = c(0.5, 0.5), xpd = NA)
     }
