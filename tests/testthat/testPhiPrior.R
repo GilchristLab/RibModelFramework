@@ -273,6 +273,7 @@ test_that("getPhiMuFixed / setPhiMuFixed round-trips", {
 test_that("getSphiPriorType / setSphiPriorType: R-path default is UNIFORM; round-trips", {
     # sphi=<numeric> via initializeParameterObject resolves to estimated(uniform)
     # -> sphiPriorType=2 (SPHI_PRIOR_UNIFORM).  Round-trip set/get still works.
+    # (Also: C++ ctor default is UNIFORM after Issue #52; both point to 2.)
     p <- .make_param()
     expect_equal(p$getSphiPriorType(), 2L)
     p$setSphiPriorType(1L)
@@ -428,14 +429,16 @@ test_that("phi.sphi=estimated(prior=NULL) sets sphiPriorType=0 (flat)", {
     expect_equal(p$getSphiPriorType(), 0L)   # SPHI_PRIOR_FLAT
 })
 
-test_that("phi.sphi=fixed(1) explicit: sets sphiPriorType=0 and freezes sphi", {
+test_that("phi.sphi=fixed(1) explicit: fixSphi() called; sphiPriorType is ctor default (UNIFORM)", {
     ga <- .genome_and_assign()
     p  <- initializeParameterObject(
               genome = ga$genome, sphi = 1, num.mixtures = 1,
               gene.assignment = ga$gene_assign,
               phi.sphi = fixed(value = 1))
-    # fixed() sets type=0 (flat/unused for fixed path); freeze via fixSphi()
-    expect_equal(p$getSphiPriorType(), 0L)
+    # fixed() calls fixSphi() but does not call setSphiPriorType();
+    # sphiPriorType remains at the ctor default (SPHI_PRIOR_UNIFORM=2 after Issue #52).
+    # The value is irrelevant when sphi is frozen (fix_stdDevSynthesis=TRUE).
+    expect_equal(p$getSphiPriorType(), 2L)
     # The MCMC smoke below confirms it runs correctly with est.hyper=FALSE
 })
 

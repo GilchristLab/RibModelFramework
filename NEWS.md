@@ -103,6 +103,13 @@
 
 ## BUG FIXES
 
+- **`Parameter` C++ ctor default for `sphiPriorType` changed from `SPHI_PRIOR_FLAT` (0)
+  to `SPHI_PRIOR_UNIFORM` (0, 10) (closes #52, belt-and-suspenders).** The R
+  initialization path (`initializeParameterObject()` → `.applyPhiSpec()`) always
+  overwrites this default, so the change is only observable when constructing a
+  `Parameter` object from C++ without going through the R path. Bounds `[0, 10]`
+  are already set in the ctor.
+
 - **MCMC RNG determinism (behavior change).** `runMCMC()` is now
   bit-reproducible at `ncores=1` under `set.seed()` for ROC, PA, and
   PANSE.  Two sources of non-determinism were removed from
