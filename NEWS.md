@@ -134,6 +134,18 @@
   The new explicit copy ctor delegates to the default ctor before
   running `operator=` to safely initialize all primitives.
 
+- **`sphi=<numeric>` regression: numeric init no longer freezes sphi (regression
+  introduced in PR #37).** Since PR #37, passing a numeric `sphi` value to
+  `initializeParameterObject()` silently resolved to `phi.sphi = fixed(value =
+  mean(sphi))`, which called `fixSphi()` and set `fix_stdDevSynthesis = TRUE`.
+  This made `proposeStdDevSynthesisRate()` a no-op, freezing sphi even when
+  `est.hyper = TRUE`.  All package vignettes (`anacoda.Rmd`, `pa-panse.Rmd`,
+  `fonse.Rmd`) pass a numeric sphi and were silently affected.
+  Restored canonical pre-PR#37 behavior: a numeric `sphi=` is the per-mixture
+  *initial value*; sphi is estimated by default with a Uniform(0, 10) prior.
+  To freeze sphi, use `phi.sphi = fixed(value)` (modern) or `est.hyper = FALSE`
+  (legacy loop toggle); both still work.
+
 ## REFACTORING
 
 - `Parameter` member fields `adaptiveStepPrev` / `adaptiveStepCurr`

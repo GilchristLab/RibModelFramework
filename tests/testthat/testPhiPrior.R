@@ -270,15 +270,17 @@ test_that("getPhiMuFixed / setPhiMuFixed round-trips", {
     expect_equal(p$getPhiMuFixed(), 0.0)
 })
 
-test_that("getSphiPriorType / setSphiPriorType default is 0 (SPHI_PRIOR_FLAT)", {
+test_that("getSphiPriorType / setSphiPriorType: R-path default is UNIFORM; round-trips", {
+    # sphi=<numeric> via initializeParameterObject resolves to estimated(uniform)
+    # -> sphiPriorType=2 (SPHI_PRIOR_UNIFORM).  Round-trip set/get still works.
     p <- .make_param()
-    expect_equal(p$getSphiPriorType(), 0L)
+    expect_equal(p$getSphiPriorType(), 2L)
     p$setSphiPriorType(1L)
     expect_equal(p$getSphiPriorType(), 1L)
-    p$setSphiPriorType(2L)
-    expect_equal(p$getSphiPriorType(), 2L)
     p$setSphiPriorType(0L)
     expect_equal(p$getSphiPriorType(), 0L)
+    p$setSphiPriorType(2L)
+    expect_equal(p$getSphiPriorType(), 2L)
 })
 
 test_that("getSphiPriorLow / getSphiPriorHigh / setSphiPriorBounds round-trips", {
@@ -426,13 +428,13 @@ test_that("phi.sphi=estimated(prior=NULL) sets sphiPriorType=0 (flat)", {
     expect_equal(p$getSphiPriorType(), 0L)   # SPHI_PRIOR_FLAT
 })
 
-test_that("phi.sphi=fixed(1) fixes sphi (default via sphi=1 legacy path)", {
+test_that("phi.sphi=fixed(1) explicit: sets sphiPriorType=0 and freezes sphi", {
     ga <- .genome_and_assign()
     p  <- initializeParameterObject(
               genome = ga$genome, sphi = 1, num.mixtures = 1,
               gene.assignment = ga$gene_assign,
               phi.sphi = fixed(value = 1))
-    # sphiPriorType unchanged from default (flat); fixSphi is the relevant flag
+    # fixed() sets type=0 (flat/unused for fixed path); freeze via fixSphi()
     expect_equal(p$getSphiPriorType(), 0L)
     # The MCMC smoke below confirms it runs correctly with est.hyper=FALSE
 })

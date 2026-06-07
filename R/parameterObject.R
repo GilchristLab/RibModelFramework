@@ -4,10 +4,12 @@
 #' The default value is NULL.
 #' 
 #' @param sphi Initial value(s) for sphi (log-space SD of the phi prior, equivalent
-#' to \code{sdlog} in \code{\link{dlnorm}}). Numeric vector of length numMixtures, or
-#' \code{NA} to estimate sphi with the default weakly informative prior (see
-#' \code{phi.sphi}). Will be superseded by \code{phi.sphi} when that argument is
-#' provided.
+#' to \code{sdlog} in \code{\link{dlnorm}}). Numeric vector of length numMixtures
+#' sets the per-mixture starting point; sphi is \emph{estimated} by default using a
+#' Uniform(0,10) prior. \code{NA} (or \code{rep(NA, numMixtures)}) also estimates
+#' sphi, starting from 1.0. To freeze sphi at a fixed value use
+#' \code{phi.sphi = fixed(value)} or set \code{est.hyper = FALSE}. Superseded by
+#' \code{phi.sphi} when that argument is provided.
 #'
 #' @param phi.mphi Optional specification of the phi-prior location (mPhi), built
 #' with \code{\link{constrained}} or \code{\link{fixed}}; e.g.
@@ -199,8 +201,9 @@ initializeParameterObject <- function(genome = NULL, sphi = NULL, num.mixtures =
   # Translate legacy sphi= convention and phi.mphi/phi.sphi args into resolved
   # phi_spec objects before the integrity checks.
   if (is.null(init.with.restart.file)) {
-    # sphi = NA  -> estimate with default prior + mean anchor
-    # sphi = num -> fix at that value (legacy behavior)
+    # sphi = NA  -> estimate with default prior; init at 1.0 per mixture
+    # sphi = num -> estimate with default prior; init at that value per mixture
+    #              (use phi.sphi=fixed() or est.hyper=FALSE to freeze sphi)
     # phi.sphi arg overrides sphi when provided
     if (is.null(phi.sphi)) {
       if (is.null(sphi)) {
@@ -209,7 +212,8 @@ initializeParameterObject <- function(genome = NULL, sphi = NULL, num.mixtures =
         phi.sphi <- estimated(prior = prior_uniform(low = 0, high = 10))
         sphi     <- rep(1.0, num.mixtures)  # dummy init; not used for estimation start
       } else {
-        phi.sphi <- fixed(value = mean(sphi))
+        phi.sphi <- estimated(prior = prior_uniform(low = 0, high = 10))
+        # sphi vector kept as-is: used as per-mixture init below
       }
     }
     if (is.null(phi.mphi)) {
