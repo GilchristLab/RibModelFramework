@@ -33,3 +33,4 @@ stan/panse_sphi_est_sumzero_sharednse
 stan/build/
 stan/*.hpp
 
+tmp.DECISIONS.md
