@@ -257,8 +257,8 @@ simulate_panse_dataset <- function(config, seed = NULL, verbose = TRUE) {
 # Write outputs (internal helper)
 
 .write_codon_csv <- function(df, value, out_path) {
+    ## 2-column Codon,Mean: the format PANSE's native init reader expects.
     out <- data.frame(
-        AA    = df$AA,
         Codon = df$Codon,
         Mean  = as.numeric(value[df$Codon]),
         stringsAsFactors = FALSE
