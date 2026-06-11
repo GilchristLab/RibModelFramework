@@ -126,23 +126,41 @@ plot.Rcpp_Trace <- function(x, what=c("Mutation", "Selection", "MixtureProbabili
     xlbl.row  <- c(y.lbl, rep(x.lbl, 8L))
     mat <- rbind(title.row, data.rows, xlbl.row)
     list(mat     = mat,
-         widths  = c(3, 8, 3, 8, 3, 8, 3, 8, 3),
+         widths  = c(3, 8, 1.5, 8, 1.5, 8, 1.5, 8, 1.5),
          heights = c(3, rep(8, n.rows.data), 2),
          x.lbl   = x.lbl,
          y.lbl   = y.lbl)
 }
 
-.plotTraceMarginal <- function(cur.trace, codons, ylim) {
-    par(mar = c(0.5, 0.2, 0.5, 1.2))
+.plotTraceMarginal <- function(cur.trace, codons, ylim, y.at, top.mar = 0.3, bot.mar = 0.5) {
+    par(mar = c(bot.mar, 0, top.mar, 0))
+    ## Set bin width so the narrowest codon gets >= 7 occupied bins.
+    ## The codon with the smallest range drives the bin count; all others
+    ## end up with at least as many occupied bins.
+    codon.ranges <- apply(cur.trace, 2L,
+                          function(col) diff(range(col, na.rm = TRUE)))
+    min.codon.range <- min(codon.ranges[codon.ranges > 0])
+    n.bins <- min(500L, max(20L, ceiling(7L * diff(ylim) / min.codon.range)))
+    breaks <- seq(ylim[1L], ylim[2L], length.out = n.bins + 1L)
+    hists <- lapply(seq_len(ncol(cur.trace)), function(k)
+        hist(cur.trace[, k], breaks = breaks, plot = FALSE))
+    max.count <- max(vapply(hists, function(h) max(h$counts), numeric(1L)), 1L)
     plot(NULL, NULL, xlim = c(0, 1), ylim = ylim, axes = FALSE, xlab = "", ylab = "")
-    for (k in seq_len(ncol(cur.trace))) {
-        vals <- sort(cur.trace[, k], na.last = NA)
-        n    <- length(vals)
-        if (n < 2L) next
-        lines(seq_len(n) / n, vals, type = "s",
-              col = .codonColors[[codons[k]]], lwd = 0.8)
+    usr <- par("usr")
+    rect(usr[1L], usr[3L], usr[2L], usr[4L], col = "grey90", border = NA)
+    for (k in seq_along(hists)) {
+        scaled <- hists[[k]]$counts / max.count
+        rect(0, breaks[-length(breaks)],
+             scaled, breaks[-1L],
+             col = adjustcolor(.codonColors[[codons[k]]], alpha.f = 0.35),
+             border = NA)
+        ## Outline along bar tops (the right/outer edge of each horizontal bar)
+        segments(scaled, breaks[-length(breaks)],
+                 scaled, breaks[-1L],
+                 col = .codonColors[[codons[k]]], lwd = 0.8)
     }
-    axis(4, las = 1, tck = 0.04, cex.axis = 0.55)
+    axis(2, at = y.at, tck = 0.04, labels = FALSE)
+    box()
 }
 
 # Called from Plot Trace Object (plot for trace)
@@ -167,7 +185,7 @@ plot.Rcpp_Trace <- function(x, what=c("Mutation", "Selection", "MixtureProbabili
 #'
 #' @description Plots a codon-specific set of traces, specified with the \code{type} parameter.
 #'
-plotCodonSpecificParameters <- function(trace, mixture, type="Mutation", main="Mutation Parameter Traces", ROC.or.FONSE=TRUE, log.10.scale=F, aa.names = aminoAcids(), legacy.layout=FALSE)
+plotCodonSpecificParameters <- function(trace, mixture, type="Mutation", main="Mutation Parameter Traces", ROC.or.FONSE=TRUE, log.10.scale=F, aa.names = aminoAcids(), legacy.layout=FALSE, scales = "free_y")
 {
   opar <- par(no.readonly = T)
 
@@ -268,7 +286,27 @@ plotCodonSpecificParameters <- function(trace, mixture, type="Mutation", main="M
 
     if (length(valid.aas) == 0) { par(opar); return(invisible(NULL)) }
 
-    lo <- .buildTraceLayout(n.slots = length(valid.aas))
+    n.slots     <- length(valid.aas)
+    n.rows.data <- ceiling(n.slots / 4L)
+
+    ## Pre-compute per-AA traces and per-AA y-ranges
+    aa.traces <- vector("list", n.slots)
+    aa.ranges <- vector("list", n.slots)
+    for (.k in seq_len(n.slots)) {
+        aa.traces[[.k]] <- .extractTrace(valid.aas[[.k]])
+        aa.ranges[[.k]] <- range(aa.traces[[.k]], na.rm = TRUE)
+    }
+    ## Panel y-limits following ggplot2 facet scales terminology.
+    ## "fixed": one global range; enables column-merge (no vertical gaps).
+    ## "free_y": each panel uses its own range; panels are fully independent.
+    if (scales == "fixed") {
+        .global.ylim <- range(unlist(aa.ranges))
+        .panel.ylim  <- function(.k) .global.ylim
+    } else {
+        .panel.ylim <- function(.k) aa.ranges[[.k]]
+    }
+
+    lo <- .buildTraceLayout(n.slots = n.slots)
     layout(lo$mat, widths = lo$widths, heights = lo$heights, respect = FALSE)
 
     ## panel 1: title
@@ -277,31 +315,81 @@ plotCodonSpecificParameters <- function(trace, mixture, type="Mutation", main="M
     text(0.5, 0.6, main)
     text(0.5, 0.4, date(), cex = 0.6)
 
+    i.aa <- 0L
     for (aa in valid.aas) {
+      i.aa      <- i.aa + 1L
       codons    <- AAToCodon(aa, with.ref.codon)
-      cur.trace <- .extractTrace(aa)
+      cur.trace <- aa.traces[[i.aa]]
       if (length(cur.trace) == 0) next
 
       x    <- seq_len(nrow(cur.trace))
       xlim <- range(x)
-      ylim <- range(cur.trace, na.rm = TRUE)
+      ylim <- .panel.ylim(i.aa)
+
+      ## margins and axis label placement depend on scales mode.
+      ## "fixed" merges panels in the same column (no vertical gap, shared y-axis);
+      ## "free_y" keeps each panel independent with full margins.
+      is.first.row <- i.aa <= 4L
+      if (scales == "fixed") {
+          is.col.top    <- is.first.row
+          is.col.bottom <- (i.aa + 4L) > n.slots
+          top.mar      <- if (is.col.top)    1.5 else 0.0
+          bot.mar      <- if (is.col.bottom) 0.5 else 0.0
+          draw.ylabels <- is.col.top
+          draw.xlabel  <- is.col.bottom
+      } else {
+          top.mar      <- if (is.first.row) 1.5 else 0.3
+          bot.mar      <- 0.5
+          draw.ylabels <- TRUE
+          draw.xlabel  <- i.aa > (n.rows.data - 1L) * 4L
+      }
 
       ## trace panel (panels 2, 4, 6, ... in layout order)
-      par(mar = c(0.5, 2.0, 1.5, 0.2))
+      par(mar = c(bot.mar, 2.0, top.mar, 0))
       plot(NULL, NULL, xlim = xlim, ylim = ylim, xlab = "", ylab = "", axes = FALSE)
       plot.order <- order(apply(cur.trace, 2, sd), decreasing = TRUE)
       for (i.codon in plot.order) {
         lines(x = x, y = cur.trace[, i.codon], col = .codonColors[[codons[i.codon]]])
       }
-      axis(2, las = 1, cex.axis = 0.6)
-      axis(1, tck = 0.02, labels = FALSE)
+      if (draw.ylabels) axis(2, las = 1, cex.axis = 0.6) else axis(2, tck = 0.02, labels = FALSE)
+      y.at <- axTicks(2L)
+      axis(4, at = y.at, tck = 0.04, labels = FALSE)
+      par(xpd = NA)
+      axis(4, at = y.at, tck = -0.04, labels = FALSE, lwd = 0)
+      par(xpd = FALSE)
+      if (draw.xlabel) {
+          op <- par(mgp = c(3, 0.3, 0))
+          axis(1, cex.axis = 0.72, tck = -0.01, hadj = 0.5)
+          par(op)
+      } else {
+          axis(1, tck = 0.02, labels = FALSE)
+      }
+      if (is.first.row) {
+          op <- par(mgp = c(3, 0.3, 0))
+          axis(3, cex.axis = 0.72, tck = -0.01, hadj = 0.5)
+          par(op)
+      }
       colors <- unlist(.codonColors[codons])
       legend("topleft", legend = codons, col = colors,
-             lty = rep(1, length(codons)), bty = "n", cex = 0.6)
-      mtext(aa, side = 3, line = 0.2, cex = 0.9)
+             lty = rep(1, length(codons)), cex = 0.65, seg.len = 1.5,
+             bty = "o", bg = adjustcolor("white", alpha.f = 0.7), box.lwd = 0.5)
+      ## AA label drawn inside the panel (top-center, white rect for readability)
+      usr    <- par("usr")
+      pin    <- par("pin")
+      cex.aa <- 1.2
+      aa.cx  <- 0.5 * (usr[1L] + usr[2L])
+      tick.y <- 0.02 * min(pin) / pin[2L] * (usr[4L] - usr[3L])
+      aa.cy  <- usr[4L] - 4 * tick.y - strheight(aa, cex = cex.aa, font = 2) / 2
+      aa.w   <- strwidth(aa,  cex = cex.aa, font = 2)
+      aa.h   <- strheight(aa, cex = cex.aa, font = 2)
+      rect(aa.cx - aa.w * 0.65, aa.cy - aa.h * 0.65,
+           aa.cx + aa.w * 0.65, aa.cy + aa.h * 0.65,
+           col = adjustcolor("white", alpha.f = 0.75), border = NA)
+      text(aa.cx, aa.cy, aa, cex = cex.aa, font = 2)
+      box()
 
-      ## marginal ECDF panel (panels 3, 5, 7, ... in layout order)
-      .plotTraceMarginal(cur.trace, codons, ylim)
+      ## marginal histogram panel (panels 3, 5, 7, ... in layout order)
+      .plotTraceMarginal(cur.trace, codons, ylim, y.at, top.mar = top.mar, bot.mar = bot.mar)
     }
 
     ## x-label panel (xpd=FALSE prevents axis-call residue from bleeding)
