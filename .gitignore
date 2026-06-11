@@ -34,3 +34,10 @@ stan/build/
 stan/*.hpp
 
 tmp.DECISIONS.md
+# R package build artifacts (compiled per-host; never commit)
+src/*.o
+src/*.so
+src/Makevars
+# autoconf outputs (generated from configure / *.in templates)
+config.log
+config.status
