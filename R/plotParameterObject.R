@@ -301,72 +301,245 @@ axis(1, tck = 0.02, labels = codonList[1:61], at=1:61, las=2, cex.axis=.6)
 #dev.off()
 }
 
+## Internal layout helper: compact ACF grid with paired [ACF, marginal] columns.
+.buildACFLayout <- function(n.slots) {
+    n.rows.data <- ceiling(n.slots / 4L)
+    x.lbl <- n.slots + 2L
+    y.lbl <- n.slots + 3L
+    data.mat <- matrix(0L, nrow = n.rows.data, ncol = 4L)
+    pnum <- 2L
+    for (r in seq_len(n.rows.data)) {
+        for (cp in seq_len(4L)) {
+            if (pnum <= n.slots + 1L) {
+                data.mat[r, cp] <- pnum
+                pnum <- pnum + 1L
+            }
+        }
+    }
+    mat <- rbind(
+        c(y.lbl, rep(1L, 4L)),
+        cbind(rep(y.lbl, n.rows.data), data.mat),
+        c(y.lbl, rep(x.lbl, 4L))
+    )
+    list(mat     = mat,
+         widths  = c(3, 8, 8, 8, 8),
+         heights = c(3, rep(8, n.rows.data), 2))
+}
+
+## ESS per 1000 samples: 1000 / (1 + 2*sum(positive lags)).
+## Independent of chunk size -- purely a function of autocorrelation structure.
+.acf.ess.per.1k <- function(a) {
+    rho       <- as.numeric(a$acf)[-1L]
+    first.neg <- which(rho <= 0)[1L]
+    if (!is.na(first.neg)) rho <- rho[seq_len(first.neg - 1L)]
+    round(1000.0 / (1.0 + 2.0 * sum(rho)), 1L)
+}
+
 #' Plots ACF for codon specific parameter traces
-#' 
+#'
 #' @param parameter object of class Parameter
-#' @param csp indicates which parameter to calculate the autocorrelation. Must be Mutation (the default, ROC, FONSE), Selection (ROC, FONSE), Alpha (PA, PANSE), LambdaPrime (PA, PANSE), NSERate (PA, PANSE)"
-#' @param numMixtures indicates the number of CSP mixtures used
-#' @param samples number of samples at the end of the trace used to calculate the acf
-#' @param lag.max Maximum amount of lag to calculate acf. Default is 10*log10(N), where N i the number of observations.
-#' @param plot logical. If TRUE (default) a plot of the acf is created
-#' 
-#' @description The function calculates and by defaults plots the acf and estimates the autocorrelation in the trace 
-#' 
-#' 
+#' @param what which CSP to compute autocorrelation for. One of: Mutation (default,
+#'   ROC/FONSE), Selection (ROC/FONSE), Alpha (PA/PANSE), LambdaPrime (PA/PANSE),
+#'   NSERate (PANSE).
+#' @param mixture mixture element to plot. Default is 1.
+#' @param samples number of samples from the end of the trace used to calculate the acf.
+#'   Defaults to 10*log10(N) where N is the trace length.
+#' @param lag.max maximum lag for acf calculation. Default is 40.
+#' @param plot logical. If TRUE (default) a compact per-amino-acid grid of ACF plots
+#'   is produced, one panel per amino acid with one line per codon.
+#' @param scales "fixed" (default) uses a global y-range and merges same-column panels
+#'   vertically (zero gap, shared y-axis labels only on the top panel, x-axis only on
+#'   the bottom panel). "free_y" gives each panel its own y-range and full margins.
+#'
+#' @return Invisibly returns a named list (by amino acid, then by codon) of acf objects.
+#'
+#' @description Calculates and (by default) plots the ACF of each codon-specific
+#'   parameter trace. The compact grid layout mirrors \code{plot.Rcpp_Trace}: one
+#'   panel per amino acid, codon lines color-coded by \code{.codonColors}, CI bands
+#'   drawn, AA label inside each panel with a white background.
+#'
 #' @seealso \code{\link{acfMCMC}}
 
-acfCSP <- function(parameter, csp = "Mutation", numMixtures = 1, samples = NULL, lag.max = 40, plot=TRUE)
+acfCSP <- function(parameter, what = "Mutation", mixture = 1, samples = NULL,
+                   lag.max = 40, plot = TRUE, scales = "fixed")
 {
-  if (csp == "Mutation" || csp == "Alpha")
-  {
+  if (what == "Mutation" || what == "Alpha") {
     paramType <- 0
-  } else if (csp == "Selection" || csp == "LambdaPrime" || csp == "Lambda"){
+  } else if (what == "Selection" || what == "LambdaPrime" || what == "Lambda") {
     paramType <- 1
-  } else if (csp == "NSERate"){
+  } else if (what == "NSERate") {
     paramType <- 2
-  } else{
-    stop("csp must take one of the following values: Mutation (ROC, FONSE), Selection (ROC, FONSE), Alpha (PA, PANSE), LambdaPrime (PA, PANSE), NSERate (PA, PANSE)")
+  } else {
+    stop("what must be one of: Mutation (ROC, FONSE), Selection (ROC, FONSE), Alpha (PA, PANSE), LambdaPrime (PA, PANSE), NSERate (PA, PANSE)")
   }
- 
-  
+
+  ref.codon    <- what %in% c("Mutation", "Selection")
+  ROC.or.FONSE <- ref.codon
+  trace        <- parameter$getTraceObject()
+  names.aa     <- aminoAcids()
+
+  ## resolve default sample count from a concrete codon trace (Rcpp object has no length)
+  if (is.null(samples)) {
+    rep.codons <- AAToCodon("A", ref.codon)
+    rep.tr <- trace$getCodonSpecificParameterTraceByMixtureElementForCodon(
+      mixture, rep.codons[1], paramType, ref.codon)
+    samples <- round(10 * log10(length(rep.tr)))
+  }
+
+  ci <- qnorm(0.975) / sqrt(samples)
+
+  ## --- Phase 1: compute all ACFs (needed before layout for fixed-scale range) ---
+  valid.aas <- Filter(function(aa) {
+    if (aa == "X") return(FALSE)
+    if (ROC.or.FONSE && (aa == "M" || aa == "W")) return(FALSE)
+    length(AAToCodon(aa, ref.codon)) > 0
+  }, names.aa)
+
   acf.list <- list()
-  names.aa <- aminoAcids()
-  trace <- parameter$getTraceObject()
-  if(is.null(samples))
-  { 
-    samples <- round(10*log10(length(trace))) 
-  }
-
-  ref.codon <- ifelse(csp %in% c("Selection","Mutation"),TRUE,FALSE)
-
-  for (aa in names.aa)
-  {
-    if (aa == "X")
-      next
-     if ((aa == "M" || aa == "W") && ref.codon) ## If ROC or FONSE, skip amino acids without synonyms
-      next
-    codons <- AAToCodon(aa, ref.codon) ## If ROC or FONSE, skip reference codon
-    codon.list <- list()
-    for (i in 1:length(codons))
-    {
-      mix.list <- list()
-      for (j in 1:numMixtures)
-      {
-        csp.trace <- trace$getCodonSpecificParameterTraceByMixtureElementForCodon(j, codons[i], paramType, ref.codon)
-        csp.trace <- csp.trace[(length(csp.trace)-samples):length(csp.trace)]
-        csp.acf <- acf(x = csp.trace, lag.max = lag.max, plot = FALSE)
-        mix.list[[j]] <- csp.acf
-        if (plot)
-        {
-          header <- paste(csp, aa, codons[i], "Mixture:", j, sep = " ")
-          plot(x = csp.acf, xlab = "Lag time", ylab = "Autocorrelation", main = header)
-        }
-      }
-      codon.list[[codons[i]]] <-mix.list
+  for (aa in valid.aas) {
+    codons <- AAToCodon(aa, ref.codon)
+    codon.acfs <- list()
+    for (i in seq_along(codons)) {
+      csp.trace <- trace$getCodonSpecificParameterTraceByMixtureElementForCodon(
+        mixture, codons[i], paramType, ref.codon)
+      codon.acfs[[codons[i]]] <- acf(x = tail(csp.trace, samples), lag.max = lag.max, plot = FALSE)
     }
-    acf.list[[aa]] <- codon.list
+    acf.list[[aa]] <- codon.acfs
   }
-  return(acf.list)
+
+  ## --- Phase 2: plot ---
+  if (plot && length(valid.aas) > 0) {
+    opar <- par(no.readonly = TRUE)
+    on.exit(par(opar))
+
+    n.slots     <- length(valid.aas)
+    n.rows.data <- ceiling(n.slots / 4L)
+    lo          <- .buildACFLayout(n.slots)
+    layout(lo$mat, widths = lo$widths, heights = lo$heights, respect = FALSE)
+
+    ## panel y-limits
+    if (scales == "fixed") {
+      all.body <- unlist(lapply(acf.list, function(aa.acfs)
+        lapply(aa.acfs, function(a) as.numeric(a$acf)[-1])), use.names = FALSE)
+      .global.ylim <- c(min(all.body, -ci * 2, na.rm = TRUE) - 0.02, 1.05)
+      .panel.ylim  <- function(aa) .global.ylim
+    } else {
+      .panel.ylim <- function(aa) {
+        vals <- unlist(lapply(acf.list[[aa]], function(a) as.numeric(a$acf)[-1]))
+        c(min(vals, -ci * 2, na.rm = TRUE) - 0.02, 1.05)
+      }
+    }
+
+    ## Panel 1: title
+    par(mar = c(0, 0, 0, 0))
+    plot(NULL, NULL, xlim = c(0, 1), ylim = c(0, 1), axes = FALSE)
+    text(0.5, 0.6, paste(what, "ACF -- Mixture", mixture))
+    text(0.5, 0.4, date(), cex = 0.6)
+
+    ## Data panels: each AA draws one ACF panel then one marginal panel
+    i.aa <- 0L
+    for (aa in valid.aas) {
+      i.aa       <- i.aa + 1L
+      codons     <- AAToCodon(aa, ref.codon)
+      codon.acfs <- acf.list[[aa]]
+      acf.mat    <- do.call("cbind", lapply(codon.acfs, function(a) as.numeric(a$acf)))
+      lags       <- as.numeric(codon.acfs[[1]]$lag)
+      ylim       <- .panel.ylim(aa)
+      colors     <- unlist(.codonColors[codons])
+
+      is.first.row <- i.aa <= 4L
+      if (scales == "fixed") {
+        top.mar     <- if (is.first.row)           1.5 else 0.0
+        bot.mar     <- if ((i.aa + 4L) > n.slots)  0.5 else 0.0
+        draw.xlabel <- (i.aa + 4L) > n.slots
+      } else {
+        top.mar     <- if (is.first.row) 1.5 else 0.3
+        bot.mar     <- 0.5
+        draw.xlabel <- i.aa > (n.rows.data - 1L) * 4L
+      }
+
+      ## column position for left/right frame detection
+      col.pos      <- ((i.aa - 1L) %% 4L) + 1L
+      is.left.col  <- col.pos == 1L
+      is.right.col <- col.pos == 4L
+      left.mar     <- if (is.left.col)  2.0 else 0.0
+      right.mar    <- if (is.right.col) 2.0 else 0.0
+
+      ## ACF panel
+      par(mar = c(bot.mar, left.mar, top.mar, right.mar))
+      plot(NULL, NULL, xlim = range(lags), ylim = ylim,
+           xlab = "", ylab = "", axes = FALSE)
+      abline(h = 0,          lty = 1, col = "gray70")
+      abline(h = c(-ci, ci), lty = 2, col = "gray50")
+      for (i in seq_along(codons)) {
+        lines(lags, acf.mat[, i], col = colors[i], type = "o", pch = i, cex = 0.5)
+      }
+
+      ## left frame: y-axis labels; interior: inward ticks only
+      if (is.left.col) {
+        axis(2, las = 1, cex.axis = 0.6)
+      } else {
+        axis(2, tck = 0.02, labels = FALSE)
+      }
+      y.at <- axTicks(2L)
+
+      ## right frame: y-axis labels on axis 4; interior: inward ticks only
+      if (is.right.col) {
+        axis(4, las = 1, cex.axis = 0.6)
+      } else {
+        axis(4, tck = 0.02, labels = FALSE)
+      }
+
+      ## bottom frame: x-axis labels; interior: inward ticks only
+      if (draw.xlabel) {
+        op <- par(mgp = c(3, 0.3, 0))
+        axis(1, cex.axis = 0.72, tck = -0.01, hadj = 0.5)
+        par(op)
+      } else {
+        axis(1, tck = 0.02, labels = FALSE)
+      }
+
+      ## top frame: x-axis labels; interior: inward ticks only
+      if (is.first.row) {
+        op <- par(mgp = c(3, 0.3, 0))
+        axis(3, cex.axis = 0.72, tck = -0.01, hadj = 0.5)
+        par(op)
+      } else {
+        axis(3, tck = 0.02, labels = FALSE)
+      }
+
+      ess.vals     <- vapply(codon.acfs, .acf.ess.per.1k, numeric(1L))
+      legend.lbls  <- paste0(codons, " (", ess.vals, "/1k)")
+      legend("topright", legend = legend.lbls, col = colors,
+             lty = 1, pch = seq_along(codons), cex = 0.65, seg.len = 1.5,
+             bty = "o", bg = adjustcolor("white", alpha.f = 0.7), box.lwd = 0.5)
+      usr    <- par("usr")
+      pin    <- par("pin")
+      cex.aa <- 1.2
+      aa.cx  <- 0.5 * (usr[1L] + usr[2L])
+      tick.y <- 0.02 * min(pin) / pin[2L] * (usr[4L] - usr[3L])
+      aa.cy  <- usr[4L] - 4 * tick.y - strheight(aa, cex = cex.aa, font = 2) / 2
+      aa.w   <- strwidth(aa,  cex = cex.aa, font = 2)
+      aa.h   <- strheight(aa, cex = cex.aa, font = 2)
+      rect(aa.cx - aa.w * 0.65, aa.cy - aa.h * 0.65,
+           aa.cx + aa.w * 0.65, aa.cy + aa.h * 0.65,
+           col = adjustcolor("white", alpha.f = 0.75), border = NA)
+      text(aa.cx, aa.cy, aa, cex = cex.aa, font = 2)
+      box()
+    }
+
+    ## x-label panel
+    par(mar = c(0, 0, 0, 0), xpd = FALSE)
+    plot(NULL, NULL, xlim = c(0, 1), ylim = c(0, 1), axes = FALSE)
+    text(0.5, 0.5, "Lag")
+
+    ## y-label panel
+    par(mar = c(0, 0, 0, 0), xpd = FALSE)
+    plot(NULL, NULL, xlim = c(0, 1), ylim = c(0, 1), axes = FALSE)
+    text(0.5, 0.5, "ACF", srt = 90)
+  }
+
+  invisible(acf.list)
 }
 
 
