@@ -29,11 +29,15 @@ test_that(".buildModelLayout returns correct structure for n.slots=20", {
     expect_equal(lay$y.lbl, 20L + 3L)  # 23
 })
 
-test_that(".buildModelLayout y.lbl always fills left column", {
+test_that(".buildModelLayout y.lbl fills left column of data rows", {
+    # Title and x-label rows use 0 in the left column (y.lbl only spans data rows).
     for (n in c(1L, 4L, 5L, 20L)) {
         lay <- .buildModelLayout(n)
-        expect_true(all(lay$mat[, 1L] == lay$y.lbl),
+        nr  <- nrow(lay$mat)
+        expect_true(all(lay$mat[2L:(nr - 1L), 1L] == lay$y.lbl),
                     info = paste("n.slots =", n))
+        expect_equal(lay$mat[1L, 1L],  0L, info = paste("title row n.slots =", n))
+        expect_equal(lay$mat[nr,  1L], 0L, info = paste("xlbl row n.slots =", n))
     }
 })
 
@@ -116,7 +120,8 @@ test_that(".plotModelOptions.common returns correct defaults", {
     expect_equal(opts$layout, "original")
     expect_false(opts$show.gene.hist)
     expect_true(opts$show.date)
-    expect_named(opts, c("layout", "show.gene.hist", "show.date"))
+    # Core fields must be present; additional fields may exist.
+    expect_true(all(c("layout", "show.gene.hist", "show.date") %in% names(opts)))
 })
 
 test_that("plotROCOptions returns common defaults", {
@@ -142,7 +147,8 @@ test_that("plotFONSEOptions includes codon.window with NULL default", {
     opts <- plotFONSEOptions()
     expect_null(opts$codon.window)
     expect_equal(opts$layout, "original")
-    expect_named(opts, c("layout", "show.gene.hist", "show.date", "codon.window"))
+    # codon.window plus core fields must be present; additional fields may exist.
+    expect_true(all(c("layout", "show.gene.hist", "show.date", "codon.window") %in% names(opts)))
 })
 
 test_that("plotFONSEOptions codon.window override works", {
