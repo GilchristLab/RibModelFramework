@@ -560,6 +560,35 @@ plot(mcmc, what = "LogPosterior", zoom.window = c(9000, 10000))
 ```
 ![Trace plot showing the log(posterior) trace for the current model fit.](logpost_trace.png)
 
+#### Autocorrelation diagnostics
+
+Trace plots reveal trends and drift, but autocorrelation function (ACF) plots reveal *mixing* -- how many MCMC steps separate effectively independent draws.
+AnaCoDa provides two dedicated ACF functions that follow the same `what` / `mixture` interface as the trace and parameter plots.
+
+`acfMCMC` plots the ACF of the log-posterior and/or log-likelihood traces on a single combined panel, color-coded by trace type.
+```{r, echo = TRUE, eval = FALSE}
+# Both traces on one panel (default). Use what = "LogPosterior" for a single trace.
+acfMCMC(mcmc, lag.max = 40)
+```
+
+`acfCSP` plots per-amino-acid ACF panels for any codon-specific parameter trace.
+Under `scales = "fixed"` (the default) all panels share a common y-range and are
+merged column-by-column into a tight grid with axis labels only on the outer frame.
+Each legend entry shows the parameter name and its ESS/1k mixing efficiency
+(effective independent draws per 1000 MCMC steps; higher is better).
+```{r, echo = TRUE, eval = FALSE}
+# Mutation parameter, mixture 1, fixed y-scale (default)
+acfCSP(parameter, what = "Mutation", mixture = 1)
+
+# Selection parameter with independent y-scale per panel
+acfCSP(parameter, what = "Selection", mixture = 1, scales = "free_y")
+```
+
+A well-mixed chain should show ACF values dropping below the dashed confidence
+bands (at $\pm 1.96 / \sqrt{n}$) within the first few lags.
+Persistent positive autocorrelation indicates slow mixing and may require
+increasing the adaptive width or thinning interval.
+
 
 ### Model visualization
 We can visualize the results of the model fit by plotting the model object.
