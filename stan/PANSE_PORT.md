@@ -190,10 +190,36 @@ you actually need WAIC/LOO (saves storage + 30% wall).
 2. **WaitingTime CSV from RMF has unclear unit relationship to NSE**
    -- to recover NSE point estimates from an RMF fit, prefer loading
    `R_objects/parameter.Rda` via AnaCoDa rather than inverting
-   WaitingTime in the CSV.
+   WaitingTime in the CSV.  The compare script reads RFP_NSERate.csv
+   directly instead -- but see (4) below about NSE drift.
 
 3. **`sum_to_zero_vector` sphi bias at small G** -- noted above;
    needs verification at G > 500 before using in production.
+
+4. **(lambda, partition function) identifiability ridge in AnaCoDa
+   fits.**  The PANSE NB2 likelihood uses
+   `mu = alpha * phi * sigma / (U * lambda)` where
+   `U = partitionFunction / Y` (Y = total RFP count).  AnaCoDa fits
+   `partitionFunction` as a parameter, so `lambda_raw` and
+   `partitionFunction` drift together along the ridge `lambda * U =
+   const`.  Posterior `RFP_Lambda.csv` reports `lambda_raw`, NOT
+   `lambda_eff = lambda_raw * U`.  When comparing to Stan (which has
+   no partition-function parameter -- U is fixed at data-prep time),
+   you MUST multiply AnaCoDa's reported lambda by U to get the
+   physically-meaningful effective rate.  See
+   `scripts/sim/compare_stan_vs_anacoda.R` for the implementation.
+   Empirical (compact sim, 2026-05-25): AnaCoDa lambda_raw / Stan
+   lambda = ~700x, but lambda_raw * U / Stan lambda = within 0.5%.
+
+5. **NSE drift in default AnaCoDa fits.**  Below NSE ~ 1e-6 the
+   PANSE likelihood is flat (sigma ~ 1 everywhere), so the adaptive
+   MCMC has very high acceptance and the chain wanders.  Documented
+   in `Nonsense_error_rates/R_notebooks/model_validation.Rmd`.  Fix
+   in progress: `feat/gamma-nse-prior` branch
+   (`RibModelFramework-hmc-stan-panse`, commit `eb44569`) adds a
+   Gamma prior on NSE as a 4th prior type.  Stan side: enforces
+   hard bounds `log_NSERate in [log(1e-7), log(1e-3)]` which act
+   as a similar constraint.
 
 ## Related
 
