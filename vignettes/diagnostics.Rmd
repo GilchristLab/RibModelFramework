@@ -1,0 +1,217 @@
+---
+title: "MCMC Convergence Diagnostics"
+author: "AnaCoDa Development Team"
+date: "`r Sys.Date()`"
+output:
+  rmarkdown::html_vignette:
+    toc: true
+    toc_depth: 3
+vignette: >
+  %\VignetteIndexEntry{MCMC Convergence Diagnostics}
+  %\VignetteEngine{knitr::rmarkdown}
+  %\VignetteEncoding{UTF-8}
+bibliography: anacoda.bib
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE, eval = FALSE)
+```
+
+## Overview
+
+After every MCMC run it is essential to verify that the chain has converged
+to the posterior distribution before drawing any biological conclusions.
+AnaCoDa provides three complementary diagnostic tools:
+
+| Function | Object | What it shows |
+|---|---|---|
+| `plot(mcmc, ...)` | `Rcpp_MCMCAlgorithm` | Log-posterior / log-likelihood trace over samples |
+| `acfMCMC(mcmc)` | `Rcpp_MCMCAlgorithm` | ACF of the log-posterior and log-likelihood traces |
+| `acfCSP(parameter)` | `Rcpp_ROCParameter` (etc.) | Per-amino-acid ACF grid for codon-specific parameters |
+
+All three should be inspected together: trace plots reveal trends and slow drift,
+while ACF plots reveal the *mixing rate* -- how many MCMC steps separate
+effectively independent draws.
+
+## Setup
+
+The examples below assume you have already run MCMC and have the following
+objects in your workspace.  See the *AnaCoDa* main vignette for a full
+end-to-end workflow.
+
+```{r run-mcmc}
+library(AnaCoDa)
+
+genome    <- initializeGenomeObject(file = "genome.fasta",
+                                    observed.expression.file = "phi.csv")
+parameter <- initializeParameterObject(genome, sphi_init = 1,
+                                       num.mixtures = 1,
+                                       gene.assignment = rep(1, length(genome)))
+model     <- initializeModelObject(parameter, "ROC", with.phi = TRUE)
+mcmc      <- initializeMCMCObject(samples = 10000, thinning = 10,
+                                  adaptive.width = 50)
+runMCMC(mcmc, genome, model, ncores = 4)
+```
+
+## Trace plots
+
+### Log-posterior / log-likelihood trace
+
+The simplest first check: does the chain appear to have reached a stationary
+distribution?  Upward or downward trends in the last portion of the run suggest
+the chain has not yet converged.
+
+```{r trace-mcmc}
+# Log-posterior trace with a zoomed inset of the last 10 %
+plot(mcmc, what = "LogPosterior", zoom.window = c(9000, 10000))
+
+# Switch to log-likelihood
+plot(mcmc, what = "LogLikelihood", zoom.window = c(9000, 10000))
+```
+
+### Codon-specific parameter traces
+
+The parameter trace object stores the full sample history for every
+codon-specific parameter.  Panels are organised by amino acid.
+
+```{r trace-csp}
+trace <- parameter$getTraceObject()
+
+# Mutation parameter (Delta M) for mixture 1
+plot(trace, what = "Mutation", mixture = 1)
+
+# Selection parameter (Delta eta) for mixture 1
+plot(trace, what = "Selection", mixture = 1)
+```
+
+## ACF diagnostics
+
+### Rationale
+
+A well-mixing chain produces autocorrelation values that drop quickly --
+ideally within the first five to ten lags -- to inside the dashed
+$\pm\,1.96/\sqrt{n}$ confidence band.
+Persistent positive autocorrelation beyond lag 20-30 is a warning sign;
+values that are still large at `lag.max` indicate the chain is effectively
+exploring only a tiny fraction of the posterior per step.
+
+### `acfMCMC`: log-posterior and log-likelihood ACF
+
+`acfMCMC` overlays the ACF of both traces on a single panel, color-coded via
+the mixture color scheme.  The `what` argument (default: both) mirrors
+`plot.Rcpp_MCMCAlgorithm`.
+
+```{r acfMCMC-both}
+# Both traces on one panel (default)
+acfMCMC(mcmc, lag.max = 40)
+```
+
+```{r acfMCMC-single}
+# Log-posterior only
+acfMCMC(mcmc, what = "LogPosterior", lag.max = 40)
+```
+
+The `samples` argument controls how many samples from the *end* of the trace
+are used (default: `10 * log10(N)`).  Use a longer suffix to get a stable ACF
+estimate; use a shorter one to focus on the post-warmup behaviour.
+
+```{r acfMCMC-samples}
+# Use the last 2000 samples
+acfMCMC(mcmc, samples = 2000, lag.max = 40)
+```
+
+`acfMCMC` invisibly returns a named list of `acf` objects so the raw values
+are available for further analysis:
+
+```{r acfMCMC-return}
+acf.out <- acfMCMC(mcmc, plot = FALSE)
+# Lag-1 autocorrelation of the log-posterior
+acf.out$LogPosterior$acf[2]
+```
+
+### `acfCSP`: codon-specific parameter ACF
+
+`acfCSP` produces a compact multi-panel grid -- one panel per amino acid, one
+colored line per synonymous codon -- analogous to the trace layout produced by
+`plot.Rcpp_Trace`.
+
+#### Fixed y-scale (default)
+
+Under `scales = "fixed"` all panels share a common y-range and panels in the
+same column are merged vertically (zero gap), making it easy to compare
+mixing across amino acids at a glance.
+Axis labels appear only on the four outer frame edges; interior borders carry
+tick marks only.
+
+```{r acfCSP-fixed}
+# Mutation parameter, mixture 1, fixed y-scale
+acfCSP(parameter, what = "Mutation", mixture = 1, scales = "fixed")
+```
+
+```{r acfCSP-selection}
+# Selection parameter
+acfCSP(parameter, what = "Selection", mixture = 1, scales = "fixed")
+```
+
+#### Free y-scale
+
+Use `scales = "free_y"` when you need to inspect the shape of individual
+amino-acid ACF curves without the global range compressing small-amplitude
+signals.
+
+```{r acfCSP-free}
+acfCSP(parameter, what = "Mutation", mixture = 1, scales = "free_y")
+```
+
+#### ESS/1k mixing metric
+
+Each legend entry includes an **ESS/1k** value: the effective number of
+independent draws per 1000 MCMC steps,
+
+$$\text{ESS/1k} = \frac{1000}{1 + 2\sum_{k \geq 1} \rho_k}$$
+
+where the sum runs over all positive-lag autocorrelations up to the first
+non-positive lag.  This metric is *independent of how many samples you passed*
+to `acfCSP`, making it comparable across runs with different chain lengths or
+thinning intervals.
+
+As a rough guide:
+
+| ESS/1k | Interpretation |
+|---|---|
+| > 500 | Good mixing; chain explores efficiently |
+| 100 -- 500 | Moderate autocorrelation; may need more samples |
+| 10 -- 100 | High autocorrelation; consider wider adaptive proposals |
+| < 10 | Very poor mixing; chain is nearly stuck |
+
+#### Return value
+
+`acfCSP` invisibly returns a nested list (amino acid → codon → `acf` object)
+for downstream use:
+
+```{r acfCSP-return}
+acf.out <- acfCSP(parameter, what = "Mutation", mixture = 1, plot = FALSE)
+
+# Lag-1 autocorrelation for each GCN codon (Alanine)
+lapply(acf.out[["A"]], function(a) as.numeric(a$acf)[2])
+```
+
+## Worked interpretation example
+
+A healthy 10,000-sample ROC run with default adaptive width typically shows:
+
+- Log-posterior ACF dropping below the CI band by lag 5--15.
+- Mutation ($\Delta M$) ACF: most codons clear the band by lag 10--20;
+  rare codons (1--2 observations in the genome) may remain elevated.
+- Selection ($\Delta\eta$) ACF: similar pattern to mutation but potentially
+  slower for codons under weak selection.
+
+If many codons show ESS/1k $< 50$ after a 10,000-step run, consider:
+
+1. **Increasing `adaptive.width`** in `initializeMCMCObject` to allow wider
+   adaptive proposals.
+2. **Running longer** and discarding a larger burn-in fraction.
+3. **Inspecting the trace plots** to check for multi-modal behaviour or
+   sudden jumps that would inflate apparent autocorrelation.
+
+## References
