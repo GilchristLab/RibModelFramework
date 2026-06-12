@@ -74,6 +74,11 @@ initializeModelObject <- function(parameter, model = "ROC", with.phi = FALSE,
                                   fix.observation.noise = FALSE, rfp.count.column = 1,
                                   approx = FALSE, approx.min.expected = 20.0) {
   if (model == "ROC") {
+    if (!isFALSE(approx))
+      warning("approx=TRUE is not recommended for ROC MCMC: the arcsine branch adds ",
+              "transcendental ops (exp/sqrt/asin) on every iteration, making it slower ",
+              "than exact multinomial. For arcsine-based inference use the Stan workflow: ",
+              "roc_arcsine.stan via initializeStan().")
     approx_int <- .approxToInt(approx)
     c.model <- new(ROCModel, with.phi, fix.observation.noise, approx_int, approx.min.expected)
   } else if (model == "FONSE") {

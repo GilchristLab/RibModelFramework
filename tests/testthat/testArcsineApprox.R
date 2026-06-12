@@ -41,10 +41,10 @@ param   <- initializeParameterObject(genome = genome, sphi = 1, num.mixtures = 1
 
 m_exact      <- initializeModelObject(param, "ROC")
 m_false      <- initializeModelObject(param, "ROC", approx = FALSE)
-m_true       <- initializeModelObject(param, "ROC", approx = TRUE)
-m_str        <- initializeModelObject(param, "ROC", approx = "hybrid.arcsine")
-m_low        <- initializeModelObject(param, "ROC", approx = TRUE, approx.min.expected = 10)
-m_fallback   <- initializeModelObject(param, "ROC", approx = TRUE, approx.min.expected = 1e6)
+m_true       <- suppressWarnings(initializeModelObject(param, "ROC", approx = TRUE))
+m_str        <- suppressWarnings(initializeModelObject(param, "ROC", approx = "hybrid.arcsine"))
+m_low        <- suppressWarnings(initializeModelObject(param, "ROC", approx = TRUE, approx.min.expected = 10))
+m_fallback   <- suppressWarnings(initializeModelObject(param, "ROC", approx = TRUE, approx.min.expected = 1e6))
 
 ll_exact     <- m_exact$calculateLogLikelihood(genome)
 ll_true      <- m_true$calculateLogLikelihood(genome)
@@ -72,6 +72,18 @@ ll_arcsine_oracle <- function(counts, probs) {
 # ======================================================================
 # Section 1 -- Construction and basic parity
 # ======================================================================
+
+test_that("approx=TRUE emits a warning advising the Stan workflow", {
+  expect_warning(
+    initializeModelObject(param, "ROC", approx = TRUE),
+    regexp = "not recommended"
+  )
+})
+
+test_that("approx=FALSE and default emit no warning", {
+  expect_silent(initializeModelObject(param, "ROC"))
+  expect_silent(initializeModelObject(param, "ROC", approx = FALSE))
+})
 
 test_that("approx=FALSE explicit is identical to default (no approx)", {
   expect_equal(ll_exact, m_false$calculateLogLikelihood(genome), tolerance = 0)
