@@ -30,16 +30,27 @@ test_that("derive_null_from_genome: per-AA freqs sum to 1; uniform fallback on z
     expect_equal(unname(null[["P"]]), rep(1/length(m[["P"]]), length(m[["P"]])))
 })
 
-test_that("scuo_to_log_phi: rank-order-preserving, length-preserving, deterministic", {
+test_that("scuo_to_log_phi (random default): rank-order/length preserving, seed-reproducible, overdispersed", {
     set.seed(1); scuo <- runif(50)
-    lp1 <- AnaCoDa::scuo_to_log_phi(scuo, sphi_seed = 1.0)
-    lp2 <- AnaCoDa::scuo_to_log_phi(scuo, sphi_seed = 1.0)
+    set.seed(10); lp1 <- AnaCoDa::scuo_to_log_phi(scuo, init_sphi = 1.0)
+    set.seed(10); lp2 <- AnaCoDa::scuo_to_log_phi(scuo, init_sphi = 1.0)
     expect_length(lp1, 50)
     expect_true(all(is.finite(lp1)))
-    expect_identical(lp1, lp2)
-    expect_equal(order(lp1), order(scuo))
-    lp_wide <- AnaCoDa::scuo_to_log_phi(scuo, sphi_seed = 2.0)
+    expect_identical(lp1, lp2)                       # reproducible under set.seed()
+    expect_equal(order(lp1), order(scuo))            # rank order preserved exactly
+    lp3 <- AnaCoDa::scuo_to_log_phi(scuo, init_sphi = 1.0)   # no reseed -> next RNG draw
+    expect_false(isTRUE(all.equal(lp1, lp3)))        # different chains -> different starts
+    set.seed(10); lp_wide <- AnaCoDa::scuo_to_log_phi(scuo, init_sphi = 2.0)
     expect_gt(sd(lp_wide), sd(lp1))
+})
+
+test_that("scuo_to_log_phi (randomize = FALSE): deterministic exact quantiles", {
+    set.seed(1); scuo <- runif(50)
+    lp1 <- AnaCoDa::scuo_to_log_phi(scuo, init_sphi = 1.0, randomize = FALSE)
+    lp2 <- AnaCoDa::scuo_to_log_phi(scuo, init_sphi = 1.0, randomize = FALSE)
+    expect_identical(lp1, lp2)                       # no RNG: identical every call
+    expect_equal(order(lp1), order(scuo))
+    expect_equal(lp1, qnorm(rank(scuo) / (length(scuo) + 1L), mean = -0.5, sd = 1.0))
 })
 
 test_that("mle_to_init_list: groups indexed params into vectors in index order", {

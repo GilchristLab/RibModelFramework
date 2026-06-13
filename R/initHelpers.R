@@ -80,26 +80,45 @@ jitter_init <- function(init.one, n.chains, jitter.sd = 0.05, base.seed = 1L) {
     out
 }
 
-## SCUO -> log_phi initial values.
+## CUB score -> log_phi initial values.
 ##
-## Mirrors AnaCoDa's initializeSynthesisRateByGenome path: ranks genes by
-## SCUO, maps rank/(G+1) -> quantile of LN(meanlog = -sphi_seed^2/2,
-## sdlog = sphi_seed), and returns the corresponding log_phi values.
-## High-SCUO genes (strong codon bias, typically high expression) get
-## pulled toward the upper quantiles; low-SCUO toward the lower.
+## Ranks genes by a codon-usage-bias score (SCUO, or negated ENC') and
+## assigns each gene a log_phi drawn from LN(meanlog = -init_sphi^2/2,
+## sdlog = init_sphi).  High score (strong bias, typically high expression)
+## -> upper end; low score -> lower end.  Two mappings:
 ##
-##   scuo       numeric vector of SCUO values (length G)
-##   sphi_seed  positive scalar; the sd of the seed LN distribution
-##              (default 1.0 -- a prior-consistent value that does NOT
-##               depend on first running a single-LN L-BFGS, which
-##               empirically overshrinks sphi at moderate G)
-scuo_to_log_phi <- function(scuo, sphi_seed = 1.0) {
+##   randomize = TRUE (default): mirrors AnaCoDa's C++
+##     initializeSynthesisRateByGenome -- draw G random log-normal values,
+##     sort them, and hand the k-th smallest to the k-th-ranked gene.
+##     STOCHASTIC: consumes the active R RNG, so set.seed() upstream makes a
+##     run reproducible while still giving DIFFERENT, overdispersed starts
+##     across chains -- the correct behavior for multi-chain init / R-hat.
+##   randomize = FALSE: deterministic -- each gene gets the EXACT rank/(G+1)
+##     quantile of the LN (smooth, noise-free, identical every call).  Use
+##     for reproducible prior/predictor generation, NOT multi-chain init.
+##
+##   scuo       numeric vector of CUB scores (length G)
+##   init_sphi  positive scalar; sd of the seed log-normal.  NOTE: this is a
+##              DISPERSION parameter (the seed sphi), NOT an RNG seed --
+##              control reproducibility with set.seed() in the caller.
+##   randomize  sorted random LN draws (TRUE) vs exact quantiles (FALSE)
+scuo_to_log_phi <- function(scuo, init_sphi = 1.0, randomize = TRUE) {
     stopifnot(is.numeric(scuo), length(scuo) >= 1L,
-              is.numeric(sphi_seed), length(sphi_seed) == 1L, sphi_seed > 0)
+              is.numeric(init_sphi), length(init_sphi) == 1L, init_sphi > 0,
+              is.logical(randomize), length(randomize) == 1L)
     G <- length(scuo)
-    r <- rank(scuo, ties.method = "average")
-    q <- r / (G + 1L)
-    qnorm(q, mean = -0.5 * sphi_seed^2, sd = sphi_seed)
+    if (randomize) {
+        ## C++ ByGenome mirror: sorted random log-normal draws, rank-matched.
+        ord <- order(scuo)                       # ord[k] = gene with k-th smallest score
+        log_draws <- sort(rnorm(G, mean = -0.5 * init_sphi^2, sd = init_sphi))
+        out <- numeric(G)
+        out[ord] <- log_draws                    # k-th-ranked gene <- k-th-smallest draw
+        out
+    } else {
+        ## Deterministic exact quantiles (reproducible prior/predictor gen).
+        r <- rank(scuo, ties.method = "average")
+        qnorm(r / (G + 1L), mean = -0.5 * init_sphi^2, sd = init_sphi)
+    }
 }
 
 ## Posterior distribution of Wan-formula SCUO for a single gene.
