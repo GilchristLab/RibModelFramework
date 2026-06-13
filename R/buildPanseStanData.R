@@ -305,13 +305,20 @@ build_panse_stan_data <- function(config,
     nse_type  <- nse_prior$type %||% "Log-Uniform"
     nse_lo    <- nse_prior$uniform.lower %||% 1e-7
     nse_hi    <- nse_prior$uniform.upper %||% 1e-3
+    # Gamma prior params (mean = shape/rate; default Gamma(2, 2e5) -> mean 1e-5).
+    # Ignored by the Stan model unless nse_gamma == 1, but always emitted.
+    nse_gamma       <- 0L
+    nse_gamma_shape <- as.numeric(nse_prior$gamma.shape %||% 2.0)
+    nse_gamma_rate  <- as.numeric(nse_prior$gamma.rate  %||% 2e5)
     nse_log_uniform <- switch(
         nse_type,
         "Log-Uniform"     = 1L,
         "Natural-Uniform" = 0L,
-        stop("nserate.prior.type must be 'Log-Uniform' or 'Natural-Uniform'; ",
-             "got: ", nse_type)
+        "Gamma"           = 1L,   # placeholder; nse_gamma below activates Gamma
+        stop("nserate.prior.type must be 'Log-Uniform', 'Natural-Uniform', or ",
+             "'Gamma'; got: ", nse_type)
     )
+    if (identical(nse_type, "Gamma")) nse_gamma <- 1L
 
     # ------- Stan data list -------------------------------------------------
     all_unmasked <- as.integer(all(like_mask == 1L))
@@ -342,6 +349,9 @@ build_panse_stan_data <- function(config,
         log_nse_lower         = log(nse_lo),
         log_nse_upper         = log(nse_hi),
         nse_log_uniform       = nse_log_uniform,
+        nse_gamma             = nse_gamma,
+        nse_gamma_shape       = nse_gamma_shape,
+        nse_gamma_rate        = nse_gamma_rate,
         emit_log_lik          = as.integer(fit_cfg$emit.log.lik %||% 1L),
         grainsize             = as.integer(fit_cfg$grainsize %||% 1L)
     )
