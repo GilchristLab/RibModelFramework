@@ -519,18 +519,16 @@ if (init_mode %in% c("scuo", "enc_prime", "mixed_scuo_encp")) {
 }
 
 if (init_mode %in% c("scuo", "mixed_scuo_encp")) {
-    .load_init_util("init_helpers.R", "scuo_to_log_phi")
     cat("[init] computing SCUO\n")
     scuo_df      <- AnaCoDa::calculateSCUO(genome)
     scuo_all     <- setNames(scuo_df$SCUO, scuo_df$ORF)
-    log_phi_scuo <- scuo_to_log_phi(scuo_all[gene_ids])
+    log_phi_scuo <- AnaCoDa::scuo_to_log_phi(scuo_all[gene_ids])
     cat(sprintf("[init] scuo: G=%d  phi in [%.3f, %.3f]  sd(log phi)=%.4f\n",
                 length(gene_ids), min(exp(log_phi_scuo)), max(exp(log_phi_scuo)),
                 sd(log_phi_scuo)))
 }
 
 if (init_mode %in% c("enc_prime", "mixed_scuo_encp")) {
-    .load_init_util("init_helpers.R", "scuo_to_log_phi")
     .load_init_util("codon_bias_metrics.R", "build_aa_codon_map")
     cat("[init] computing ENC' (Novembre 2002)\n")
     cc       <- as.matrix(AnaCoDa::getCodonCounts(genome))
@@ -541,7 +539,7 @@ if (init_mode %in% c("enc_prime", "mixed_scuo_encp")) {
     encp_raw <- calc_enc_prime(cc, aa_cmap, null_freqs = null_f)
     # Lower ENC' = more biased = higher phi; negate so scuo_to_log_phi maps
     # low-ENC' genes to high phi (same direction as SCUO).
-    log_phi_encp <- scuo_to_log_phi(-encp_raw[gene_ids])
+    log_phi_encp <- AnaCoDa::scuo_to_log_phi(-encp_raw[gene_ids])
     cat(sprintf("[init] enc_prime: G=%d  phi in [%.3f, %.3f]  sd(log phi)=%.4f\n",
                 length(gene_ids), min(exp(log_phi_encp)), max(exp(log_phi_encp)),
                 sd(log_phi_encp)))

@@ -263,12 +263,31 @@ internally: `sphi = <number>` behaves like `phi.sphi = fixed(<number>)`,
 `phi.prior.constraint = "mean" | "median"` like
 `phi.mphi = constrained(statistic = ...)`.
 
-## 6. Caveats, scope, and roadmap
+## 6. Initial conditions (the phi seed)
 
-- **Single-LN only.** Everything above is for the one-component lognormal phi prior.
-  The two-component mixture ("dual-LN") prior is a genuinely different regime: at
-  realistic genome sizes the mixture is not reliably samplable by Stan HMC, and the
-  native MCMC is the authoritative backend there. The anchoring ideas carry over only
+Anchoring fixes the *target* scale; the *starting* phi vector is a separate choice.
+For ROC, AnaCoDa's default (`init.by.random = FALSE`, no `initial.expression.values`)
+seeds phi from **SCUO** -- it ranks genes by codon-usage bias and assigns each a
+log-normal value at its rank. This is **not** an uninformative start (a truly random
+start needs `init.by.random = TRUE`).
+
+The R helper `scuo_to_log_phi()` mirrors that SCUO-rank seed and, by default
+(`randomize = TRUE`), draws the magnitudes **randomly** from the active RNG -- so
+`set.seed()` in the caller makes a run reproducible while giving **different,
+overdispersed** starts across chains (what you want for multi-chain R-hat). Pass
+`randomize = FALSE` for the deterministic exact-quantile mapping (reproducible,
+noise-free) when generating a phi *prior/predictor* rather than a chain seed. `init_sphi`
+sets the spread of the seed log-normal (it is a dispersion parameter, not an RNG seed).
+See `notes/phi-init-conditions.md` for the full mechanism.
+
+## 7. Caveats, scope, and roadmap
+
+- **Single-LN focus.** Everything above is for the one-component lognormal phi prior.
+  The two-component mixture ("dual-LN") prior is a genuinely different regime. Sampling
+  it well with Stan HMC at realistic genome sizes is an area of **active development**:
+  it is not yet turnkey, so native MCMC is currently the authoritative backend there,
+  but ongoing work (e.g. the bulk-anchored, non-centered `mphi1_implicit`
+  parameterization) is making progress. The anchoring ideas carry over only
   partially (the bulk component can be anchored, but the rare component and the
   mixing weight add their own identifiability issues).
 - **The anchor is a convention.** Report and compare the *relative* `dEta` pattern
