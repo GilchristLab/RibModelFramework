@@ -167,9 +167,17 @@ fit_panse_stan <- function(config,
         )
     } else {
         cat("[load] precompiled ", exe_path, "\n", sep = "")
+        # We declare cpp_options here for correctness / forward-compatibility,
+        # but NOTE: cmdstanr 0.8.0 does NOT record cpp_options for an exe loaded
+        # via exe_file + compile=FALSE -- mod$cpp_options() stays empty, so
+        # $sample() believes the binary is serial and silently drops
+        # threads_per_chain (warning only, no num_threads= on the command line).
+        # The exe IS threaded; we force it on at the sample site via
+        # STAN_NUM_THREADS (see "threading fallback" below).
         mod <- cmdstanr::cmdstan_model(exe_file = exe_path,
                                        stan_file = stan_file,
-                                       compile  = FALSE)
+                                       compile  = FALSE,
+                                       cpp_options = list(stan_threads = TRUE))
     }
 
     # ---- Init function ------------------------------------------------------
@@ -542,6 +550,21 @@ fit_panse_stan <- function(config,
         sample_args$inv_metric <- warm_start_metrics
         cat(sprintf("[sample] warm-start: seeding inv_metric (%d entries/chain)\n",
                     length(warm_start_metrics[[1]])))
+    }
+
+    # ---- Threading fallback (loaded-exe case) -------------------------------
+    # cmdstanr only honors threads_per_chain when mod$cpp_options()$stan_threads
+    # is TRUE, which it records ONLY for binaries it compiled this session.  A
+    # precompiled exe (--no-compile) reports no cpp_options, so cmdstanr drops
+    # threads_per_chain and reduce_sum runs serial.  cmdstan itself reads the
+    # STAN_NUM_THREADS env var as the thread count when num_threads= is absent
+    # from the command line, so set it to honor the user's threads_per_chain.
+    # Freshly-compiled models are unaffected: cmdstanr passes num_threads= for
+    # those, and the CLI arg takes precedence over the env var.
+    if (n_threads > 1L && !isTRUE(mod$cpp_options()[["stan_threads"]])) {
+        Sys.setenv(STAN_NUM_THREADS = as.character(n_threads))
+        cat("[sample] loaded exe: cmdstanr will not pass num_threads; ",
+            "forcing threading via STAN_NUM_THREADS=", n_threads, "\n", sep = "")
     }
 
     t0 <- proc.time()[["elapsed"]]
