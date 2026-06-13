@@ -170,6 +170,13 @@ data {
     real log_nse_lower;
     real log_nse_upper;
     int<lower=0, upper=1> nse_log_uniform;
+    // Optional Gamma prior on the natural-scale NSERate (regularizes the
+    // unidentifiable low-NSE codons: gives the otherwise-flat dims finite
+    // curvature -> better HMC geometry).  nse_gamma=1 activates it; shape/rate
+    // are ignored when nse_gamma=0 but must always be supplied as data.
+    int<lower=0, upper=1> nse_gamma;
+    real<lower=0> nse_gamma_shape;
+    real<lower=0> nse_gamma_rate;
 
     int<lower=0, upper=1> emit_log_lik;
 
@@ -222,7 +229,12 @@ model {
     log_alpha       ~ normal(log_alpha_prior_mean,  log_alpha_prior_sd);
     log_lambdaPrime ~ normal(log_lambda_prior_mean, log_lambda_prior_sd);
 
-    if (nse_log_uniform == 0) {
+    if (nse_gamma == 1) {
+        // Gamma prior on natural-scale NSERate; + Jacobian for the exp() map
+        // from the sampled log_NSERate (d NSERate / d log_NSERate = NSERate).
+        target += gamma_lpdf(NSERate | nse_gamma_shape, nse_gamma_rate)
+                  + sum(log_NSERate);
+    } else if (nse_log_uniform == 0) {
         target += sum(log_NSERate);
     }
 
