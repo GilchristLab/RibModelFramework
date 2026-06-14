@@ -123,7 +123,9 @@ data {
     real<lower=0> mu1_prior_sd;
     real         sep_prior_mean;
     real<lower=0> sep_prior_sd;
+    real          sigma1_prior_mean;   // half-normal when 0 (default); truncated-normal when >0
     real<lower=0> sigma1_prior_scale;
+    real          sigma2_prior_mean;
     real<lower=0> sigma2_prior_scale;
 
     real<lower=0> geomean_constraint_sd;
@@ -171,8 +173,8 @@ model {
     p      ~ beta(p_alpha, p_beta);
     mu1    ~ normal(mu1_prior_mean, mu1_prior_sd);
     sep    ~ normal(sep_prior_mean, sep_prior_sd);  // <lower=0> enforces mu2>mu1
-    sigma1 ~ normal(0, sigma1_prior_scale);
-    sigma2 ~ normal(0, sigma2_prior_scale);
+    sigma1 ~ normal(sigma1_prior_mean, sigma1_prior_scale);
+    sigma2 ~ normal(sigma2_prior_mean, sigma2_prior_scale);
 
     // Soft geomean(phi)=1 constraint -- only active in anchor_phi=0 (default) mode.
     // When anchor_phi=1, the bulk-anchor mu1~N(0, mphi_prior_sd) (set by the
