@@ -27,7 +27,13 @@ panse_stan_finalize <- function(fit, config, stan_data, out_dir,
                                 diagnose_fn = function(fit) print(fit$diagnostic_summary())) {
 
     cat("\n--- Diagnostics ---\n")
-    diagnose_fn(fit)
+    # Diagnostics are best-effort: a failure here (e.g. cmdstan's bin/diagnose
+    # tool failing to run on a cluster compute node due to a libstdc++/GLIBCXX
+    # mismatch) must NOT abort finalize and discard the (expensive) draws.
+    tryCatch(diagnose_fn(fit),
+             error = function(e)
+                 cat("[warn] diagnostics failed (continuing to save fit):\n  ",
+                     conditionMessage(e), "\n", sep = ""))
 
     cat("\n--- Saving fit ---\n")
     saveRDS(list(
