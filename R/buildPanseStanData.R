@@ -13,13 +13,6 @@
 # Partition function (U = Z / Y) is sigma-aware to avoid the ~4% inflation
 # that results from ignoring elongation survival (see comment in function body).
 
-utils::globalVariables(c(
-    ".N", ":=",
-    "GeneID", "Position", "Codon", "RFPCount", "Mixture",
-    ".lp", ".log_survive", ".sigma", ".wait", ".phi"
-))
-
-
 # --------------------------------------------------------------------------
 # CSV readers (internal)
 
@@ -142,7 +135,8 @@ build_panse_stan_data <- function(config,
 
     # ------- Load and filter the RFP CSV ------------------------------------
     if (verbose) message("Reading RFP CSV: ", basename(rfp_path))
-    rfp <- fread(rfp_path)
+    rfp <- read.csv(rfp_path, stringsAsFactors = FALSE,
+                    colClasses = c(GeneID = "character", Codon = "character"))
     required_cols <- c("GeneID", "Position", "Codon", "RFPCount")
     missing_cols  <- setdiff(required_cols, colnames(rfp))
     if (length(missing_cols) > 0L)
@@ -150,14 +144,14 @@ build_panse_stan_data <- function(config,
     has_mixture <- "Mixture" %in% colnames(rfp)
     if (!has_mixture) {
         if (verbose) message("RFP CSV has no Mixture column; like_mask = 1 for all positions")
-        rfp[, Mixture := 1L]
+        rfp$Mixture <- 1L
     }
 
     # Filter to chosen gene set, preserve order from gene_ids
-    rfp <- rfp[GeneID %in% gene_ids]
-    rfp[, GeneID := factor(GeneID, levels = gene_ids)]
-    setorder(rfp, GeneID, Position)
-    rfp[, GeneID := as.character(GeneID)]
+    rfp <- rfp[rfp$GeneID %in% gene_ids, , drop = FALSE]
+    rfp$GeneID <- factor(rfp$GeneID, levels = gene_ids)
+    rfp <- rfp[order(rfp$GeneID, rfp$Position), , drop = FALSE]
+    rfp$GeneID <- as.character(rfp$GeneID)
 
     # Sanity: every gene_id should be present
     actual_genes <- unique(rfp$GeneID)
@@ -184,10 +178,8 @@ build_panse_stan_data <- function(config,
     like_mask <- as.integer(rfp$Mixture > 0L)
 
     # CSR offsets
-    pos_per_gene <- rfp[, .N, by = GeneID]
-    setkey(pos_per_gene, GeneID)
-    pos_per_gene <- pos_per_gene[gene_ids]    # reorder to gene_ids order
-    gene_offset  <- cumsum(c(1L, pos_per_gene$N))   # length G+1, 1-indexed
+    pos_per_gene <- as.integer(table(factor(rfp$GeneID, levels = gene_ids)))
+    gene_offset  <- cumsum(c(1L, pos_per_gene))   # length G+1, 1-indexed
     P <- nrow(rfp)
     stopifnot(gene_offset[G + 1L] == P + 1L)
 
@@ -202,14 +194,16 @@ build_panse_stan_data <- function(config,
                     a_over_lv / (init_lambda * v_per_codon) +
                     0.5 * a_over_lv * a_over_lv
     wait_per_codon <- init_alpha / init_lambda
-    rfp[, .lp := log_psuccess[match(Codon, codon_order)]]
-    rfp[, .log_survive := c(0, head(cumsum(.lp), .N - 1L)), by = GeneID]
-    rfp[, .sigma := exp(.log_survive)]
-    rfp[, .wait  := wait_per_codon[match(Codon, codon_order)]]
+    lp           <- log_psuccess[match(rfp$Codon, codon_order)]
+    # Exclusive per-gene prefix sum (survival up to, not including, this codon).
+    # rfp is sorted by (GeneID, Position), so ave() reassembles in row order.
+    log_survive  <- stats::ave(lp, rfp$GeneID,
+                               FUN = function(x) c(0, head(cumsum(x), length(x) - 1L)))
+    sigma_at_pos <- exp(log_survive)
+    wait_at_pos  <- wait_per_codon[match(rfp$Codon, codon_order)]
     phi_by_gene  <- setNames(as.numeric(init_phi), gene_ids)
-    rfp[, .phi   := phi_by_gene[GeneID]]
-    Z <- sum(rfp$.phi * rfp$.wait * rfp$.sigma)
-    rfp[, c(".lp", ".log_survive", ".sigma", ".wait", ".phi") := NULL]
+    phi_at_pos   <- phi_by_gene[rfp$GeneID]
+    Z <- sum(phi_at_pos * wait_at_pos * sigma_at_pos)
     Y <- sum(rfp$RFPCount)
     U <- Z / Y
     if (verbose) message(sprintf(

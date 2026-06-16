@@ -60,7 +60,7 @@
 #' @param config Parsed YAML config list with a \code{sim:} block.
 #' @param seed Integer seed override (overrides \code{config$sim$seed}).
 #' @param verbose Logical; if \code{TRUE} (default) print progress messages.
-#' @return A named list: \code{rfp} (data.table), \code{codon_table},
+#' @return A named list: \code{rfp} (data.frame), \code{codon_table},
 #'   \code{truth_alpha}, \code{truth_lambda}, \code{truth_nse},
 #'   \code{nse_shared}, \code{phi_truth}, \code{Z}, \code{Y_target},
 #'   \code{Y_obs}, \code{U_truth}, \code{seed}, \code{n_genes},
@@ -196,11 +196,12 @@ simulate_panse_dataset <- function(config, seed = NULL, verbose = TRUE) {
             sg   <- sigma_at_pos[[g]]
             mu   <- phi_truth[[g]] * wt * sg / U_truth
             y    <- rpois(gene_length, mu)
-            rows[[g]] <- data.table(
+            rows[[g]] <- data.frame(
                 GeneID   = gene_ids[[g]],
                 Position = seq_len(gene_length) - 1L,
                 Codon    = codon_order[cidx],
-                RFPCount = as.integer(y)
+                RFPCount = as.integer(y),
+                stringsAsFactors = FALSE
             )
         }
     } else {
@@ -210,15 +211,16 @@ simulate_panse_dataset <- function(config, seed = NULL, verbose = TRUE) {
             sg   <- sigma_at_pos[[g]]
             mu   <- phi_truth[[g]] * a_over_l[cidx] * sg / U_truth
             y    <- rnbinom(gene_length, size = truth_alpha[cidx], mu = mu)
-            rows[[g]] <- data.table(
+            rows[[g]] <- data.frame(
                 GeneID   = gene_ids[[g]],
                 Position = seq_len(gene_length) - 1L,
                 Codon    = codon_order[cidx],
-                RFPCount = as.integer(y)
+                RFPCount = as.integer(y),
+                stringsAsFactors = FALSE
             )
         }
     }
-    rfp <- rbindlist(rows)
+    rfp <- do.call(rbind, rows)
     Y_obs <- sum(rfp$RFPCount)
     if (verbose)
         message(sprintf("Pass 2 (counts, %s): Y_obs = %d (target %.6g, U_obs = %.6g)",
@@ -274,7 +276,7 @@ write_sim_outputs <- function(sim, out_dir, config, verbose = TRUE) {
     if (!dir.exists(out_dir)) dir.create(out_dir, recursive = TRUE)
 
     rfp_path <- file.path(out_dir, "rfp_counts.csv")
-    fwrite(sim$rfp, rfp_path)
+    write.csv(sim$rfp, rfp_path, row.names = FALSE, quote = FALSE)
 
     .write_codon_csv(sim$codon_table, sim$truth_alpha,
                      file.path(out_dir, "truth_alpha.csv"))
