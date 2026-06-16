@@ -278,12 +278,18 @@ void Trace::initializeFONSETrace(unsigned samples, unsigned num_genes, unsigned 
 	std::vector<mixtureDefinition> &_categories, unsigned maxGrouping, unsigned numObservedPhiSets,std::vector<double> init_phi,
 	std::vector<unsigned> init_mix_assign,bool estimateSynthesisRate)
 {
+	// FONSE carries a third codon-specific category, dEta (position-independent
+	// elongation selection), in addition to dM and dOmega.
+	numCodonSpecificParamTypes = 3;
+	codonSpecificParameterTrace.resize(numCodonSpecificParamTypes);
+
 	initializeSharedTraces(samples, num_genes, numSelectionCategories, numMixtures,
 		 _categories, maxGrouping,init_phi,init_mix_assign,numObservedPhiSets,estimateSynthesisRate);
 
 	// See Note 1) above.
 	initCodonSpecificParameterTrace(samples, numMutationCategories, numParam, 0u); // dM
 	initCodonSpecificParameterTrace(samples, numSelectionCategories, numParam, 1u); // dOmega
+	initCodonSpecificParameterTrace(samples, numSelectionCategories, numParam, 2u); // dEta
 	initInitiationCostTrace(samples);
 	initElongationCostTrace(samples);
 }
@@ -527,7 +533,15 @@ unsigned Trace::getCodonSpecificCategory(unsigned mixtureElement, unsigned param
 		rv = categories->at(mixtureElement).delEta;
 		break;
     case 2:
-        rv = categories->at(mixtureElement).nse;
+        // paramType 2 is PANSE's NSERate (nse category) but also FONSE's dEta
+        // (position-independent elongation selection). FONSE has no NSE category
+        // (nse == -1 sentinel) and stores its dEta trace under the SELECTION
+        // category, so fall back to delEta when nse is unset. Without this the
+        // (unsigned)(-1) sentinel indexes far out of bounds -> segfault.
+        if (categories->at(mixtureElement).nse < 0)
+            rv = categories->at(mixtureElement).delEta;
+        else
+            rv = categories->at(mixtureElement).nse;
         break;
 	default:
 		my_printError("ERROR: Unknown parameter type in getCodonSpecificCategory\n");

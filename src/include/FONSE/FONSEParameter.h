@@ -31,6 +31,7 @@ class FONSEParameter : public Parameter
 
         bool fix_dM=false;
 		bool fix_dOmega=false;
+        bool fix_dEta=true;     // dEta (elongation selection) is fixed at 0 by default -> identical to current FONSE
         bool fix_a1 = false;
         bool fix_a2 = false;
 
@@ -38,6 +39,11 @@ class FONSEParameter : public Parameter
 
 
 	public:
+
+		// FONSE-specific CSP category index for the elongation-selection term dEta.
+		// (Parameter::dM=0, Parameter::dOmega=1; dEta is a distinct 3rd category at 2.
+		// Do NOT reuse the inherited Parameter::dEta, which aliases index 1.)
+		static const unsigned dEtaCSP;
 
 		//Constructors & Destructors:
 		FONSEParameter();
@@ -61,6 +67,7 @@ class FONSEParameter : public Parameter
 		void initAllTraces(unsigned samples, unsigned num_genes, bool estimateSynthesisRate = true);
 		void initMutationCategories(std::vector<std::string> files, unsigned numCategories, bool fix = false);
 		void initSelectionCategories(std::vector<std::string> files, unsigned numCategories, bool fix = false);
+		void initEtaCategories(std::vector<std::string> files, unsigned numCategories, bool fix = false);
 
 
 
@@ -97,8 +104,11 @@ class FONSEParameter : public Parameter
 
 		void fixDM();
 		void fixDOmega();
+		void fixDEta();
+		void estimateDEta();
 		bool isDMFixed();
 		bool isDOmegaFixed();
+		bool isDEtaFixed();
 		void fixedInitiationCost();
 		void fixedElongationCost();
 		void estimateInitiationCost();
@@ -129,8 +139,10 @@ class FONSEParameter : public Parameter
 		//CSP Functions:
 		std::vector< std::vector <double> > getCurrentMutationParameter();
 		std::vector< std::vector <double> > getCurrentSelectionParameter();
+		std::vector< std::vector <double> > getCurrentEtaParameter();
 		void setCurrentMutationParameter(std::vector<std::vector<double>> _currentMutationParameter);
 		void setCurrentSelectionParameter(std::vector<std::vector<double>> _currentSelectionParameter);
+		void setCurrentEtaParameter(std::vector<std::vector<double>> _currentEtaParameter);
 
 
 

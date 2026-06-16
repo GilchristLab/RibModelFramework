@@ -6,8 +6,11 @@
 .extract_trace_matrix <- function(object, what = "Mutation", mixture = 1)
 {
   current.trace <- NULL
-  if(what[1] == "Mutation" || what[1] == "Selection")
+  if(what[1] == "Mutation" || what[1] == "Selection" || what[1] == "Eta")
   {
+    # FONSE Eta (dEta) is paramType 2; Mutation 0, Selection 1. All three are
+    # reference-codon parameters.
+    csp.paramType <- if (what[1] == "Mutation") 0 else if (what[1] == "Eta") 2 else 1
     names.aa <- aminoAcids()
     numCodons <- 0
     for(aa in names.aa)
@@ -24,11 +27,7 @@
       codons <- AAToCodon(aa, T)
       for(i in 1:length(codons))
       {
-        if(what[1] == "Mutation"){
-          cur.trace[[index]]<- object$getCodonSpecificParameterTraceByMixtureElementForCodon(mixture, codons[i], 0, T)
-        }else{
-          cur.trace[[index]] <- object$getCodonSpecificParameterTraceByMixtureElementForCodon(mixture, codons[i], 1, T)
-        }
+        cur.trace[[index]] <- object$getCodonSpecificParameterTraceByMixtureElementForCodon(mixture, codons[i], csp.paramType, T)
         index <- index + 1
       }
     }

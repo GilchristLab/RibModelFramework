@@ -12,6 +12,9 @@
 using namespace Rcpp;
 #endif
 
+// FONSE CSP categories: dM=0, dOmega=1 (inherited), dEta=2 (FONSE-only).
+const unsigned FONSEParameter::dEtaCSP = 2u;
+
 //--------------------------------------------------//
 // ---------- Constructors & Destructors ---------- //
 //--------------------------------------------------//
@@ -22,15 +25,15 @@ FONSEParameter::FONSEParameter() : Parameter()
 	//CTOR
 	bias_csp = 0;
 	mutation_prior_sd = 0.35;
-	currentCodonSpecificParameter.resize(2);
-	proposedCodonSpecificParameter.resize(2);
+	currentCodonSpecificParameter.resize(3);
+	proposedCodonSpecificParameter.resize(3);
 }
 
 
 FONSEParameter::FONSEParameter(std::string filename) : Parameter(22)
 {
-	currentCodonSpecificParameter.resize(2);
-	proposedCodonSpecificParameter.resize(2);
+	currentCodonSpecificParameter.resize(3);
+	proposedCodonSpecificParameter.resize(3);
 	initFromRestartFile(filename);
 }
 
@@ -123,14 +126,19 @@ void FONSEParameter::initFONSEParameterSet(double _a1, double _a2)
 	fix_a1 = true;
 	fix_a2 = true;
 	//may need getter fcts
-	currentCodonSpecificParameter.resize(2);
-	proposedCodonSpecificParameter.resize(2);
+	// Three CSP categories: dM (mutation), dOmega (nonsense-error selection),
+	// dEta (elongation selection). dEta uses numSelectionCategories like dOmega.
+	currentCodonSpecificParameter.resize(3);
+	proposedCodonSpecificParameter.resize(3);
 
 	currentCodonSpecificParameter[dM].resize(numMutationCategories);
 	proposedCodonSpecificParameter[dM].resize(numMutationCategories);
 
 	currentCodonSpecificParameter[dOmega].resize(numSelectionCategories);
 	proposedCodonSpecificParameter[dOmega].resize(numSelectionCategories);
+
+	currentCodonSpecificParameter[dEtaCSP].resize(numSelectionCategories);
+	proposedCodonSpecificParameter[dEtaCSP].resize(numSelectionCategories);
 
 	for (unsigned i = 0u; i < numMutationCategories; i++)
 	{
@@ -143,13 +151,16 @@ void FONSEParameter::initFONSEParameterSet(double _a1, double _a2)
 		std::vector<double> tmp(numParam, 0.0);
 		proposedCodonSpecificParameter[dOmega][i] = tmp;
 		currentCodonSpecificParameter[dOmega][i] = tmp;
+		proposedCodonSpecificParameter[dEtaCSP][i] = tmp;   // dEta starts at 0 (-> current FONSE)
+		currentCodonSpecificParameter[dEtaCSP][i] = tmp;
 	}
 
 	for (unsigned i = 0; i < maxGrouping; i++)
 	{
 	    std::string aa = SequenceSummary::AminoAcidArray[i];
 	    unsigned numCodons = SequenceSummary::GetNumCodonsForAA(aa, true);
-	    CovarianceMatrix m((numMutationCategories + numSelectionCategories) * numCodons);
+	    // Covariance now spans three CSP blocks: dM + dOmega + dEta.
+	    CovarianceMatrix m((numMutationCategories + 2u * numSelectionCategories) * numCodons);
 	    m.choleskyDecomposition();
 	    covarianceMatrix.push_back(m);
 	}
@@ -250,6 +261,25 @@ void FONSEParameter::initFONSEValuesFromFile(std::string filename)
 						}
 					}
 				}
+				else if (variableName == "currentEtaParameter")
+				{
+					if (tmp == "***")
+					{
+						currentCodonSpecificParameter[dEtaCSP].resize(currentCodonSpecificParameter[dEtaCSP].size() + 1);
+						cat++;
+					}
+					else if (tmp == "\n")
+						continue;
+					else
+					{
+						double val;
+						iss.str(tmp);
+						while (iss >> val)
+						{
+							currentCodonSpecificParameter[dEtaCSP][cat - 1].push_back(val);
+						}
+					}
+				}
 				else if (variableName == "covarianceMatrix")
 				{
 					if (tmp == "***") //end of matrix
@@ -306,8 +336,18 @@ void FONSEParameter::initFONSEValuesFromFile(std::string filename)
 
 	//init other values
 	bias_csp = 0;
+	// Default the dEta block to zeros so restart files written before dEta existed
+	// (no >currentEtaParameter: block) still load: dEta stays fixed at 0.
+	if (currentCodonSpecificParameter[dEtaCSP].size() < numSelectionCategories)
+	{
+		currentCodonSpecificParameter[dEtaCSP].resize(numSelectionCategories);
+		for (unsigned i = 0; i < numSelectionCategories; i++)
+			if (currentCodonSpecificParameter[dEtaCSP][i].size() < numParam)
+				currentCodonSpecificParameter[dEtaCSP][i] = std::vector<double>(numParam, 0.0);
+	}
 	proposedCodonSpecificParameter[dM].resize(numMutationCategories);
 	proposedCodonSpecificParameter[dOmega].resize(numSelectionCategories);
+	proposedCodonSpecificParameter[dEtaCSP].resize(numSelectionCategories);
 	//looping through the bigger of the two categories
 	a1_proposed = a1;
 	a2_proposed = a2;
@@ -318,7 +358,10 @@ void FONSEParameter::initFONSEValuesFromFile(std::string filename)
 		if(i < numMutationCategories)
 			proposedCodonSpecificParameter[dM][i] = currentCodonSpecificParameter[dM][i];
 		if(i < numSelectionCategories)
+		{
 			proposedCodonSpecificParameter[dOmega][i] = currentCodonSpecificParameter[dOmega][i];
+			proposedCodonSpecificParameter[dEtaCSP][i] = currentCodonSpecificParameter[dEtaCSP][i];
+		}
 	}
 
 	groupList = { "A", "C", "D", "E", "F", "G", "H", "I", "K", "L", "N", "P", "Q", "R", "S", "T", "V", "Y", "Z" };
@@ -410,6 +453,22 @@ void FONSEParameter::writeFONSERestartFile(std::string filename)
 			for (j = 0; j < currentCodonSpecificParameter[dOmega][i].size(); j++)
 			{
 				oss << currentCodonSpecificParameter[dOmega][i][j];
+				if ((j + 1) % 10 == 0)
+					oss << "\n";
+				else
+					oss << " ";
+			}
+			if (j % 10 != 0)
+				oss << "\n";
+		}
+
+		oss << ">currentEtaParameter:\n";
+		for (unsigned i = 0; i < currentCodonSpecificParameter[dEtaCSP].size(); i++)
+		{
+			oss << "***\n";
+			for (j = 0; j < currentCodonSpecificParameter[dEtaCSP][i].size(); j++)
+			{
+				oss << currentCodonSpecificParameter[dEtaCSP][i][j];
 				if ((j + 1) % 10 == 0)
 					oss << "\n";
 				else
@@ -525,6 +584,39 @@ void FONSEParameter::initSelectionCategories(std::vector<std::string> files, uns
 }
 
 
+void FONSEParameter::initEtaCategories(std::vector<std::string> files, unsigned numCategories, bool fix)
+{
+  for (unsigned category = 0; category < numCategories; category++)
+  {
+	std::ifstream currentFile;
+	currentFile.open(files[category].c_str());
+	if (currentFile.fail())
+	{
+		my_printError("Error opening file % to initialize eta (elongation) values.\n", category);
+		my_printError("please use absolute path");
+		return;
+	}
+	else
+	{
+		std::string tmp;
+		currentFile >> tmp; //header line (Amino Acid, Codon, Value, ...)
+		fix_dEta = fix;
+		while (currentFile >> tmp)
+		{
+			std::size_t pos = tmp.find(',', 2);
+			std::string codon = tmp.substr(2, pos - 2);
+			unsigned codonIndex = SequenceSummary::codonToIndex(codon, true);
+			std::size_t pos2 = tmp.find(',', pos + 1);
+			double value = std::atof(tmp.substr(pos + 1, pos2 - pos - 1).c_str());
+			currentCodonSpecificParameter[dEtaCSP][category][codonIndex] = value;
+			proposedCodonSpecificParameter[dEtaCSP][category][codonIndex] = value;
+		}
+	}
+    currentFile.close();
+  } //END OF A CATEGORY/FILE
+}
+
+
 
 
 
@@ -538,6 +630,7 @@ void FONSEParameter::updateCodonSpecificParameterTrace(unsigned sample, std::str
 {
 	traces.updateCodonSpecificParameterTraceForAA(sample, grouping, currentCodonSpecificParameter[dM], dM);
 	traces.updateCodonSpecificParameterTraceForAA(sample, grouping, currentCodonSpecificParameter[dOmega], dOmega);
+	traces.updateCodonSpecificParameterTraceForAA(sample, grouping, currentCodonSpecificParameter[dEtaCSP], dEtaCSP);
 }
 
 void FONSEParameter::updateInitiationCostParameterTrace(unsigned sample)
@@ -587,7 +680,7 @@ void FONSEParameter::proposeCodonSpecificParameter()
     unsigned aaStart, aaEnd;
     SequenceSummary::AAToCodonRange(aa, aaStart, aaEnd, true);
     unsigned numCodons = aaEnd - aaStart;
-    for (unsigned i = 0u; i < (numCodons * (numMutationCategories + numSelectionCategories)); i++)
+    for (unsigned i = 0u; i < (numCodons * (numMutationCategories + 2u * numSelectionCategories)); i++)
     {
       iidProposed.push_back(randNorm(0.0, 1.0)); //Random distribution between 0 and 1
     }
@@ -620,6 +713,22 @@ void FONSEParameter::proposeCodonSpecificParameter()
 			{
 				proposedCodonSpecificParameter[dOmega][i][l] = currentCodonSpecificParameter[dOmega][i][l]
 											   + covaryingNums[(numMutationCategories * numCodons) + j];
+			}
+		}
+	}
+	// dEta block: covariance offset after the dM and dOmega blocks.
+	for (unsigned i = 0; i < numSelectionCategories; i++)
+	{
+		for (unsigned j = i * numCodons, l = aaStart; j < (i * numCodons) + numCodons; j++, l++)
+		{
+			if (fix_dEta)
+			{
+				proposedCodonSpecificParameter[dEtaCSP][i][l] = currentCodonSpecificParameter[dEtaCSP][i][l];
+			}
+			else
+			{
+				proposedCodonSpecificParameter[dEtaCSP][i][l] = currentCodonSpecificParameter[dEtaCSP][i][l]
+											   + covaryingNums[((numMutationCategories + numSelectionCategories) * numCodons) + j];
 			}
 		}
 	}
@@ -659,6 +768,17 @@ void FONSEParameter::updateCodonSpecificParameter(std::string grouping)
 			}
 		}
 	}
+
+	if (!fix_dEta)
+	{
+		for (unsigned k = 0u; k < numSelectionCategories; k++)
+		{
+			for (unsigned i = aaStart; i < aaEnd; i++)
+			{
+				currentCodonSpecificParameter[dEtaCSP][k][i] = proposedCodonSpecificParameter[dEtaCSP][k][i];
+			}
+		}
+	}
 }
 
 
@@ -686,6 +806,16 @@ void FONSEParameter::fixDOmega()
 	fix_dOmega = true;
 }
 
+void FONSEParameter::fixDEta()
+{
+	fix_dEta = true;
+}
+
+void FONSEParameter::estimateDEta()
+{
+	fix_dEta = false;
+}
+
 bool FONSEParameter::isDMFixed()
 {
 	return fix_dM;
@@ -694,6 +824,11 @@ bool FONSEParameter::isDMFixed()
 bool FONSEParameter::isDOmegaFixed()
 {
 	return fix_dOmega;
+}
+
+bool FONSEParameter::isDEtaFixed()
+{
+	return fix_dEta;
 }
 
 
@@ -995,6 +1130,12 @@ std::vector< std::vector <double> > FONSEParameter::getCurrentSelectionParameter
 }
 
 
+std::vector< std::vector <double> > FONSEParameter::getCurrentEtaParameter()
+{
+    return currentCodonSpecificParameter[dEtaCSP];
+}
+
+
 void FONSEParameter::setCurrentMutationParameter(std::vector<std::vector<double>> _currentMutationParameter)
 {
 	currentCodonSpecificParameter[dM] = _currentMutationParameter;
@@ -1004,5 +1145,11 @@ void FONSEParameter::setCurrentMutationParameter(std::vector<std::vector<double>
 void FONSEParameter::setCurrentSelectionParameter(std::vector<std::vector<double>> _currentSelectionParameter)
 {
 	currentCodonSpecificParameter[dOmega] = _currentSelectionParameter;
+}
+
+
+void FONSEParameter::setCurrentEtaParameter(std::vector<std::vector<double>> _currentEtaParameter)
+{
+	currentCodonSpecificParameter[dEtaCSP] = _currentEtaParameter;
 }
 #endif

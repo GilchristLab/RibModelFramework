@@ -570,6 +570,7 @@ RCPP_MODULE(Parameter_mod)
 		.method("initMutationCategories", &FONSEParameter::initMutationCategories)
 		.method("initSelection", &FONSEParameter::initSelection)
 		.method("initSelectionCategories", &FONSEParameter::initSelectionCategories)
+		.method("initEtaCategories", &FONSEParameter::initEtaCategories)
 
 		.method("fixedInitiationCost",&FONSEParameter::fixedInitiationCost)
 		.method("fixedElongationCost",&FONSEParameter::fixedElongationCost)
@@ -582,6 +583,8 @@ RCPP_MODULE(Parameter_mod)
 
 		.method("fixDM",&FONSEParameter::fixDM)//Not a R wrapper
 		.method("fixDOmega",&FONSEParameter::fixDOmega)//Not a R wrapper
+		.method("fixDEta",&FONSEParameter::fixDEta)//Not a R wrapper
+		.method("estimateDEta",&FONSEParameter::estimateDEta)//Not a R wrapper
 
 
 		// .property("proposedMutationParameter", &FONSEParameter::getProposedMutationParameter,
@@ -592,6 +595,8 @@ RCPP_MODULE(Parameter_mod)
 		        &FONSEParameter::setCurrentMutationParameter) //R Specific
 		.property("currentSelectionParameter", &FONSEParameter::getCurrentSelectionParameter,
 		        &FONSEParameter::setCurrentSelectionParameter) //R Specific
+		.property("currentEtaParameter", &FONSEParameter::getCurrentEtaParameter,
+		        &FONSEParameter::setCurrentEtaParameter) //R Specific
 		.property("mutation_prior_sd", &FONSEParameter::getMutationPriorStandardDeviation,
 		        &FONSEParameter::setMutationPriorStandardDeviation)
 		;

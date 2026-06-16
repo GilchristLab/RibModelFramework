@@ -9,7 +9,7 @@ class FONSEModel : public Model
 	private:
 		FONSEParameter *parameter;
 
-		double calculateLogLikelihoodRatioPerAA(Gene& gene, std::string grouping, double *mutation, double *selection, double phiValue,double a1_value, double a2_value);
+		double calculateLogLikelihoodRatioPerAA(Gene& gene, std::string grouping, double *mutation, double *selection, double *dEta, double phiValue,double a1_value, double a2_value);
 		double calculateMutationPrior(std::string grouping, bool proposed = false);
 
 
@@ -132,8 +132,8 @@ class FONSEModel : public Model
 		}
 		virtual double calculateAllPriors(bool proposed=false);
 		void calculateLogCodonProbabilityVector(unsigned numCodons, unsigned position, unsigned minIndexValue,
-					double* mutation, double* selection, double phi, double a1_value, double a2_value, std::vector <double> &codonProb);
-		void calculateCodonProbabilityVector(unsigned numCodons, unsigned position, double* mutation, double* selection,
+					double* mutation, double* selection, double* dEta, double phi, double a1_value, double a2_value, std::vector <double> &codonProb);
+		void calculateCodonProbabilityVector(unsigned numCodons, unsigned position, double* mutation, double* selection, double* dEta,
 					double phi, double a1_value, double a2_value, double codonProb[]);
 		virtual void getParameterForCategory(unsigned category, unsigned param, std::string aa, bool proposal,
 					double* returnValue);
@@ -155,7 +155,7 @@ class FONSEModel : public Model
 
 		//R Section:
 #ifndef STANDALONE
-		std::vector<double> CalculateProbabilitiesForCodons(std::vector<double> mutation, std::vector<double> selection, double phi, double a1_value, double a2_value, unsigned position);
+		std::vector<double> CalculateProbabilitiesForCodons(std::vector<double> mutation, std::vector<double> selection, std::vector<double> dEta, double phi, double a1_value, double a2_value, unsigned position);
 #endif
 
 	protected:

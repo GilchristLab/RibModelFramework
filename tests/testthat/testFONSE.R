@@ -42,20 +42,28 @@ A2_HARDCODED <- 4.0  # must match FONSEModel.cpp lines 992, 996, 1004
 # Hand-rolled oracle: mirror FONSEModel::calculateCodonProbabilityVector
 # (non-log version) exactly.
 # ----------------------------------------------------------------------
-fonse_prob_oracle <- function(dM, dOmega, phi, a1, position, a2 = A2_HARDCODED) {
-  stopifnot(length(dM) == length(dOmega), length(dM) >= 1)
+# dEta is the position-INDEPENDENT elongation-selection term (-dEta[i]*phi),
+# added alongside the position-dependent -dOmega*phi*beta(pos) term. It defaults
+# to zeros (current FONSE behaviour). The shift pivot is dOmega's argmin (matches
+# the C++, which keys the reference re-pick off the selection/dOmega array).
+fonse_prob_oracle <- function(dM, dOmega, phi, a1, position, a2 = A2_HARDCODED,
+                              dEta = rep(0.0, length(dM))) {
+  stopifnot(length(dM) == length(dOmega), length(dEta) == length(dM),
+            length(dM) >= 1)
   beta_pos <- a1 + a2 * position
   min_idx  <- which.min(dOmega)
   min_sel  <- dOmega[min_idx]
   if (min_sel < 0) {
     # shifted branch
     unnorm_nonref <- exp(-(dM - dM[min_idx]) -
+                         (dEta - dEta[min_idx]) * phi -
                          phi * beta_pos * (dOmega - min_sel))
-    unnorm_ref    <- exp(dM[min_idx] + phi * beta_pos * min_sel)
+    unnorm_ref    <- exp(dM[min_idx] + dEta[min_idx] * phi +
+                         phi * beta_pos * min_sel)
     raw <- c(unnorm_nonref, unnorm_ref)
   } else {
     # unshifted branch
-    unnorm_nonref <- exp(-dM - phi * beta_pos * dOmega)
+    unnorm_nonref <- exp(-dM - dEta * phi - phi * beta_pos * dOmega)
     raw <- c(unnorm_nonref, 1.0)
   }
   raw / sum(raw)
@@ -85,14 +93,16 @@ model     <- initializeModelObject(parameter, "FONSE")
 # end), call RMF with the non-reference portion and return the full-length
 # RMF output. Compare against the oracle.
 compare_rmf_vs_oracle <- function(dM_full, dOmega_full, phi, a1, position,
-                                  label, tol = 1e-12, a2 = A2_HARDCODED) {
+                                  label, tol = 1e-12, a2 = A2_HARDCODED,
+                                  dEta_full = rep(0.0, length(dM_full))) {
   n <- length(dM_full)
-  stopifnot(length(dOmega_full) == n, n >= 2)
+  stopifnot(length(dOmega_full) == n, length(dEta_full) == n, n >= 2)
   # RMF takes non-reference vectors (length n-1). Reference is the last.
   rmf <- model$CalculateProbabilitiesForCodons(
-    dM_full[-n], dOmega_full[-n], phi, a1, a2, position
+    dM_full[-n], dOmega_full[-n], dEta_full[-n], phi, a1, a2, position
   )
-  oracle <- fonse_prob_oracle(dM_full[-n], dOmega_full[-n], phi, a1, position, a2 = a2)
+  oracle <- fonse_prob_oracle(dM_full[-n], dOmega_full[-n], phi, a1, position,
+                              a2 = a2, dEta = dEta_full[-n])
   test_that(paste("FONSE matches oracle:", label), {
     expect_equal(length(rmf), n)
     expect_equal(sum(rmf), 1, tolerance = 1e-12)
@@ -174,7 +184,7 @@ test_that("FONSE dOmega=0 reduces to pure mutation multinomial", {
   dOmega_full <- rep(0.0, length(dM_full))
   n <- length(dM_full)
   rmf <- model$CalculateProbabilitiesForCodons(
-    dM_full[-n], dOmega_full[-n], phi = 1.0, a1_literature, A2_HARDCODED, position = 100
+    dM_full[-n], dOmega_full[-n], rep(0.0, n - 1), phi = 1.0, a1_literature, A2_HARDCODED, position = 100
   )
   # Pure mutation reference oracle, independent of phi/beta/position.
   raw <- c(exp(-dM_full[-n]), 1.0)
@@ -194,17 +204,60 @@ test_that("FONSE a2 enters the positional cost (a2 != 4 changes probabilities an
   position    <- 50
 
   rmf_a2_8 <- model$CalculateProbabilitiesForCodons(
-    dM_full[-n], dOmega_full[-n], phi, a1_literature, 8.0, position
+    dM_full[-n], dOmega_full[-n], rep(0.0, n - 1), phi, a1_literature, 8.0, position
   )
   oracle_a2_8 <- fonse_prob_oracle(dM_full[-n], dOmega_full[-n], phi,
                                    a1_literature, position, a2 = 8.0)
   expect_equal(rmf_a2_8, oracle_a2_8, tolerance = 1e-12)
 
   rmf_a2_4 <- model$CalculateProbabilitiesForCodons(
-    dM_full[-n], dOmega_full[-n], phi, a1_literature, 4.0, position
+    dM_full[-n], dOmega_full[-n], rep(0.0, n - 1), phi, a1_literature, 4.0, position
   )
   # a2 = 8 vs a2 = 4 doubles the positional slope, so the probabilities differ.
   expect_false(isTRUE(all.equal(rmf_a2_8, rmf_a2_4)))
+})
+
+# Case 8: dEta (position-independent elongation selection, the ROC-equivalent
+# term) enters the codon probability as -dEta[i]*phi. A non-zero dEta must
+# (a) match the oracle exactly and (b) change the probabilities relative to
+# dEta = 0, proving the new term reaches the math. Unshifted branch.
+test_that("FONSE dEta enters as -dEta*phi (matches oracle, changes probabilities)", {
+  dM_full     <- c(0.20, -0.30, 0.10, 0.0)
+  dOmega_full <- c(5e-4, 3e-4, 6e-4, 0.0)
+  dEta_full   <- c(0.40, -0.25, 0.15, 0.0)
+  n           <- length(dM_full)
+  phi         <- 1.5
+  position    <- 100
+
+  rmf <- model$CalculateProbabilitiesForCodons(
+    dM_full[-n], dOmega_full[-n], dEta_full[-n], phi, a1_literature, A2_HARDCODED, position
+  )
+  oracle <- fonse_prob_oracle(dM_full[-n], dOmega_full[-n], phi,
+                              a1_literature, position, dEta = dEta_full[-n])
+  expect_equal(sum(rmf), 1, tolerance = 1e-12)
+  expect_equal(rmf, oracle, tolerance = 1e-12)
+
+  # dEta = 0 must differ -- confirms the term is not silently dropped.
+  rmf_zero <- model$CalculateProbabilitiesForCodons(
+    dM_full[-n], dOmega_full[-n], rep(0.0, n - 1), phi, a1_literature, A2_HARDCODED, position
+  )
+  expect_false(isTRUE(all.equal(rmf, rmf_zero)))
+})
+
+# Case 9: shifted branch (min dOmega < 0) with non-zero dEta. Guards the
+# re-referencing of the dEta term in the shifted path.
+test_that("FONSE dEta in shifted branch matches oracle", {
+  dM_full     <- c(-0.20, 0.30, 0.0)
+  dOmega_full <- c(-8e-4, 4e-4, 0.0)
+  dEta_full   <- c(0.50, -0.10, 0.0)
+  n           <- length(dM_full)
+  rmf <- model$CalculateProbabilitiesForCodons(
+    dM_full[-n], dOmega_full[-n], dEta_full[-n], phi = 1e4, a1_literature, A2_HARDCODED, position = 200
+  )
+  oracle <- fonse_prob_oracle(dM_full[-n], dOmega_full[-n], phi = 1e4,
+                              a1_literature, position = 200, dEta = dEta_full[-n])
+  expect_equal(sum(rmf), 1, tolerance = 1e-12)
+  expect_equal(rmf, oracle, tolerance = 1e-12)
 })
 
 # ======================================================================
