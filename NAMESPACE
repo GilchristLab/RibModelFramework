@@ -179,3 +179,10 @@ export(panse_compile_model)
 
 # ---- PANSE Stan harness Phase 4 (TKT #38) ----
 export(fit_panse_stan)
+
+# ---- FONSE Stan harness ----
+export(fonse_stan_model_path)
+export(fonse_compile_model)
+export(fonse_genome_to_obs)
+export(build_fonse_stan_data)
+export(fit_fonse_stan)
