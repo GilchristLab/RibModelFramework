@@ -1954,9 +1954,10 @@ writeParameterObject.Rcpp_FONSEParameter <- function(parameter, file)
   
   currentMutation <- parameter$currentMutationParameter
   currentSelection <- parameter$currentSelectionParameter
-  proposedMutation <- parameter$proposedMutationParameter
-  proposedSelection <- parameter$proposedSelectionParameter
-  
+  # NB: FONSEParameter does not expose proposed{Mutation,Selection}Parameter
+  # (the Rcpp properties are intentionally not bound), and the proposed values
+  # are not saved below, so we do not read them here.
+
   model = "FONSE"
   mutationPrior <- parameter$getMutationPriorStandardDeviation()
   

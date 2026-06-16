@@ -160,6 +160,16 @@ std::vector <unsigned> *SequenceSummary::getCodonPositions(std::string codon)
 
 std::vector <unsigned> *SequenceSummary::getCodonPositions(unsigned index)
 {
+	// Genes whose sequence was never processed (e.g. length not a multiple of 3,
+	// see Gene::setSequence) have an empty codonPositions vector. Count-based
+	// models (ROC) silently ignore such genes because their codon counts are 0;
+	// position-based models (FONSE) iterate codonPositions directly and would
+	// otherwise dereference out of bounds and segfault. Return a pointer to a
+	// shared empty vector so these genes contribute no codon positions, mirroring
+	// ROC's behaviour instead of crashing.
+	static std::vector <unsigned> emptyPositions;
+	if (index >= codonPositions.size())
+		return &emptyPositions;
 	return &codonPositions[index];
 }
 
