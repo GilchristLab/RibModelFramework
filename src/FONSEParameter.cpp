@@ -36,7 +36,7 @@ FONSEParameter::FONSEParameter(std::string filename) : Parameter(22)
 
 
 FONSEParameter::FONSEParameter(std::vector<double> stdDevSynthesisRate, unsigned _numMixtures, std::vector<unsigned> geneAssignment,
-	std::vector<std::vector<unsigned>> thetaKMatrix, bool splitSer, std::string _mutationSelectionState,double _a1) :
+	std::vector<std::vector<unsigned>> thetaKMatrix, bool splitSer, std::string _mutationSelectionState,double _a1, double _a2) :
 	Parameter(22)
 {
 	// groupList must be set before initParameterSet because initParameterSet
@@ -45,7 +45,7 @@ FONSEParameter::FONSEParameter(std::vector<double> stdDevSynthesisRate, unsigned
 	// numParam = 0 and initMutation segfaults on out-of-bounds access.
 	groupList = { "A", "C", "D", "E", "F", "G", "H", "I", "K", "L", "N", "P", "Q", "R", "S", "T", "V", "Y", "Z" };
 	initParameterSet(stdDevSynthesisRate, _numMixtures, geneAssignment, thetaKMatrix, splitSer, _mutationSelectionState);
-	initFONSEParameterSet(_a1);
+	initFONSEParameterSet(_a1, _a2);
 }
 
 
@@ -90,7 +90,7 @@ FONSEParameter::~FONSEParameter()
 //---------------------------------------------------------------//
 
 
-void FONSEParameter::initFONSEParameterSet(double _a1)
+void FONSEParameter::initFONSEParameterSet(double _a1, double _a2)
 {
 	mutation_prior_sd = 0.35;
 	// mutation_prior_mean.resize(numMutationCategories);
@@ -111,6 +111,17 @@ void FONSEParameter::initFONSEParameterSet(double _a1)
 	a1_proposed = a1;
 	std_a1 = 0.1;
 	numAcceptForA1 = 0;
+	a2 = _a2;
+	a2_proposed = a2;
+	std_a2 = 0.1;
+	numAcceptForA2 = 0;
+	// Default: both nonsense-error cost-function coefficients are held fixed
+	// at their initial values (a1 = a2 = 4). beta(k) = a1 + a2 * k is therefore
+	// a constant cost function unless the user opts in via estimateInitiationCost()
+	// / estimateElongationCost(). Holding a1 fixed also avoids the historical
+	// a1 runaway (a1 is weakly identified and a1 + a2*k is a confounding ridge).
+	fix_a1 = true;
+	fix_a2 = true;
 	//may need getter fcts
 	currentCodonSpecificParameter.resize(2);
 	proposedCodonSpecificParameter.resize(2);
@@ -159,6 +170,11 @@ void FONSEParameter::initFONSEValuesFromFile(std::string filename)
 	}
 	else
 	{
+		// Defaults so restart files written before the a2 (elongation cost)
+		// parameter was added still load: if elongation_cost / std_elongation_cost
+		// are absent from the file, a2 stays at its fixed default of 4.
+		a2 = 4;
+		std_a2 = 0.1;
 		std::string tmp, variableName;
 		unsigned cat = 0;
 		while (getline(input, tmp))
@@ -273,6 +289,16 @@ void FONSEParameter::initFONSEValuesFromFile(std::string filename)
 					iss.str(tmp);
 					iss >> std_a1;
 				}
+				else if (variableName == "elongation_cost")
+				{
+					iss.str(tmp);
+					iss >> a2;
+				}
+				else if (variableName == "std_elongation_cost")
+				{
+					iss.str(tmp);
+					iss >> std_a2;
+				}
 			}
 		}
 	}
@@ -284,6 +310,7 @@ void FONSEParameter::initFONSEValuesFromFile(std::string filename)
 	proposedCodonSpecificParameter[dOmega].resize(numSelectionCategories);
 	//looping through the bigger of the two categories
 	a1_proposed = a1;
+	a2_proposed = a2;
 	unsigned biggerCat = std::max(numMutationCategories, numSelectionCategories);
 	for (unsigned i = 0; i < biggerCat; i++)
 	{
@@ -319,6 +346,8 @@ void FONSEParameter::writeFONSERestartFile(std::string filename)
 		oss << ">mutation_prior_sd:\n" << mutation_prior_sd << "\n";
 		oss << ">initiation_cost:\n" << a1 << "\n";
 		oss << ">std_initiation_cost:\n" << std_a1 << "\n";
+		oss << ">elongation_cost:\n" << a2 << "\n";
+		oss << ">std_elongation_cost:\n" << std_a2 << "\n";
 		// oss << ">mutation_prior_mean:\n";
 		// for (unsigned i = 0; i < mutation_prior_mean.size(); i++)
 		// {
@@ -516,6 +545,11 @@ void FONSEParameter::updateInitiationCostParameterTrace(unsigned sample)
 	traces.updateInitiationCostTrace(sample,a1);
 }
 
+void FONSEParameter::updateElongationCostParameterTrace(unsigned sample)
+{
+	traces.updateElongationCostTrace(sample,a2);
+}
+
 // ------------------------------------------//
 // ---------- Covariance Functions ----------//
 // ------------------------------------------//
@@ -635,6 +669,13 @@ void FONSEParameter::updateInitiationCost()
 }
 
 
+void FONSEParameter::updateElongationCost()
+{
+	a2 = a2_proposed;
+	numAcceptForA2++;
+}
+
+
 void FONSEParameter::fixDM()
 {
 	fix_dM = true;
@@ -677,9 +718,21 @@ double FONSEParameter::getInitiationCost(bool proposed)
 }
 
 
+double FONSEParameter::getElongationCost(bool proposed)
+{
+	return (proposed ? a2_proposed : a2);
+}
+
+
 double FONSEParameter::getCurrentInitiationCostProposalWidth()
 {
 	return std_a1;
+}
+
+
+double FONSEParameter::getCurrentElongationCostProposalWidth()
+{
+	return std_a2;
 }
 // -------------------------------------//
 // ---------- Other Functions ----------//
@@ -715,11 +768,34 @@ void FONSEParameter::proposeHyperParameters()
     {
     	a1_proposed = a1;
     }
+    if (!fix_a2)
+    {
+    	a2_proposed = std::exp(randNorm(std::log(a2), std_a2));
+    }
+    else
+    {
+    	a2_proposed = a2;
+    }
 }
 
 void FONSEParameter::fixedInitiationCost()
 {
 	fix_a1 = true;
+}
+
+void FONSEParameter::fixedElongationCost()
+{
+	fix_a2 = true;
+}
+
+void FONSEParameter::estimateInitiationCost()
+{
+	fix_a1 = false;
+}
+
+void FONSEParameter::estimateElongationCost()
+{
+	fix_a2 = false;
 }
 
 
@@ -736,6 +812,22 @@ void FONSEParameter::adaptInitiationCostProposalWidth(unsigned adaptationWidth, 
             std_a1 *= 1.2;
     }
     numAcceptForA1 = 0u;
+}
+
+
+void FONSEParameter::adaptElongationCostProposalWidth(unsigned adaptationWidth, bool adapt)
+{
+    double acceptanceLevel = (double)numAcceptForA2 / (double)adaptationWidth;
+    my_print("Accepted Elongation Cost a_2: %\n",acceptanceLevel);
+    traces.updateElongationCostAcceptanceRateTrace(acceptanceLevel);
+    if (adapt)
+    {
+        if (acceptanceLevel < 0.2)
+            std_a2 *= 0.8;
+        if (acceptanceLevel > 0.3)
+            std_a2 *= 1.2;
+    }
+    numAcceptForA2 = 0u;
 }
 
 
@@ -757,7 +849,7 @@ void FONSEParameter::adaptInitiationCostProposalWidth(unsigned adaptationWidth, 
 
 
 FONSEParameter::FONSEParameter(std::vector<double> stdDevSynthesisRate, std::vector<unsigned> geneAssignment,
-                               std::vector<unsigned> _matrix, bool splitSer,double _a1) : Parameter(22)
+                               std::vector<unsigned> _matrix, bool splitSer,double _a1, double _a2) : Parameter(22)
 {
     // groupList must be set before initParameterSet (see comment in keyword constructor)
     groupList = { "A", "C", "D", "E", "F", "G", "H", "I", "K", "L", "N", "P", "Q", "R", "S", "T", "V", "Y", "Z" };
@@ -781,19 +873,19 @@ FONSEParameter::FONSEParameter(std::vector<double> stdDevSynthesisRate, std::vec
 		}
 	}
     initParameterSet(stdDevSynthesisRate, _numMixtures, geneAssignment, thetaKMatrix, splitSer, "");
-    initFONSEParameterSet(_a1);
+    initFONSEParameterSet(_a1, _a2);
 
 }
 
 
 FONSEParameter::FONSEParameter(std::vector<double> stdDevSynthesisRate, unsigned _numMixtures, std::vector<unsigned> geneAssignment,
-                               bool splitSer, std::string _mutationSelectionState, double _a1) : Parameter(22)
+                               bool splitSer, std::string _mutationSelectionState, double _a1, double _a2) : Parameter(22)
 {
     // groupList must be set before initParameterSet (see comment in keyword constructor)
     groupList = { "A", "C", "D", "E", "F", "G", "H", "I", "K", "L", "N", "P", "Q", "R", "S", "T", "V", "Y", "Z" };
     std::vector<std::vector<unsigned>> thetaKMatrix;
     initParameterSet(stdDevSynthesisRate, _numMixtures, geneAssignment, thetaKMatrix, splitSer, _mutationSelectionState);
-    initFONSEParameterSet(_a1);
+    initFONSEParameterSet(_a1, _a2);
 }
 
 

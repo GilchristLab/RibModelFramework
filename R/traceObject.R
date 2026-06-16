@@ -81,6 +81,10 @@
   {
     current.trace <- object$getInitiationCostTrace()
   }
+  else if(what[1] == "ElongationCost")
+  {
+    current.trace <- object$getElongationCostTrace()
+  }
   else if(what[1] == "AcceptanceCSP")
   {
     names.aa <- aminoAcids()
@@ -111,7 +115,7 @@
 #' @param what which set of traces to extract. One of \code{"Mutation"} (default),
 #'   \code{"Selection"}, \code{"Alpha"}, \code{"Lambda"}/\code{"LambdaPrime"},
 #'   \code{"NSERate"}, \code{"MixtureProbability"}, \code{"Sphi"}, \code{"Mphi"},
-#'   \code{"ExpectedPhi"}, \code{"InitiationCost"}, or \code{"AcceptanceCSP"}.
+#'   \code{"ExpectedPhi"}, \code{"InitiationCost"}, \code{"ElongationCost"}, or \code{"AcceptanceCSP"}.
 #' @param mixture mixture index for traces that are mixture-specific
 #'   (Mutation/Selection/Alpha/Lambda/NSERate). Defaults to 1.
 #' @param samples optional positive integer. If supplied, return only the last
@@ -122,7 +126,7 @@
 #' @param ... unused; present for S3 generic compatibility.
 #'
 #' @return a \code{coda::mcmc} object: vector for single-series traces
-#'   (ExpectedPhi, InitiationCost), matrix with one column per codon/mixture for
+#'   (ExpectedPhi, InitiationCost, ElongationCost), matrix with one column per codon/mixture for
 #'   the others.
 #'
 #' @note Prefer the \code{samples} argument over post-hoc windowing with

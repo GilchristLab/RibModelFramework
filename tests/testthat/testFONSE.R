@@ -85,14 +85,14 @@ model     <- initializeModelObject(parameter, "FONSE")
 # end), call RMF with the non-reference portion and return the full-length
 # RMF output. Compare against the oracle.
 compare_rmf_vs_oracle <- function(dM_full, dOmega_full, phi, a1, position,
-                                  label, tol = 1e-12) {
+                                  label, tol = 1e-12, a2 = A2_HARDCODED) {
   n <- length(dM_full)
   stopifnot(length(dOmega_full) == n, n >= 2)
   # RMF takes non-reference vectors (length n-1). Reference is the last.
   rmf <- model$CalculateProbabilitiesForCodons(
-    dM_full[-n], dOmega_full[-n], phi, a1, position
+    dM_full[-n], dOmega_full[-n], phi, a1, a2, position
   )
-  oracle <- fonse_prob_oracle(dM_full[-n], dOmega_full[-n], phi, a1, position)
+  oracle <- fonse_prob_oracle(dM_full[-n], dOmega_full[-n], phi, a1, position, a2 = a2)
   test_that(paste("FONSE matches oracle:", label), {
     expect_equal(length(rmf), n)
     expect_equal(sum(rmf), 1, tolerance = 1e-12)
@@ -174,12 +174,37 @@ test_that("FONSE dOmega=0 reduces to pure mutation multinomial", {
   dOmega_full <- rep(0.0, length(dM_full))
   n <- length(dM_full)
   rmf <- model$CalculateProbabilitiesForCodons(
-    dM_full[-n], dOmega_full[-n], phi = 1.0, a1_literature, position = 100
+    dM_full[-n], dOmega_full[-n], phi = 1.0, a1_literature, A2_HARDCODED, position = 100
   )
   # Pure mutation reference oracle, independent of phi/beta/position.
   raw <- c(exp(-dM_full[-n]), 1.0)
   pure <- raw / sum(raw)
   expect_equal(rmf, pure, tolerance = 1e-12)
+})
+
+# Case 7: a2 is now a real argument to the codon-probability function, not a
+# hardcoded 4.0. Passing a2 != 4 must (a) still match the oracle at that a2, and
+# (b) actually change the probabilities relative to a2 = 4 (proving a2 enters
+# the math). dOmega must be non-zero, else beta(k) cancels in the multinomial.
+test_that("FONSE a2 enters the positional cost (a2 != 4 changes probabilities and matches oracle)", {
+  dM_full     <- c(0.20, 0.50, 0.0)
+  dOmega_full <- c(5e-4, 3e-4, 0.0)
+  n           <- length(dM_full)
+  phi         <- 100
+  position    <- 50
+
+  rmf_a2_8 <- model$CalculateProbabilitiesForCodons(
+    dM_full[-n], dOmega_full[-n], phi, a1_literature, 8.0, position
+  )
+  oracle_a2_8 <- fonse_prob_oracle(dM_full[-n], dOmega_full[-n], phi,
+                                   a1_literature, position, a2 = 8.0)
+  expect_equal(rmf_a2_8, oracle_a2_8, tolerance = 1e-12)
+
+  rmf_a2_4 <- model$CalculateProbabilitiesForCodons(
+    dM_full[-n], dOmega_full[-n], phi, a1_literature, 4.0, position
+  )
+  # a2 = 8 vs a2 = 4 doubles the positional slope, so the probabilities differ.
+  expect_false(isTRUE(all.equal(rmf_a2_8, rmf_a2_4)))
 })
 
 # ======================================================================
@@ -238,6 +263,24 @@ test_that("FONSE MCMC initiation cost (a1) is positive and finite at last sample
   expect_gt(initTrace[samples + 1], 0)
 })
 
+test_that("FONSE MCMC elongation cost (a2) trace has length samples+1 and is finite", {
+  trace    <- parameter$getTraceObject()
+  a2Trace  <- trace$getElongationCostTrace()
+  expect_equal(length(a2Trace), samples + 1)
+  expect_true(all(is.finite(a2Trace[-1])))
+})
+
+# Regression for the fixed-by-default decision: with no estimate*Cost() call,
+# both a1 and a2 are held fixed at their init value (4) for the whole run, so
+# their traces are constant. (Index 1 is the unwritten initial slot; skip it.)
+test_that("FONSE a1 and a2 are held fixed at 4 by default", {
+  trace     <- parameter$getTraceObject()
+  initTrace <- trace$getInitiationCostTrace()
+  a2Trace   <- trace$getElongationCostTrace()
+  expect_true(all(initTrace[-1] == 4))
+  expect_true(all(a2Trace[-1]   == 4))
+})
+
 test_that("FONSE MCMC codon-specific parameter (dM, dOmega) traces have length samples+1", {
   trace    <- parameter$getTraceObject()
   muTrace  <- trace$getCodonSpecificParameterTraceByMixtureElementForCodon(1, "AAA", 0, FALSE)
@@ -250,4 +293,40 @@ test_that("FONSE MCMC synthesis rate trace has length samples+1", {
   trace      <- parameter$getTraceObject()
   synthTrace <- trace$getSynthesisRateTraceForGene(1)
   expect_equal(length(synthTrace), samples + 1)
+})
+
+# ======================================================================
+# FONSE a2 estimation regression
+#
+# When estimateElongationCost() is called, a2 is no longer fixed and its
+# hyperparameter proposal/accept machinery activates, so the a2 trace must
+# move away from its constant initial value during the run. This exercises
+# the full propose -> calculateLogLikelihoodRatioForHyperParameters (index 2)
+# -> updateHyperParameter(2) -> updateElongationCost path.
+# ======================================================================
+context("FONSE a2 estimation")
+
+test_that("estimateElongationCost() makes a2 move during MCMC", {
+  set.seed(987654)
+  genome2 <- initializeGenomeObject(file = fastaFile)
+  param2  <- initializeParameterObject(genome = genome2, sphi = 1,
+                                       num.mixtures = 1,
+                                       gene.assignment = rep(1, length(genome2)),
+                                       model = "FONSE",
+                                       init.initiation.cost = a1_literature,
+                                       init.elongation.cost = 4)
+  param2$estimateElongationCost()      # un-fix a2
+  model2 <- initializeModelObject(param2, "FONSE")
+  mcmc2  <- initializeMCMCObject(samples = 20, thinning = 10,
+                                 adaptive.width = 10,
+                                 est.expression = TRUE, est.csp = TRUE,
+                                 est.hyper = TRUE)
+  sink(file.path("UnitTestingOut", "testFONSEa2EstLog.txt"))
+  runMCMC(mcmc2, genome2, model2, 1, 0)
+  sink()
+
+  a2Trace <- param2$getTraceObject()$getElongationCostTrace()
+  # a2 must have changed from its constant initial value of 4.
+  expect_false(all(a2Trace[-1] == 4))
+  expect_true(all(is.finite(a2Trace[-1])))
 })

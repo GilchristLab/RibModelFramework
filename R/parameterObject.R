@@ -101,7 +101,9 @@
 #' 
 #' @param init.by.random If TRUE, initialize codon-specific parameters randomly. Default is FALSE.
 #'
-#' @param init.initiation.cost FOR FONSE ONLY. Initializes the initiation cost a_1 at this value.
+#' @param init.initiation.cost FOR FONSE ONLY. Initializes the initiation cost a_1 at this value. Held fixed by default; call parameter$estimateInitiationCost() to estimate it.
+#'
+#' @param init.elongation.cost FOR FONSE ONLY. Initializes the elongation cost a_2 (the positional slope of the nonsense-error cost beta(k) = a_1 + a_2 * k) at this value. Held fixed by default; call parameter$estimateElongationCost() to estimate it.
 #'
 #' @param init.partition.function FOR PANSE ONLY. initializes the partition function Z.
 #'
@@ -188,7 +190,7 @@ initializeParameterObject <- function(genome = NULL, sphi = NULL, num.mixtures =
                                       selection.prior.mean = 0.0,
                                       selection.prior.sd = 100,
                                       init.csp.variance = 0.0025, init.sepsilon = 0.1,
-                                      init.w.obs.phi=FALSE, init.by.random = FALSE ,init.initiation.cost = 4,init.partition.function=1,
+                                      init.w.obs.phi=FALSE, init.by.random = FALSE ,init.initiation.cost = 4,init.elongation.cost = 4,init.partition.function=1,
                                       numElongationMixtures = 1,
                                       phi.prior = "lognormal",
                                       phi.prior.constraint = "mean",
@@ -313,7 +315,7 @@ initializeParameterObject <- function(genome = NULL, sphi = NULL, num.mixtures =
     if(is.null(init.with.restart.file)){
       parameter <- initializeFONSEParameterObject(genome, sphi, num.mixtures, 
                                                   gene.assignment, initial.expression.values, split.serine, 
-                                                  mixture.definition, mixture.definition.matrix, init.csp.variance,init.sepsilon,init.w.obs.phi,init.initiation.cost)
+                                                  mixture.definition, mixture.definition.matrix, init.csp.variance,init.sepsilon,init.w.obs.phi,init.initiation.cost,init.elongation.cost)
     }else{
       parameter <- new(FONSEParameter, init.with.restart.file)
     }
@@ -689,19 +691,19 @@ initializePANSEParameterObject <- function(genome, sphi, numMixtures, geneAssign
 initializeFONSEParameterObject <- function(genome, sphi, numMixtures, 
                                            geneAssignment, expressionValues = NULL, split.serine = TRUE,
                                            mixture.definition = "allUnique", 
-                                           mixture.definition.matrix = NULL, init.csp.variance = 0.0025 ,init.sepsilon = 0.1,init.w.obs.phi=FALSE,init.initiation.cost = 4){
-  
+                                           mixture.definition.matrix = NULL, init.csp.variance = 0.0025 ,init.sepsilon = 0.1,init.w.obs.phi=FALSE,init.initiation.cost = 4,init.elongation.cost = 4){
+
   # create Parameter object
   if(is.null(mixture.definition.matrix))
   { # keyword constructor
-    parameter <- new(FONSEParameter, as.vector(sphi), numMixtures, geneAssignment, 
-                     split.serine, mixture.definition, init.initiation.cost)
+    parameter <- new(FONSEParameter, as.vector(sphi), numMixtures, geneAssignment,
+                     split.serine, mixture.definition, init.initiation.cost, init.elongation.cost)
   }else{
     #matrix constructor
-    mixture.definition <- c(mixture.definition.matrix[, 1], 
+    mixture.definition <- c(mixture.definition.matrix[, 1],
                             mixture.definition.matrix[, 2])
-    parameter <- new(FONSEParameter, as.vector(sphi), geneAssignment, 
-                     mixture.definition, split.serine,init.initiation.cost)
+    parameter <- new(FONSEParameter, as.vector(sphi), geneAssignment,
+                     mixture.definition, split.serine,init.initiation.cost, init.elongation.cost)
   }
   
   
@@ -1963,8 +1965,9 @@ writeParameterObject.Rcpp_FONSEParameter <- function(parameter, file)
   mutationTrace <- trace$getCodonSpecificParameterTrace(0)
   selectionTrace <- trace$getCodonSpecificParameterTrace(1)
   initiationCostTrace <- trace$getInitiationCostTrace()
+  elongationCostTrace <- trace$getElongationCostTrace()
   save(list = c("paramBase", "currentMutation", "currentSelection",
-                "model","mutationPrior", "mutationTrace", "selectionTrace","initiationCostTrace"),
+                "model","mutationPrior", "mutationTrace", "selectionTrace","initiationCostTrace","elongationCostTrace"),
        file=file)
 }
 
@@ -2502,6 +2505,10 @@ loadFONSEParameterObject <- function(parameter, files)
   trace$setCodonSpecificParameterTrace(codonSpecificParameterTraceMut, 0)
   trace$setCodonSpecificParameterTrace(codonSpecificParameterTraceSel, 1)
   trace$setInitiationCostTrace(tempEnv$initiationCostTrace)
+  # elongationCostTrace was added after some parameter objects were saved;
+  # guard so older .Rda files (without it) still load.
+  if (!is.null(tempEnv$elongationCostTrace))
+    trace$setElongationCostTrace(tempEnv$elongationCostTrace)
 
   parameter$currentMutationParameter <- tempEnv$currentMutation
   parameter$currentSelectionParameter <- tempEnv$currentSelection

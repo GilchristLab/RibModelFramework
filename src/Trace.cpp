@@ -220,7 +220,13 @@ void Trace::initPartitionFunctionTrace(unsigned samples, unsigned numPartitionFu
 
 void Trace::initInitiationCostTrace(unsigned samples)
 {
-	initiationCostTrace.resize(samples);	
+	initiationCostTrace.resize(samples);
+}
+
+
+void Trace::initElongationCostTrace(unsigned samples)
+{
+	elongationCostTrace.resize(samples);
 }
 
 
@@ -279,6 +285,7 @@ void Trace::initializeFONSETrace(unsigned samples, unsigned num_genes, unsigned 
 	initCodonSpecificParameterTrace(samples, numMutationCategories, numParam, 0u); // dM
 	initCodonSpecificParameterTrace(samples, numSelectionCategories, numParam, 1u); // dOmega
 	initInitiationCostTrace(samples);
+	initElongationCostTrace(samples);
 }
 
 
@@ -571,6 +578,18 @@ std::vector<double> Trace::getInitiationCostAcceptanceRateTrace()
 }
 
 
+std::vector<double> Trace::getElongationCostTrace()
+{
+    return elongationCostTrace;
+}
+
+
+std::vector<double> Trace::getElongationCostAcceptanceRateTrace()
+{
+    return elongationCostAcceptanceRateTrace;
+}
+
+
 
 //--------------------------------------//
 //---------- Update Functions ----------//
@@ -729,6 +748,18 @@ void Trace::updateInitiationCostTrace(unsigned sample, double value)
 void Trace:: updateInitiationCostAcceptanceRateTrace(double value)
 {
     initiationCostAcceptanceRateTrace.push_back(value);
+}
+
+
+void Trace::updateElongationCostTrace(unsigned sample, double value)
+{
+   elongationCostTrace[sample] = value;
+}
+
+
+void Trace:: updateElongationCostAcceptanceRateTrace(double value)
+{
+    elongationCostAcceptanceRateTrace.push_back(value);
 }
 
 
@@ -968,6 +999,12 @@ void Trace::setCodonSpecificParameterTrace(std::vector<std::vector<std::vector<f
 void Trace::setInitiationCostTrace(std::vector <double> _InitiationCostTrace)
 {
     initiationCostTrace = _InitiationCostTrace;
+}
+
+
+void Trace::setElongationCostTrace(std::vector <double> _ElongationCostTrace)
+{
+    elongationCostTrace = _ElongationCostTrace;
 }
 
 

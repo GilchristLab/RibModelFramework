@@ -83,6 +83,8 @@ RCPP_MODULE(Trace_mod)
     //FONSE Specific
     .method("getInitiationCostTrace",&Trace::getInitiationCostTrace)
     .method("setInitiationCostTrace", &Trace::setInitiationCostTrace)
+    .method("getElongationCostTrace",&Trace::getElongationCostTrace)
+    .method("setElongationCostTrace", &Trace::setElongationCostTrace)
     ;
 }
 #endif

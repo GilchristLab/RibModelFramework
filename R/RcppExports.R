@@ -278,6 +278,21 @@ NULL
 #' @description Method of FONSEParameter class (access via parameter$fixedInitiationCost(), where parameter is initialized with model="FONSE"). Fix the initiation cost parameter (a1) at its current value for the remainder of the MCMC run.
 NULL
 
+#' @name fixedElongationCost
+#' @title fixedElongationCost
+#' @description Method of FONSEParameter class (access via parameter$fixedElongationCost(), where parameter is initialized with model="FONSE"). Fix the elongation cost parameter (a2) at its current value for the remainder of the MCMC run.
+NULL
+
+#' @name estimateInitiationCost
+#' @title estimateInitiationCost
+#' @description Method of FONSEParameter class (access via parameter$estimateInitiationCost(), where parameter is initialized with model="FONSE"). Enable estimation of the initiation cost parameter (a1), which is held fixed by default.
+NULL
+
+#' @name estimateElongationCost
+#' @title estimateElongationCost
+#' @description Method of FONSEParameter class (access via parameter$estimateElongationCost(), where parameter is initialized with model="FONSE"). Enable estimation of the elongation cost parameter (a2), which is held fixed by default.
+NULL
+
 #' @name fixAlpha
 #' @title fixAlpha
 #' @description Method of PAParameter or PANSEParameter class (access via parameter$fixAlpha(), where parameter is initialized with model="PA" or "PANSE"). Fix the pausing shape parameter (alpha) at its current values for the remainder of the MCMC run.

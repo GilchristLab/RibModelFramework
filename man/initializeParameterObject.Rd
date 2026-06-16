@@ -25,6 +25,7 @@ initializeParameterObject(
   init.w.obs.phi = FALSE,
   init.by.random = FALSE,
   init.initiation.cost = 4,
+  init.elongation.cost = 4,
   init.partition.function = 1,
   numElongationMixtures = 1,
   phi.prior = "lognormal",
@@ -122,7 +123,9 @@ missing phi values, as these genes will not have an initial phi value.}
 
 \item{init.by.random}{If TRUE, initialize codon-specific parameters randomly. Default is FALSE.}
 
-\item{init.initiation.cost}{FOR FONSE ONLY. Initializes the initiation cost a_1 at this value.}
+\item{init.initiation.cost}{FOR FONSE ONLY. Initializes the initiation cost a_1 at this value. Held fixed by default; call parameter$estimateInitiationCost() to estimate it.}
+
+\item{init.elongation.cost}{FOR FONSE ONLY. Initializes the elongation cost a_2 (the positional slope of the nonsense-error cost beta(k) = a_1 + a_2 * k) at this value. Held fixed by default; call parameter$estimateElongationCost() to estimate it.}
 
 \item{init.partition.function}{FOR PANSE ONLY. initializes the partition function Z.}
 

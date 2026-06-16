@@ -31,8 +31,14 @@ the commonly observed enrichment of rare, inefficient codons toward the 5'-end.
 
 FONSE models this with a position-dependent cost function
 $$\beta(k) = a_1 + a_2 \cdot k$$
-where $k$ is the codon position and $a_1$ is the initiation cost hyperparameter
-(estimated from data). The constant $a_2 = 4.0$ is currently fixed.
+where $k$ is the codon position, $a_1$ is the initiation cost and $a_2$ is the
+per-codon elongation cost (the positional slope). Both $a_1$ and $a_2$ are full
+parameters with their own random-walk proposals and traces, but **both are held
+fixed at their initial value of 4 by default**. Estimation is opt-in via
+`parameter$estimateInitiationCost()` and `parameter$estimateElongationCost()`
+(see "Fixing parameters" below). Holding them fixed by default keeps the cost
+function at its biological prior and avoids the weak identifiability of the
+$a_1 + a_2 k$ ridge when both are estimated together.
 
 FONSE estimates three sets of parameters:
 
@@ -40,7 +46,8 @@ FONSE estimates three sets of parameters:
 |-----------|--------|-------------|
 | Mutation bias | $\Delta M$ | Log-odds of codon usage relative to reference codon, absent selection |
 | Nonsense error coefficient | $\Delta\Omega$ | Selection against nonsense error at each codon |
-| Initiation cost | $a_1$ | Indirect cost of translation initiation (hyperparameter) |
+| Initiation cost | $a_1$ | Indirect cost of translation initiation (hyperparameter, fixed at 4 by default) |
+| Elongation cost | $a_2$ | Per-codon elongation cost; positional slope of $\beta(k)$ (hyperparameter, fixed at 4 by default) |
 | Synthesis rate | $\phi$ | Per-gene expression level |
 
 For each non-reference codon $i$ of amino acid $A$, the codon probability is
@@ -70,8 +77,9 @@ genome <- initializeGenomeObject(file = genome_file,
 ## Initializing the parameter object
 
 Specify `model = "FONSE"` when initializing the parameter object.
-The `init.initiation.cost` argument sets the starting value for $a_1$
-(default is 4).
+The `init.initiation.cost` and `init.elongation.cost` arguments set the starting
+values for $a_1$ and $a_2$ (default is 4 for each). Both are held fixed at these
+values unless you opt into estimation (see "Fixing parameters").
 
 ```{r, eval = FALSE}
 n_genes      <- length(genome)
@@ -155,12 +163,15 @@ After the MCMC completes, inspect the traces to assess convergence.
 plot(mcmc)
 ```
 
-### Initiation cost ($a_1$) trace
+### Initiation cost ($a_1$) and elongation cost ($a_2$) traces
 
 ```{r, eval = FALSE}
 trace <- parameter$getTraceObject()
 plot(trace, what = "InitiationCost")
+plot(trace, what = "ElongationCost")
 ```
+
+If $a_1$ / $a_2$ were left at their defaults (fixed), these traces are flat at 4.
 
 ### Codon-specific parameter traces
 
@@ -238,7 +249,22 @@ parameter$fixDOmega()
 
 # Fix the initiation cost at its current value
 parameter$fixedInitiationCost()
+
+# Fix the elongation cost at its current value
+parameter$fixedElongationCost()
 ```
+
+The cost-function coefficients $a_1$ and $a_2$ are **fixed by default**. To
+estimate them, opt in explicitly before running the MCMC:
+
+```{r, eval = FALSE}
+parameter$estimateInitiationCost()   # let a1 vary
+parameter$estimateElongationCost()   # let a2 vary
+```
+
+Note that estimating $a_1$ and $a_2$ jointly is weakly identified (they enter
+the cost function as $a_1 + a_2 k$); validate convergence carefully, and
+consider estimating only one of them.
 
 Alternatively, pass `fix = TRUE` when loading categories from files to fix
 them immediately:
@@ -281,7 +307,9 @@ mcmc_loaded <- loadMCMCObject(file = "fonse_mcmc.Rda")
 
 - **Unpublished model**: FONSE has not undergone peer review.  Results should
   be cross-validated against simulations before use in publications.
-- **Fixed $a_2$**: The positional scaling parameter $a_2 = 4.0$ is hard-coded
-  throughout the model.  It is not estimated from data.
+- **Cost-function coefficients fixed by default**: $a_1$ and $a_2$ are now full
+  parameters but are held fixed at 4 by default. They can be estimated
+  (`estimateInitiationCost()` / `estimateElongationCost()`), but the
+  $a_1 + a_2 k$ form is weakly identified when both vary jointly.
 - **Computational cost**: Because FONSE iterates over codon *positions* rather
   than counts, it is more expensive per gene than ROC for long sequences.

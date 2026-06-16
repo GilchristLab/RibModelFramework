@@ -9,7 +9,7 @@ class FONSEModel : public Model
 	private:
 		FONSEParameter *parameter;
 
-		double calculateLogLikelihoodRatioPerAA(Gene& gene, std::string grouping, double *mutation, double *selection, double phiValue,double a1_value);
+		double calculateLogLikelihoodRatioPerAA(Gene& gene, std::string grouping, double *mutation, double *selection, double phiValue,double a1_value, double a2_value);
 		double calculateMutationPrior(std::string grouping, bool proposed = false);
 
 
@@ -73,6 +73,7 @@ class FONSEModel : public Model
 		//Trace Functions:
 		virtual void updateStdDevSynthesisRateTrace(unsigned sample);
 		virtual void updateInitiationCostParameterTrace(unsigned sample);
+		virtual void updateElongationCostParameterTrace(unsigned sample);
 		virtual void updateSynthesisRateTrace(unsigned sample, unsigned i);
 		virtual void updateMixtureAssignmentTrace(unsigned sample, unsigned i);
 		virtual void updateMixtureProbabilitiesTrace(unsigned sample);
@@ -85,6 +86,7 @@ class FONSEModel : public Model
 		//Adaptive Width Functions:
 		virtual void adaptStdDevSynthesisRateProposalWidth(unsigned adaptiveWidth, bool adapt = true);
 		virtual void adaptInitiationCostProposalWidth(unsigned adaptiveWidth, bool adapt = true);
+		virtual void adaptElongationCostProposalWidth(unsigned adaptiveWidth, bool adapt = true);
 		virtual void adaptSynthesisRateProposalWidth(unsigned adaptiveWidth, bool adapt = true);
 		virtual void adaptCodonSpecificParameterProposalWidth(unsigned adaptiveWidth, unsigned lastSample, bool adapt = true);
 		virtual void adaptHyperParameterProposalWidths(unsigned adaptiveWidth, bool adapt = true);
@@ -99,6 +101,9 @@ class FONSEModel : public Model
 		virtual double getInitiationCost(bool proposed);
 		virtual double getCurrentInitiationCostProposalWidth();
 		virtual void updateInitiationCost();
+		virtual double getElongationCost(bool proposed);
+		virtual double getCurrentElongationCostProposalWidth();
+		virtual void updateElongationCost();
 
 		virtual unsigned getNumPhiGroupings();
 		virtual unsigned getMixtureAssignment(unsigned index);
@@ -127,9 +132,9 @@ class FONSEModel : public Model
 		}
 		virtual double calculateAllPriors(bool proposed=false);
 		void calculateLogCodonProbabilityVector(unsigned numCodons, unsigned position, unsigned minIndexValue,
-					double* mutation, double* selection, double phi, double a1_value, std::vector <double> &codonProb);
+					double* mutation, double* selection, double phi, double a1_value, double a2_value, std::vector <double> &codonProb);
 		void calculateCodonProbabilityVector(unsigned numCodons, unsigned position, double* mutation, double* selection,
-					double phi, double a1_value, double codonProb[]);
+					double phi, double a1_value, double a2_value, double codonProb[]);
 		virtual void getParameterForCategory(unsigned category, unsigned param, std::string aa, bool proposal,
 					double* returnValue);
 
@@ -150,7 +155,7 @@ class FONSEModel : public Model
 
 		//R Section:
 #ifndef STANDALONE
-		std::vector<double> CalculateProbabilitiesForCodons(std::vector<double> mutation, std::vector<double> selection, double phi, double a1_value, unsigned position);
+		std::vector<double> CalculateProbabilitiesForCodons(std::vector<double> mutation, std::vector<double> selection, double phi, double a1_value, double a2_value, unsigned position);
 #endif
 
 	protected:

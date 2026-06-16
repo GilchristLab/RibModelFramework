@@ -41,6 +41,8 @@ class Trace {
 		//FONSE Trace:
                 std::vector<double> initiationCostTrace;
                 std::vector<double> initiationCostAcceptanceRateTrace;
+                std::vector<double> elongationCostTrace;
+                std::vector<double> elongationCostAcceptanceRateTrace;
 
 		//PANSE Trace:
 		std::vector<std::vector <double>> partitionFunctionTrace;
@@ -80,6 +82,7 @@ class Trace {
 
 		//FONSE Specific:
         void initInitiationCostTrace(unsigned samples);
+        void initElongationCostTrace(unsigned samples);
 
 		//PANSE Specific:
 		void initPartitionFunctionTrace(unsigned samples, unsigned numPartitionFunctionsGroupings);
@@ -157,6 +160,8 @@ class Trace {
         //FONSE Specific:
         std::vector<double> getInitiationCostTrace();
         std::vector<double> getInitiationCostAcceptanceRateTrace();
+        std::vector<double> getElongationCostTrace();
+        std::vector<double> getElongationCostAcceptanceRateTrace();
 
         //PANSE Specific:
         std::vector<double> getPartitionFunctionTrace(unsigned mixtureIndex);
@@ -184,6 +189,8 @@ class Trace {
         //FONSE Specific:
         void updateInitiationCostTrace(unsigned sample,double value);
         void updateInitiationCostAcceptanceRateTrace(double value);
+        void updateElongationCostTrace(unsigned sample,double value);
+        void updateElongationCostAcceptanceRateTrace(double value);
 
 
         //PANSE Specific:
@@ -262,6 +269,7 @@ class Trace {
 
         //FONSE specific:
         void setInitiationCostTrace(std::vector <double> _InitiationCostTrace);
+        void setElongationCostTrace(std::vector <double> _ElongationCostTrace);
         //PANSE Specific:
 
         std::vector<double> getPartitionFunctionTraceR(unsigned mixtureIndex);
