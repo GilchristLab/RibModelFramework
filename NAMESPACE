@@ -170,7 +170,6 @@ export(build_panse_stan_data)
 export(panse_stan_finalize)
 export(simulate_panse_dataset)
 export(write_sim_outputs)
-import(data.table)
 importFrom(yaml, write_yaml)
 importFrom(rlang, "%||%")
 
