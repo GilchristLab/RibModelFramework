@@ -103,6 +103,8 @@ class FONSEParameter : public Parameter
 		void fixedElongationCost();
 		void estimateInitiationCost();
 		void estimateElongationCost();
+		bool isInitiationCostFixed();
+		bool isElongationCostFixed();
 
 
 		//R Section:

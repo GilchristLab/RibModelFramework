@@ -798,6 +798,16 @@ void FONSEParameter::estimateElongationCost()
 	fix_a2 = false;
 }
 
+bool FONSEParameter::isInitiationCostFixed()
+{
+	return fix_a1;
+}
+
+bool FONSEParameter::isElongationCostFixed()
+{
+	return fix_a2;
+}
+
 
 void FONSEParameter::adaptInitiationCostProposalWidth(unsigned adaptationWidth, bool adapt)
 {

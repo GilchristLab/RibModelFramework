@@ -259,6 +259,15 @@ void FONSEModel::calculateLogLikelihoodRatioForHyperParameters(Genome &genome, u
 	lpr_a1 -= (std::log(a1_current) - std::log(a1_proposed));
 	lpr_a2 -= (std::log(a2_current) - std::log(a2_proposed));
 
+	// When both cost coefficients are held fixed (the default), a1_proposed ==
+	// a1_current and a2_proposed == a2_current, so lpr_a1 == lpr_a2 == 0. The
+	// per-gene/per-AA likelihood-ratio loop below would do ~3 full-genome
+	// position-iterating passes computing guaranteed zeros. Skip it: only the
+	// (cheap) sphi phi-density term still needs the per-gene loop. The guard
+	// flips false the instant a1 or a2 is estimated (or gains codon-specific
+	// terms), restoring the full computation -- no separate code path.
+	bool a1a2Fixed = parameter->isInitiationCostFixed() && parameter->isElongationCostFixed();
+
 #ifdef _OPENMP
 //#ifndef __APPLE__
 #pragma omp parallel for private(gene,mutation, selection, curAA) reduction(+:lpr_sphi,lpr_a1,lpr_a2)
@@ -271,6 +280,8 @@ void FONSEModel::calculateLogLikelihoodRatioForHyperParameters(Genome &genome, u
 		double phi = getSynthesisRate(i, expressionCategory, false);
 		lpr_sphi += Parameter::densityLogNorm(phi, proposedMphi[expressionCategory], proposedStdDevSynthesisRate[expressionCategory], true)
 			   - Parameter::densityLogNorm(phi, currentMphi[expressionCategory], currentStdDevSynthesisRate[expressionCategory], true);
+
+		if (a1a2Fixed) continue;  // a1/a2 ratios are identically zero; skip the costly AA loop
 
 		unsigned mutationCategory = parameter->getMutationCategory(mixtureElement);
 		unsigned selectionCategory = parameter->getSelectionCategory(mixtureElement);
