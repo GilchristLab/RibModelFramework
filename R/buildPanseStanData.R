@@ -321,6 +321,9 @@ build_panse_stan_data <- function(config,
     estimates_sphi   <- grepl("sphi-est", fit_cfg$model %||% "")
     sphi_fixed       <- fit_cfg$sphi %||% sd(log(init_phi))
     sphi_prior_sd    <- as.numeric(fit_cfg$sphi.prior.sd %||% 2.5)
+    sphi_prior_mu    <- as.numeric(fit_cfg$sphi.prior.mu %||% 0)        # default 0 (back-compat)
+    b1_prior_mu      <- as.numeric(fit_cfg$mrna.slope.prior.mu %||% 1)  # mRNA slope prior (phi_use_data=1)
+    b1_prior_sd      <- as.numeric(fit_cfg$mrna.slope.prior.sd %||% 0.5)
 
     stan_data <- list(
         G            = G,
@@ -352,9 +355,12 @@ build_panse_stan_data <- function(config,
     if (with_phi_sampled) {
         if (estimates_sphi) {
             stan_data$sphi_prior_sd <- sphi_prior_sd
+            stan_data$sphi_prior_mu <- sphi_prior_mu
+            stan_data$b1_prior_mu   <- b1_prior_mu
+            stan_data$b1_prior_sd   <- b1_prior_sd
             if (verbose) message(sprintf(
-                "with.phi = TRUE, sphi-est model: sphi is a parameter; half-normal(0, %.3f) prior",
-                sphi_prior_sd))
+                "with.phi = TRUE, sphi-est model: sphi is a parameter; normal(%.3f, %.3f) prior; mRNA slope b1 ~ normal(%.3f, %.3f)",
+                sphi_prior_mu, sphi_prior_sd, b1_prior_mu, b1_prior_sd))
             # Generalized phi prior spec (phi_use_data / phi_prior_mu / phi_prior_sigma)
             phi_spec <- .parse_phi_prior_spec(config$phi, gene_ids)
             stan_data$phi_use_data    <- phi_spec$phi_use_data
