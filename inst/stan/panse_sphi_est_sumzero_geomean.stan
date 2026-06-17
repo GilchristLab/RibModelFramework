@@ -158,6 +158,9 @@ data {
     //   mRNA mean (raw, centered) scaled by an ESTIMATED slope b1, with sphi the
     //   common residual SD around it (an estimated log-phi measurement-error term).
     int<lower=0, upper=1> phi_use_data;
+    int<lower=0, upper=1> phi_centered;  // 0 = non-centered (default); 1 = centered
+                                         // (only meaningful with phi_use_data=1): use when
+                                         // per-gene phi is strongly informed (mRNA arm).
     vector[G] phi_prior_mu;
     vector[G] phi_prior_sigma;     // retained for back-compat; unused when phi_use_data=1
     real          b1_prior_mu;     // mRNA-slope prior mean (default 1)
@@ -222,9 +225,15 @@ transformed parameters {
     //   centered (mean 0) and z_phi sum-to-zero, mean(log_phi)=0 -> geomean phi=1
     //   gauge is preserved without an intercept.  Here sphi is the residual SD
     //   (~0.6), not the population spread; set its prior accordingly per arm.
+    // phi_centered=1 (mRNA arm): z_phi IS the sum-to-zero log_phi, sampled directly
+    //   with prior normal(b1*phi_prior_mu, sphi) in the model block (centered;
+    //   better-conditioned when per-gene phi is strongly informed).
     vector[G] log_phi;
     if (phi_use_data) {
-        log_phi = b1 * phi_prior_mu + sphi * z_phi;
+        if (phi_centered)
+            log_phi = z_phi;                          // centered: z_phi == log_phi
+        else
+            log_phi = b1 * phi_prior_mu + sphi * z_phi;
     } else {
         log_phi = sphi * z_phi;   // geometric-mean-one (median phi=1); no offset
     }
@@ -253,7 +262,10 @@ model {
 
     sphi  ~ normal(sphi_prior_mu, sphi_prior_sd);   // mean configurable (default 0)
     b1    ~ normal(b1_prior_mu, b1_prior_sd);        // mRNA slope (used iff phi_use_data=1)
-    z_phi ~ std_normal();
+    if (phi_use_data && phi_centered)
+        z_phi ~ normal(b1 * phi_prior_mu, sphi);    // centered: z_phi == log_phi ~ N(b1*mRNA, sphi)
+    else
+        z_phi ~ std_normal();                        // non-centered
 
     /* NO soft mean(phi)=1 anchor: the sum_to_zero_vector pins mean(z_phi)=0 by
      * construction, so the phi scale gauge is removed exactly (the hard

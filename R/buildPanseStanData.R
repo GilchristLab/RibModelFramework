@@ -364,6 +364,7 @@ build_panse_stan_data <- function(config,
             # Generalized phi prior spec (phi_use_data / phi_prior_mu / phi_prior_sigma)
             phi_spec <- .parse_phi_prior_spec(config$phi, gene_ids)
             stan_data$phi_use_data    <- phi_spec$phi_use_data
+            stan_data$phi_centered    <- as.integer(fit_cfg$phi.centered %||% 0L)
             stan_data$phi_prior_mu    <- phi_spec$phi_prior_mu
             stan_data$phi_prior_sigma <- phi_spec$phi_prior_sigma
             if (verbose && phi_spec$phi_use_data == 1L)
