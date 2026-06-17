@@ -150,12 +150,18 @@ data {
 
     real<lower=0> U;
     real<lower=0> sphi_prior_sd;
+    real          sphi_prior_mu;   // sphi prior MEAN (default 0; e.g. 1.5 for a rational
+                                   // population-spread prior, or ~0.6 as the mRNA residual SD)
 
     // Generalized phi prior.  phi_use_data=0: population hierarchical prior;
-    // phi_use_data=1: per-gene prior mean/SD from data (sphi still sampled).
+    // phi_use_data=1: log_phi = b1*phi_prior_mu + sphi*z_phi, i.e. the per-gene
+    //   mRNA mean (raw, centered) scaled by an ESTIMATED slope b1, with sphi the
+    //   common residual SD around it (an estimated log-phi measurement-error term).
     int<lower=0, upper=1> phi_use_data;
     vector[G] phi_prior_mu;
-    vector[G] phi_prior_sigma;
+    vector[G] phi_prior_sigma;     // retained for back-compat; unused when phi_use_data=1
+    real          b1_prior_mu;     // mRNA-slope prior mean (default 1)
+    real<lower=0> b1_prior_sd;     // mRNA-slope prior sd   (default 0.5)
 
     real log_alpha_prior_mean;
     real<lower=0> log_alpha_prior_sd;
@@ -196,6 +202,8 @@ parameters {
     vector<lower=log_nse_lower, upper=log_nse_upper>[C] log_NSERate;
     real<lower=0> sphi;
     sum_to_zero_vector[G] z_phi;   // mean(z_phi)=0 by construction -> scale pinned
+    real b1;                       // mRNA->log_phi slope; used iff phi_use_data=1
+                                   // (a benign prior-only draw when phi_use_data=0)
 }
 
 transformed parameters {
@@ -208,10 +216,15 @@ transformed parameters {
     //   the sphi<->global-lambda ridge that the -0.5*sphi^2 offset induces in
     //   panse_sphi_est_sumzero.stan (raising sphi there lowers mean(log_phi),
     //   which the global lambda scale must track -> cor(sphi,lambda) ~ 0.80).
-    // phi_use_data=1: per-gene prior mean/SD; deviations sum to zero.
+    // phi_use_data=1: log_phi = b1*phi_prior_mu + sphi*z_phi -- the (raw, centered)
+    //   mRNA mean scaled by the ESTIMATED slope b1, plus sphi*z_phi as the common
+    //   estimated residual SD (log-phi measurement-error term).  With phi_prior_mu
+    //   centered (mean 0) and z_phi sum-to-zero, mean(log_phi)=0 -> geomean phi=1
+    //   gauge is preserved without an intercept.  Here sphi is the residual SD
+    //   (~0.6), not the population spread; set its prior accordingly per arm.
     vector[G] log_phi;
     if (phi_use_data) {
-        log_phi = phi_prior_mu + phi_prior_sigma .* z_phi;
+        log_phi = b1 * phi_prior_mu + sphi * z_phi;
     } else {
         log_phi = sphi * z_phi;   // geometric-mean-one (median phi=1); no offset
     }
@@ -238,7 +251,8 @@ model {
         target += sum(log_NSERate);
     }
 
-    sphi  ~ normal(0, sphi_prior_sd);
+    sphi  ~ normal(sphi_prior_mu, sphi_prior_sd);   // mean configurable (default 0)
+    b1    ~ normal(b1_prior_mu, b1_prior_sd);        // mRNA slope (used iff phi_use_data=1)
     z_phi ~ std_normal();
 
     /* NO soft mean(phi)=1 anchor: the sum_to_zero_vector pins mean(z_phi)=0 by
