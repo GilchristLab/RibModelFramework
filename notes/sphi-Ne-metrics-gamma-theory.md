@@ -258,6 +258,37 @@ Gamma analytics (Sec 8) are an excellent approximation. For high-sphi yeast
 heavy lognormal tail. So: use Gamma for cheap analytics where CV is small;
 keep lognormal where the tail matters.
 
+## 9b. Cross-backend recovery is robust to the phi-prior shape (2026-06-19)
+
+The three ROC backends -- native MCMC, the GLM-EM, and Stan -- share the EXACT
+same likelihood (the multinomial logit P(codon|gene) = softmax(dM + dEta*phi));
+they differ ONLY in the phi prior: Gamma in the GLM-EM, lognormal in native/Stan.
+Claim (Mike): we should still recover each backend's simulated data from any other
+backend, despite that mismatch. Confirmed empirically (prototypes/fit.roc.glm.em.R
+--sim-phi-dist, and prototypes/roc_cross_backend_check.R): the Gamma-prior GLM-EM
+recovers LOGNORMAL-simulated phi about as well as Gamma-simulated phi --
+
+  sim phi      phi(Spearman)   dEta     dM
+  gamma         0.96-0.97      0.99    0.95-0.98
+  lognormal     0.96-0.97      0.99    0.90-0.93   (n.genes=600, sphi=1, fixed)
+
+WHY: (1) dEta and the phi RANKING are pinned by the shared likelihood (the
+codon-vs-phi slope, the per-gene ordering), so they are prior-AGNOSTIC. (2) With
+informative-per-gene data the prior is only a weak regulariser on each phi, so
+swapping Gamma<->lognormal barely moves the point estimates. (3) The MEDIAN GAUGE
+makes sphi = SD(log phi) the SAME parameter in all three, so sphi is commensurable
+across backends (not just within). (4) At low/moderate sphi Gamma ~ lognormal
+anyway (Sec 9).
+WHERE THE MISMATCH SHOWS: dM (the intercept = codon log-odds extrapolated to
+phi->0) is the SOFTEST under the lognormal mismatch (0.90 vs 0.95), because it
+leans on the low-phi tail where the two priors differ most; and at HIGH sphi
+(>1.5) the heavier lognormal tail would degrade tail-gene phi recovery and the
+(already weak) sphi estimate further. So cross-backend validation is safe as long
+as you compare the prior-agnostic quantities (dEta, phi-ranking) and treat dM /
+sphi with these mild caveats. The simulator axis collapses to the phi PRIOR
+(native = Stan = lognormal; GLM-EM = Gamma), so the full native/GLM-EM/Stan matrix
+reduces to {Gamma, lognormal} x {three fitters}.
+
 ## GLM-EM proof of concept (2026-06-18) -- VALIDATED on S288c
 
 `Analyses-RibModelFramework/roc/scripts/fit.roc.glm.em.R`. ROC fit as a
