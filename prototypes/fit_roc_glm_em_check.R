@@ -32,10 +32,10 @@ here <- if (length(this.file)) dirname(normalizePath(this.file)) else "."
 source(file.path(here, "fit.roc.glm.em.R"))
 
 ## recovery correlations of a single simulate+fit, vs the known truth
-recovery <- function(phi.dist, seed, sphi=1.0, n.genes=600, mean.count=15){
+recovery <- function(phi.dist, seed, sphi=1.4, n.genes=600, mean.count=15){
   data <- simulate_roc_genome(n.genes=n.genes, sphi=sphi, seed=seed,
                               phi.dist=phi.dist, mean.count=mean.count)
-  res  <- fit_roc_glm_em(data, sphi.fix=1.0, est.sphi=FALSE, verbose=FALSE)
+  res  <- fit_roc_glm_em(data, sphi.fix=1.4, est.sphi=FALSE, verbose=FALSE)
   tr <- data$truth
   nz.e <- names(tr$dEta)[abs(tr$dEta) > 1e-12]      # non-reference codons only
   nz.m <- names(tr$dM)[abs(tr$dM) > 1e-12]
@@ -50,7 +50,7 @@ recovery <- function(phi.dist, seed, sphi=1.0, n.genes=600, mean.count=15){
 TH  <- list(phi.spearman = 0.90, dEta = 0.95, dM = 0.80)
 cfg <- expand.grid(phi.dist = c("gamma", "lognormal"), seed = 1:2, stringsAsFactors = FALSE)
 
-cat(sprintf("ROC GLM-EM recovery check (fixed sphi=1, n.genes=600)\n%-10s %-4s  %8s %7s %7s   %s\n",
+cat(sprintf("ROC GLM-EM recovery check (fixed sphi=1.4, n.genes=600)\n%-10s %-4s  %8s %7s %7s   %s\n",
             "phi.dist", "seed", "phi.spS", "dEta", "dM", "result"))
 fail <- 0L
 for (i in seq_len(nrow(cfg))){

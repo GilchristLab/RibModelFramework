@@ -448,7 +448,7 @@ main <- function(){
   if (has.flag("--help") || has.flag("-h")) { usage(); quit(save="no", status=0) }
 
   lib      <- getarg("--lib", "~/R/lib/main-a664454")
-  sphi.fix <- parse_num("--sphi", "1.0")
+  sphi.fix <- parse_num("--sphi", "1.4")   # canonical fixed-sphi gauge (benchmarks)
   est.sphi <- parse_logical("--est-sphi", "FALSE")
   verbose  <- parse_logical("--verbose", "TRUE")
   dry.run  <- has.flag("--dry-run")
@@ -457,7 +457,7 @@ main <- function(){
   fasta    <- getarg("--fasta", NA)
   real     <- !is.na(fasta)
   n.genes  <- as.integer(parse_num("--n-genes", "500"))
-  sim.sphi <- parse_num("--sim-sphi", "1.0")
+  sim.sphi <- parse_num("--sim-sphi", "1.4")
   seed     <- as.integer(parse_num("--seed", "1"))
   sim.dist <- getarg("--sim-phi-dist", "gamma")     # 'gamma' (GLMM) or 'lognormal' (native/Stan)
 
