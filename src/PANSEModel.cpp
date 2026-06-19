@@ -1741,10 +1741,14 @@ double PANSEModel::UpperIncompleteGammaLog(double s, double x)
 // form a positive value should essentially never occur outside roundoff.
 double PANSEModel::checkProbSuccessful(double logp)
 {
+    // NOTE: this runs inside the OpenMP-parallel likelihood (called per position
+    // per gene), so it must do NO R I/O -- R is single-threaded and a warning
+    // from a worker thread crashes the run at high thread counts.  We therefore
+    // only COUNT breaches (atomically); the count is surfaced serially at
+    // end-of-fit (getProbSuccessBreachCount).  A healthy fit has count 0.
     if (!std::isfinite(logp))
     {
-        if (prob_success_breach_count == 0)
-            my_print("WARNING: survival log-prob non-finite; flooring to 0 and continuing. Investigate (NaN/Inf params, x->0, CF non-convergence).\n");
+        #pragma omp atomic
         prob_success_breach_count++;
         return 0.0;
     }
@@ -1752,8 +1756,7 @@ double PANSEModel::checkProbSuccessful(double logp)
     {
         if (logp > PROB_SUCCESS_EPS)   // beyond CF roundoff: a real breach
         {
-            if (prob_success_breach_count == 0)
-                my_print("WARNING: survival log-prob > 0 (psuccess > 1) by more than CF tolerance; flooring to 0 and continuing. Investigate.\n");
+            #pragma omp atomic
             prob_success_breach_count++;
         }
         return 0.0;

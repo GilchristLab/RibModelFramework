@@ -2,6 +2,7 @@
 #include <vector>
 #include <random>
 #include <climits>
+#include <cstdint>
 #include <cmath>
 #include <algorithm>
 
@@ -9,6 +10,18 @@
 #ifndef STANDALONE
 #include <Rcpp.h>
 using namespace Rcpp;
+#endif
+
+// R's C-stack-overflow check (R_CStackLimit) is calibrated to the MAIN thread's
+// stack.  The OpenMP-parallel likelihoods (PANSEModel etc.) can touch the R API
+// on a worker thread, whose stack lives elsewhere, so the check false-trips
+// ("C stack usage ... is too close to the limit") and the run crashes at high
+// thread counts.  Disable the check for the duration of a run via the RAII
+// RCStackGuard in run().  R provides the symbol with C linkage; it is not
+// available on Windows.
+#if !defined(STANDALONE) && !defined(_WIN32)
+extern "C" { extern uintptr_t R_CStackLimit; }
+#define ANACODA_HAVE_RCSTACKLIMIT 1
 #endif
 
 
@@ -648,6 +661,16 @@ void MCMCAlgorithm::run(Genome& genome, Model& model, unsigned numCores, unsigne
 #ifdef _OPENMP
 //#ifndef __APPLE__
 	omp_set_num_threads(numCores);
+#endif
+
+#ifdef ANACODA_HAVE_RCSTACKLIMIT
+	// Disable R's cross-thread C-stack check for the duration of the run, then
+	// restore it (so a real overflow in later serial R code is still caught).
+	struct RCStackGuard {
+		uintptr_t saved;
+		RCStackGuard()  { saved = R_CStackLimit; R_CStackLimit = (uintptr_t)-1; }
+		~RCStackGuard() { R_CStackLimit = saved; }
+	} rCStackGuard;
 #endif
 
 	// Replace with reportSample?
