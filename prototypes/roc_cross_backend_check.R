@@ -98,4 +98,5 @@ cat(sprintf("\nALL cross-backend checks PASSED  (recover truth: phi.spS>=%.2f |d
             TH$phi.spS, TH$dEta, TH$dM, TH$rhat))
 cat(sprintf("  backends agree: phi & dEta r>=%.2f). GLMM (gamma prior) and Stan (lognormal prior)\n", TH$agree))
 cat("  recover each other's generative model -- cross-backend recovery is robust to the phi-prior shape.\n")
-cat("NOTE: native AnaCoDa MCMC (lognormal prior) is the remaining cell -- added via the FASTA path.\n")
+cat("NOTE: native AnaCoDa MCMC recovery is verified separately in native_roc_cell.R\n")
+cat("  (dM/dEta ~0.999, phi ~0.98 -- extract in the reference-codon gauge, not optimal-codon).\n")
