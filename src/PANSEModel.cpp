@@ -149,6 +149,17 @@ double PANSEModel::calculateLogLikelihoodPerCodonPerGeneByPosition(double currAl
 
 
 
+// PERFORMANCE NOTE: this per-position kernel is ~99% of native MCMC runtime
+// (the CSP update recomputes the genome likelihood once per codon grouping, x61
+// per iteration). Profiling showed the speed lever is OpenMP parallelism, not
+// micro-tuning this kernel. One micro-opt was evaluated and deliberately NOT
+// adopted: callers pass prevSigma = std::exp(currSigma), and term2 immediately
+// recomputes std::log(prevSigma) -- an exp->log round-trip. Passing the raw
+// (log) sigma and dropping the std::log here removes one transcendental/position
+// for ~3% wall, but it changes term2 by ~1 ULP, breaking bit-exact
+// reproducibility / legacy-1.4 parity. The option lives on branch
+// feat/panse-native-likelihood-kernel (commit febcef7); see
+// Analyses-RibModelFramework/panse/notes/native-mcmc-performance.md.
 double PANSEModel::calculateLogLikelihoodPerCodonPerGene(double currAlpha, double currLambdaPrime,
         unsigned currRFPObserved, double phiValue, double prevSigma, double lgamma_currAlpha, double log_currLambdaPrime, double log_phi,double lgamma_rfp_alpha)
 {
