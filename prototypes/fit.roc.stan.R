@@ -134,8 +134,8 @@ main_stan <- function(){
   getarg <- function(f, d){ i<-match(f,args); if(is.na(i)||i+1>length(args)||grepl("^--",args[i+1])) d else args[[i+1]] }
   numarg <- function(f, d){ v<-suppressWarnings(as.numeric(getarg(f,d))); if(is.na(v)) stop(f," needs a number",call.=FALSE); v }
   if (has.flag("--help")||has.flag("-h")) { usage_stan(); quit(save="no", status=0) }
-  sphi.fix <- numarg("--sphi","1.0"); png.out <- getarg("--png","/tmp/roc_stan.png")
-  n.genes <- as.integer(numarg("--n-genes","500")); sim.sphi <- numarg("--sim-sphi","1.0")
+  sphi.fix <- numarg("--sphi","1.4"); png.out <- getarg("--png","/tmp/roc_stan.png")
+  n.genes <- as.integer(numarg("--n-genes","500")); sim.sphi <- numarg("--sim-sphi","1.4")
   seed <- as.integer(numarg("--seed","1")); sim.dist <- getarg("--sim-phi-dist","gamma")
   chains <- as.integer(numarg("--chains","4")); threads <- as.integer(numarg("--threads","2"))
   warmup <- as.integer(numarg("--warmup","1000")); samples <- as.integer(numarg("--samples","1000"))

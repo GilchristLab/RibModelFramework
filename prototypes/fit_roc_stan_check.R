@@ -31,7 +31,7 @@ args   <- commandArgs(TRUE)
 getarg <- function(f,d){ i<-match(f,args); if(is.na(i)||i+1>length(args)) d else args[[i+1]] }
 G    <- as.integer(getarg("--n-genes","300"))
 SEED <- as.integer(getarg("--seed","1"))
-SPHI <- 1.0
+SPHI <- 1.4   # canonical fixed-sphi gauge for critical benchmarks
 
 if (!requireNamespace("cmdstanr", quietly=TRUE)) { cat("SKIP: cmdstanr unavailable\n"); quit(save="no", status=0) }
 

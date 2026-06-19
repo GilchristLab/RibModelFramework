@@ -38,7 +38,7 @@ args     <- commandArgs(TRUE)
 getarg   <- function(f,d){ i<-match(f,args); if(is.na(i)||i+1>length(args)) d else args[[i+1]] }
 G        <- as.integer(getarg("--n-genes","400"))
 SEED     <- as.integer(getarg("--seed","1"))
-SPHI     <- 1.0
+SPHI     <- 1.4   # canonical fixed-sphi gauge for critical benchmarks
 run.stan <- !("--no-stan" %in% args) && requireNamespace("cmdstanr", quietly=TRUE)
 
 ## recovery of a fit vs the known truth (signed; both backends use the
