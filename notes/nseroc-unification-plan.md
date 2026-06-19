@@ -7,9 +7,11 @@ settled in conversation, not yet built. **Worktree:** this one
 
 ## Goal
 ONE unified codon-model family in which the named models are special cases of a
-single parameterization. Land it in main as the **GLM-EM (R) fitter + Stan models**
-now; the **AnaCoDa C++ model unification is a deferred follow-up** (the production
-native models stay separate for now).
+single parameterization. Land it in main in THREE SEQUENTIAL PHASES (not concurrent):
+  **Phase 1 (NOW): R GLM-EM** unified fitter.
+  **Phase 2 (after P1): Stan** versions of the family.
+  **Phase 3 (after P2): native** AnaCoDa C++ model unification.
+Each phase finishes + validates before the next begins.
 
   ROC      = NSEROC with the NSE term OFF
   FONSE/SONSE/NSE = NSEROC with the ROC term OFF ("ROC=0"), at first/second/full order
@@ -54,20 +56,29 @@ SONSE/full add the 1-D plug-in EM step for `b` (recompute W_k); first-order skip
 - **THE GAP:** no `est.dEta` toggle -> the pure-NSE cases (FONSE/SONSE/NSE with
   ROC=0, `I_eta=0`) cannot be expressed yet. Add that second switch.
 
-## Plan (this session)
-1. **Port + consolidate (R GLM-EM):** copy the validated `fit.fonse.glm.em.R` +
+## Plan -- PHASE 1 (NOW): R GLM-EM
+1. **Port + consolidate:** copy the validated `fit.fonse.glm.em.R` +
    `fonse-orders-glm.R` `.compute_W` here as the unified `prototypes/fit.nseroc.glm.em.R`,
    ADD the `est.dEta` toggle (drop the `phi` covariate when off), and expose a
    `--model {ROC,FONSEROC,SONSEROC,NSEROC,FONSE,SONSE,NSE}` preset over
    `{est.deta, est.domega, order}`. PORT ONLY after the fonse-glmm-gamma session is
    done + retired (Mike retires it once its tests/validations pass) -- do NOT edit
    that worktree.
-2. **Stan family:** generalize `stan/roc_basic.stan` to `stan/nseroc_basic.stan`
-   carrying the `dOmega * W_k` covariate (W_k passed as data, since it is known);
-   ROC = `dOmega` block off / zeroed. Drive it from the clean RMF Stan wrapper
-   pattern (`prototypes/fit.roc.stan.R`). C++ AnaCoDa unification deferred.
-3. **Checks:** extend the per-backend recovery + cross-backend agreement checks to
-   the family (GLM-EM vs Stan), at the canonical fixed sphi=1.4.
+2. **Checks:** per-backend recovery check for the family at fixed sphi=1.4, anchored
+   on the dOmega=0 ROC reduction (validation ladder below). Phase 1 done = the R
+   GLM-EM unified fitter validated across all seven preset models.
+
+## Plan -- PHASE 2 (after Phase 1 validates): Stan
+3. Generalize `stan/roc_basic.stan` to `stan/nseroc_basic.stan` carrying the
+   `dOmega * W_k` covariate (W_k passed as DATA, since it is known); ROC = `dOmega`
+   block off / zeroed. Drive it from the clean RMF Stan wrapper pattern
+   (`prototypes/fit.roc.stan.R`); add the Stan recovery + GLM-EM<->Stan
+   cross-backend checks (mirror `roc_cross_backend_check.R`) for the family.
+
+## Plan -- PHASE 3 (after Phase 2): native (AnaCoDa C++)
+4. Unify the production C++ model classes so native MCMC shares the same NSEROC
+   parameterization (ROC/FONSE/SONSE as special cases). Largest scope; touches the
+   package + tests. Defer until the R + Stan families are validated.
 
 ## Validation ladder (do in order)
 1. `I_om=0` (ROC) MUST reproduce the validated RMF ROC trio anchor on S288c
