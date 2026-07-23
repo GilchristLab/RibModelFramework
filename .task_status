@@ -1,0 +1,9 @@
+priority: B
+complete: 1) ROC cross-backend validation done (#75-80)
+          2) native/GLM-EM/Stan agree; sphi=1.4 canonical gauge
+          3) native OpenMP likelihood R-API-safe (>8 cores)
+current: 1) s288c logit(codon freq) vs phi, 2-codon AAs, running
+next: 1) Dirichlet-pseudocount fix for est.mix weights (#431)
+      2) held sim: sphi=1.5 vs dEta strength (wide-sphi prior)
+future: 1) gBGC/recombination check vs GC3-residual (needs map)
+        2) EM/coordinate-ascent ROC via Gamma phi-step (cheaper)
