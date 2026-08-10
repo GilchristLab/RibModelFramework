@@ -2,6 +2,25 @@
 
 ## NEW FEATURES
 
+- **FONSE elongation cost `a2` promoted to a full parameter.** The positional
+  slope in the FONSE nonsense-error cost function `beta(k) = a1 + a2 * k` was
+  previously hard-coded as the literal `4.0`. It is now a first-class
+  `FONSEParameter` value (`a2`) mirroring the initiation cost `a1`: log-normal
+  random-walk proposal, adaptive proposal width, trace, restart-file I/O
+  (`elongation_cost` / `std_elongation_cost`), and R/Rcpp exposure. New R
+  argument `init.elongation.cost` (default 4); new trace selector
+  `what = "ElongationCost"` for `plot()` and `as.mcmc()`; new methods
+  `parameter$estimateElongationCost()` / `parameter$fixedElongationCost()`.
+
+- **BEHAVIOR CHANGE: FONSE `a1` and `a2` are now fixed at 4 by default.**
+  Previously `a1` was estimated by default, which is weakly identified and could
+  run away (observed reaching ~1e4 vs the biological ~4). Both coefficients are
+  now held fixed at their initial value of 4 unless estimation is opted into via
+  `parameter$estimateInitiationCost()` / `parameter$estimateElongationCost()`.
+  This changes default FONSE results: `a1` no longer drifts, and the FONSE codon
+  probabilities with default settings are bit-identical to the prior model with
+  `a1 = a2 = 4`.
+
 - **Pluggable CSP adaptive proposal-width schemes.** `Parameter` now
   holds a `std::unique_ptr<CSPAdaptationStrategy>` that controls how
   codon-specific parameter (CSP) proposal widths are tuned during MCMC.

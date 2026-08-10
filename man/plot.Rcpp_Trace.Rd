@@ -8,7 +8,7 @@
   x,
   what = c("Mutation", "Selection", "MixtureProbability", "Sphi", "Mphi", "Aphi",
     "Sepsilon", "ExpectedPhi", "Expression", "NSEProb", "NSERate", "InitiationCost",
-    "PartitionFunction"),
+    "ElongationCost", "PartitionFunction"),
   geneIndex = 1,
   mixture = 1,
   log.10.scale = F,

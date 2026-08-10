@@ -12,7 +12,7 @@
 \item{what}{which set of traces to extract. One of \code{"Mutation"} (default),
 \code{"Selection"}, \code{"Alpha"}, \code{"Lambda"}/\code{"LambdaPrime"},
 \code{"NSERate"}, \code{"MixtureProbability"}, \code{"Sphi"}, \code{"Mphi"},
-\code{"ExpectedPhi"}, \code{"InitiationCost"}, or \code{"AcceptanceCSP"}.}
+\code{"ExpectedPhi"}, \code{"InitiationCost"}, \code{"ElongationCost"}, or \code{"AcceptanceCSP"}.}
 
 \item{mixture}{mixture index for traces that are mixture-specific
 (Mutation/Selection/Alpha/Lambda/NSERate). Defaults to 1.}
@@ -28,7 +28,7 @@ does not subsample.}
 }
 \value{
 a \code{coda::mcmc} object: vector for single-series traces
-  (ExpectedPhi, InitiationCost), matrix with one column per codon/mixture for
+  (ExpectedPhi, InitiationCost, ElongationCost), matrix with one column per codon/mixture for
   the others.
 }
 \description{

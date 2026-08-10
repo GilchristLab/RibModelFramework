@@ -24,22 +24,33 @@ class FONSEParameter : public Parameter
 		double a1_proposed;
 		double std_a1;
         unsigned numAcceptForA1;
+		double a2;
+		double a2_proposed;
+		double std_a2;
+        unsigned numAcceptForA2;
 
         bool fix_dM=false;
 		bool fix_dOmega=false;
+        bool fix_dEta=true;     // dEta (elongation selection) is fixed at 0 by default -> identical to current FONSE
         bool fix_a1 = false;
+        bool fix_a2 = false;
 
 		std::vector <double> propose(std::vector <double> currentParam, double(*proposal)(double a, double b), double A, std::vector <double> B);
 
 
 	public:
 
+		// FONSE-specific CSP category index for the elongation-selection term dEta.
+		// (Parameter::dM=0, Parameter::dOmega=1; dEta is a distinct 3rd category at 2.
+		// Do NOT reuse the inherited Parameter::dEta, which aliases index 1.)
+		static const unsigned dEtaCSP;
+
 		//Constructors & Destructors:
 		FONSEParameter();
 		explicit FONSEParameter(std::string filename);
 		FONSEParameter(std::vector<double> stdDevSynthesisRate, unsigned _numMixtures, std::vector <unsigned> geneAssignment,
 				   std::vector <std::vector <unsigned> > thetaKmatrix, bool splitSer = true,
-				   std::string _mutationSelectionState = "allUnique",double _a1 = 4);
+				   std::string _mutationSelectionState = "allUnique",double _a1 = 4, double _a2 = 4);
 		FONSEParameter& operator=(const FONSEParameter& rhs);
 		FONSEParameter(const FONSEParameter &other); //TODO: No longer needed?
 		virtual ~FONSEParameter();
@@ -47,7 +58,7 @@ class FONSEParameter : public Parameter
 
 
 		//Initialization, Restart, Index Checking:
-		void initFONSEParameterSet(double _a1 = 4);
+		void initFONSEParameterSet(double _a1 = 4, double _a2 = 4);
 		void initFONSEValuesFromFile(std::string filename);
 		void writeEntireRestartFile(std::string filename);
 		void writeFONSERestartFile(std::string filename);
@@ -56,12 +67,14 @@ class FONSEParameter : public Parameter
 		void initAllTraces(unsigned samples, unsigned num_genes, bool estimateSynthesisRate = true);
 		void initMutationCategories(std::vector<std::string> files, unsigned numCategories, bool fix = false);
 		void initSelectionCategories(std::vector<std::string> files, unsigned numCategories, bool fix = false);
+		void initEtaCategories(std::vector<std::string> files, unsigned numCategories, bool fix = false);
 
 
 
 		//Trace Functions:
 		void updateCodonSpecificParameterTrace(unsigned sample, std::string grouping);
 		void updateInitiationCostParameterTrace(unsigned sample);
+		void updateElongationCostParameterTrace(unsigned sample);
 
 		//Covariance Functions:
 		CovarianceMatrix& getCovarianceMatrixForAA(std::string aa);
@@ -77,6 +90,7 @@ class FONSEParameter : public Parameter
 		void setMutationPriorStandardDeviation(double _mutation_prior_sd);
 
 		double getInitiationCost(bool proposed);
+		double getElongationCost(bool proposed);
 
 		//Other functions:
 		void getParameterForCategory(unsigned category, unsigned paramType, std::string aa, bool proposal, double *returnSet);
@@ -84,12 +98,23 @@ class FONSEParameter : public Parameter
 		void updateInitiationCost();
 		double getCurrentInitiationCostProposalWidth();
 		void adaptInitiationCostProposalWidth(unsigned adaptationWidth, bool adapt);
+		void updateElongationCost();
+		double getCurrentElongationCostProposalWidth();
+		void adaptElongationCostProposalWidth(unsigned adaptationWidth, bool adapt);
 
 		void fixDM();
 		void fixDOmega();
+		void fixDEta();
+		void estimateDEta();
 		bool isDMFixed();
 		bool isDOmegaFixed();
+		bool isDEtaFixed();
 		void fixedInitiationCost();
+		void fixedElongationCost();
+		void estimateInitiationCost();
+		void estimateElongationCost();
+		bool isInitiationCostFixed();
+		bool isElongationCostFixed();
 
 
 		//R Section:
@@ -97,9 +122,9 @@ class FONSEParameter : public Parameter
 #ifndef STANDALONE
 		//Constructors & Destructors:
 		FONSEParameter(std::vector<double> stdDevSynthesisRate, std::vector<unsigned> geneAssignment, std::vector<unsigned> _matrix,
-		 				bool splitSer = true, double _a1 = 4);
+		 				bool splitSer = true, double _a1 = 4, double _a2 = 4);
 		FONSEParameter(std::vector<double> stdDevSynthesisRate, unsigned _numMixtures, std::vector<unsigned> geneAssignment,
-						bool splitSer = true, std::string _mutationSelectionState = "allUnique", double _a1 = 4);
+						bool splitSer = true, std::string _mutationSelectionState = "allUnique", double _a1 = 4, double _a2 = 4);
 
 
 
@@ -114,8 +139,10 @@ class FONSEParameter : public Parameter
 		//CSP Functions:
 		std::vector< std::vector <double> > getCurrentMutationParameter();
 		std::vector< std::vector <double> > getCurrentSelectionParameter();
+		std::vector< std::vector <double> > getCurrentEtaParameter();
 		void setCurrentMutationParameter(std::vector<std::vector<double>> _currentMutationParameter);
 		void setCurrentSelectionParameter(std::vector<std::vector<double>> _currentSelectionParameter);
+		void setCurrentEtaParameter(std::vector<std::vector<double>> _currentEtaParameter);
 
 
 

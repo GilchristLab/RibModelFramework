@@ -561,10 +561,14 @@ calculateProbabilityVector <- function(parameter,model,expressionValues,mixture,
   # get codon specific parameter
   selection <- vector("numeric", length(codons))
   mutation <- vector("numeric", length(codons))
+  # dEta (position-independent elongation selection, paramType 2) is FONSE-only.
+  dEta <- vector("numeric", length(codons))
   for (i in 1:length(codons))
   {
     selection[i] <- parameter$getCodonSpecificPosteriorMean(mixture, samples, codons[i], 1, T,log_scale = F)
     mutation[i] <- parameter$getCodonSpecificPosteriorMean(mixture, samples, codons[i], 0, T,log_scale = F)
+    if (model.type == "FONSE")
+      dEta[i] <- parameter$getCodonSpecificPosteriorMean(mixture, samples, codons[i], 2, T,log_scale = F)
   }
   
   # calculate codon probabilities with respect to phi
@@ -585,7 +589,7 @@ calculateProbabilityVector <- function(parameter,model,expressionValues,mixture,
       codonProbability.tmp <- lapply(10^phis,
                                function(phi)
                                  {
-                                 model$CalculateProbabilitiesForCodons(mutation, selection, phi,codon.window[i])
+                                 model$CalculateProbabilitiesForCodons(mutation, selection, dEta, phi,codon.window[i])
                                })
       codonProbability[[i]] <- do.call("rbind",codonProbability.tmp)
     }

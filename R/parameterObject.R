@@ -101,7 +101,9 @@
 #' 
 #' @param init.by.random If TRUE, initialize codon-specific parameters randomly. Default is FALSE.
 #'
-#' @param init.initiation.cost FOR FONSE ONLY. Initializes the initiation cost a_1 at this value.
+#' @param init.initiation.cost FOR FONSE ONLY. Initializes the initiation cost a_1 at this value. Held fixed by default; call parameter$estimateInitiationCost() to estimate it.
+#'
+#' @param init.elongation.cost FOR FONSE ONLY. Initializes the elongation cost a_2 (the positional slope of the nonsense-error cost beta(k) = a_1 + a_2 * k) at this value. Held fixed by default; call parameter$estimateElongationCost() to estimate it.
 #'
 #' @param init.partition.function FOR PANSE ONLY. initializes the partition function Z.
 #'
@@ -188,7 +190,7 @@ initializeParameterObject <- function(genome = NULL, sphi = NULL, num.mixtures =
                                       selection.prior.mean = 0.0,
                                       selection.prior.sd = 100,
                                       init.csp.variance = 0.0025, init.sepsilon = 0.1,
-                                      init.w.obs.phi=FALSE, init.by.random = FALSE ,init.initiation.cost = 4,init.partition.function=1,
+                                      init.w.obs.phi=FALSE, init.by.random = FALSE ,init.initiation.cost = 4,init.elongation.cost = 4,init.partition.function=1,
                                       numElongationMixtures = 1,
                                       phi.prior = "lognormal",
                                       phi.prior.constraint = "mean",
@@ -313,7 +315,7 @@ initializeParameterObject <- function(genome = NULL, sphi = NULL, num.mixtures =
     if(is.null(init.with.restart.file)){
       parameter <- initializeFONSEParameterObject(genome, sphi, num.mixtures, 
                                                   gene.assignment, initial.expression.values, split.serine, 
-                                                  mixture.definition, mixture.definition.matrix, init.csp.variance,init.sepsilon,init.w.obs.phi,init.initiation.cost)
+                                                  mixture.definition, mixture.definition.matrix, init.csp.variance,init.sepsilon,init.w.obs.phi,init.initiation.cost,init.elongation.cost)
     }else{
       parameter <- new(FONSEParameter, init.with.restart.file)
     }
@@ -689,19 +691,19 @@ initializePANSEParameterObject <- function(genome, sphi, numMixtures, geneAssign
 initializeFONSEParameterObject <- function(genome, sphi, numMixtures, 
                                            geneAssignment, expressionValues = NULL, split.serine = TRUE,
                                            mixture.definition = "allUnique", 
-                                           mixture.definition.matrix = NULL, init.csp.variance = 0.0025 ,init.sepsilon = 0.1,init.w.obs.phi=FALSE,init.initiation.cost = 4){
-  
+                                           mixture.definition.matrix = NULL, init.csp.variance = 0.0025 ,init.sepsilon = 0.1,init.w.obs.phi=FALSE,init.initiation.cost = 4,init.elongation.cost = 4){
+
   # create Parameter object
   if(is.null(mixture.definition.matrix))
   { # keyword constructor
-    parameter <- new(FONSEParameter, as.vector(sphi), numMixtures, geneAssignment, 
-                     split.serine, mixture.definition, init.initiation.cost)
+    parameter <- new(FONSEParameter, as.vector(sphi), numMixtures, geneAssignment,
+                     split.serine, mixture.definition, init.initiation.cost, init.elongation.cost)
   }else{
     #matrix constructor
-    mixture.definition <- c(mixture.definition.matrix[, 1], 
+    mixture.definition <- c(mixture.definition.matrix[, 1],
                             mixture.definition.matrix[, 2])
-    parameter <- new(FONSEParameter, as.vector(sphi), geneAssignment, 
-                     mixture.definition, split.serine,init.initiation.cost)
+    parameter <- new(FONSEParameter, as.vector(sphi), geneAssignment,
+                     mixture.definition, split.serine,init.initiation.cost, init.elongation.cost)
   }
   
   
@@ -1062,9 +1064,18 @@ getCSPEstimates <- function(parameter, filename=NULL, mixture = 1, samples = 10,
     param.1[codon,c("Lower.quant","Upper.quant")] <- parameter$getCodonSpecificQuantile(mixtureElement=mixture, samples=samples,codon=codon,paramType=0, probs=c(0.025, 0.975),withoutReference=model.uses.ref.codon,log_scale=log.scale)
     param.2[codon,c("Lower.quant","Upper.quant")]  <- parameter$getCodonSpecificQuantile(mixtureElement=mixture, samples=samples,codon=codon,paramType=1, probs=c(0.025, 0.975),withoutReference=model.uses.ref.codon,log_scale=log.scale)
   
-    if (length(parameter.names) >= 3)
+    if (length(parameter.names) == 3 && parameter.names[3] == "Eta")
     {
-      
+      # FONSE dEta (position-independent elongation selection, paramType 2):
+      # a genuine codon-specific parameter, retrieved like Mutation/Selection
+      # (NOT the PANSE waiting-time path below).
+      param.3[codon,"Mean"] <- parameter$getCodonSpecificPosteriorMean(mixtureElement=mixture,samples=samples,codon=codon,paramType=2,withoutReference=model.uses.ref.codon,log_scale=log.scale)
+      param.3[codon,"Std.Dev"] <- sqrt(parameter$getCodonSpecificVariance(mixtureElement=mixture,samples=samples,codon=codon,paramType=2,unbiased=T,withoutReference=model.uses.ref.codon,log_scale=log.scale))
+      param.3[codon,c("Lower.quant","Upper.quant")] <- parameter$getCodonSpecificQuantile(mixtureElement=mixture, samples=samples,codon=codon,paramType=2, probs=c(0.025, 0.975),withoutReference=model.uses.ref.codon,log_scale=log.scale)
+    }
+    else if (length(parameter.names) >= 3)
+    {
+
       waiting.time.trace <- getWaitingTimeTrace(trace,mixture,codon,samples)
       if (log.scale)
       {
@@ -1073,7 +1084,7 @@ getCSPEstimates <- function(parameter, filename=NULL, mixture = 1, samples = 10,
       param.3[codon,"Mean"] <- mean(waiting.time.trace)
       param.3[codon,"Std.Dev"] <- sd(waiting.time.trace)
       param.3[codon,c("Lower.quant","Upper.quant")] <- quantile(waiting.time.trace,probs=c(0.025,0.975),type=8)
-      
+
       if (length(parameter.names) == 5)
       {
         param.4[codon,"Mean"] <- parameter$getCodonSpecificPosteriorMean(mixtureElement=mixture,samples=samples,codon=codon,paramType=2,withoutReference=model.uses.ref.codon,log_scale=log.scale)
@@ -1101,7 +1112,10 @@ getCSPEstimates <- function(parameter, filename=NULL, mixture = 1, samples = 10,
   ## Only called if model actually uses reference codon
   if(relative.to.optimal.codon && model.uses.ref.codon)
   {
-    csp.param <- optimalAsReference(param.1,param.2,parameter.names,report.original.ref)
+    if (length(parameter.names) == 3 && parameter.names[3] == "Eta")
+      csp.param <- optimalAsReference(param.1,param.2,parameter.names,report.original.ref,param.3=param.3)
+    else
+      csp.param <- optimalAsReference(param.1,param.2,parameter.names,report.original.ref)
   } else if (relative.to.optimal.codon == F || model.uses.ref.codon == F ){
     ## This is just in case the user wants to exclude the original reference codon
     ## TO DO: update C++ function which might expect certain format for the input CSP file parameters
@@ -1154,10 +1168,15 @@ getCSPEstimates <- function(parameter, filename=NULL, mixture = 1, samples = 10,
   }
 }
 ## NOT EXPOSED
-optimalAsReference <- function(param.1,param.2,parameter.names,report.original.ref)
+optimalAsReference <- function(param.1,param.2,parameter.names,report.original.ref,param.3=NULL)
 {
   updated.param.1 <- data.frame()
   updated.param.2 <- data.frame()
+  # param.3 (FONSE Eta / dEta) is carried through relative to the alphabetic
+  # reference codon; it is NOT re-referenced to the optimal codon (which is
+  # defined by Selection/dOmega and is ambiguous for the elongation term).
+  has.eta <- !is.null(param.3)
+  updated.param.3 <- data.frame()
   aa <- unique(param.2[,"AA"])
   for (a in aa)
   {
@@ -1165,6 +1184,7 @@ optimalAsReference <- function(param.1,param.2,parameter.names,report.original.r
     ## Create temporary data frames for modifying values
     tmp.1 <- param.1[codons,] ## "Mutation" parameter
     tmp.2 <- param.2[codons,] ## "Selection" parameter
+    if (has.eta) tmp.3 <- param.3[codons,] ## "Eta" parameter (FONSE only)
     current.reference.row <- which(tmp.2[,"Mean"]==0)
     optimal.parameter.value <- min(tmp.2[,"Mean"])
     ## No reason to do anything if optimal value is 0
@@ -1188,14 +1208,18 @@ optimalAsReference <- function(param.1,param.2,parameter.names,report.original.r
     {
       tmp.1 <- tmp.1[-current.reference.row,]
       tmp.2 <- tmp.2[-current.reference.row,]
+      if (has.eta) tmp.3 <- tmp.3[-current.reference.row,]
     }
     updated.param.1 <- rbind(updated.param.1,tmp.1)
     updated.param.2 <- rbind(updated.param.2,tmp.2)
+    if (has.eta) updated.param.3 <- rbind(updated.param.3,tmp.3)
   }
-  csp.param <- vector(mode="list",length=2)
+  csp.param <- vector(mode="list",length=if (has.eta) 3 else 2)
   names(csp.param) <- parameter.names
   csp.param[[parameter.names[1]]] <- updated.param.1[,c("AA", "Codon", "Mean","Std.Dev", "2.5%", "97.5%")]
   csp.param[[parameter.names[2]]] <- updated.param.2[,c("AA", "Codon", "Mean","Std.Dev","2.5%", "97.5%")]
+  if (has.eta)
+    csp.param[[parameter.names[3]]] <- updated.param.3[,c("AA", "Codon", "Mean","Std.Dev","2.5%", "97.5%")]
   return(csp.param)
 }
 
@@ -1203,14 +1227,25 @@ optimalAsReference <- function(param.1,param.2,parameter.names,report.original.r
 checkModel <- function(parameter)
 {
   class.type <- class(parameter)
-  if(class(parameter)=="Rcpp_ROCParameter" || class(parameter)=="Rcpp_FONSEParameter")
+  if(class(parameter)=="Rcpp_ROCParameter")
   {
     model.uses.ref.codon <- TRUE
     names.aa <- parameter$getGroupList()
     codons <- unlist(lapply(names.aa,AAToCodon))
     aa <- unlist(lapply(codons,codonToAA))
     parameter.names <- c("Mutation","Selection")
-    
+
+  } else if (class(parameter)=="Rcpp_FONSEParameter")
+  {
+    model.uses.ref.codon <- TRUE
+    names.aa <- parameter$getGroupList()
+    codons <- unlist(lapply(names.aa,AAToCodon))
+    aa <- unlist(lapply(codons,codonToAA))
+    # FONSE estimates a third codon-specific category, Eta (position-independent
+    # elongation selection, the ROC-equivalent term), in addition to Mutation
+    # (dM) and Selection (dOmega).
+    parameter.names <- c("Mutation","Selection","Eta")
+
   } else if (class(parameter)=="Rcpp_PANSEParameter")
   {
     model.uses.ref.codon <- FALSE
@@ -1398,7 +1433,12 @@ getTrace <- function(parameter){
 initializeCovarianceMatrices <- function(parameter, genome, numMixtures, geneAssignment, init.csp.variance = 0.0025) {
   numMutationCategory <- parameter$numMutationCategories
   numSelectionCategory <- parameter$numSelectionCategories
-  
+  # FONSE carries a third codon-specific block (dEta) in its per-AA covariance
+  # matrix; the proposal code expects (numMut + 2*numSel)*numCodons. ROC/other
+  # models use (numMut + numSel)*numCodons.
+  isFONSE <- class(parameter) == "Rcpp_FONSEParameter"
+  numSelectionBlocks <- if (isFONSE) 2L else 1L
+
   phi <- parameter$getCurrentSynthesisRateForMixture(1) # phi values are all the same initially
   
   names.aa <- aminoAcids()
@@ -1427,7 +1467,7 @@ initializeCovarianceMatrices <- function(parameter, genome, numMixtures, geneAss
     
     # One covariance matrix for all mixtures.
     # Currently only variances used.
-    compl.covMat <- diag((numMutationCategory + numSelectionCategory) * numCodons) * init.csp.variance
+    compl.covMat <- diag((numMutationCategory + numSelectionBlocks * numSelectionCategory) * numCodons) * init.csp.variance
     parameter$initCovarianceMatrix(compl.covMat, aa)
   }
   
@@ -1952,19 +1992,23 @@ writeParameterObject.Rcpp_FONSEParameter <- function(parameter, file)
   
   currentMutation <- parameter$currentMutationParameter
   currentSelection <- parameter$currentSelectionParameter
-  proposedMutation <- parameter$proposedMutationParameter
-  proposedSelection <- parameter$proposedSelectionParameter
-  
+  currentEta <- parameter$currentEtaParameter
+  # NB: FONSEParameter does not expose proposed{Mutation,Selection,Eta}Parameter
+  # (the Rcpp properties are intentionally not bound), and the proposed values
+  # are not saved below, so we do not read them here.
+
   model = "FONSE"
   mutationPrior <- parameter$getMutationPriorStandardDeviation()
-  
+
   trace <- parameter$getTraceObject()
-  
+
   mutationTrace <- trace$getCodonSpecificParameterTrace(0)
   selectionTrace <- trace$getCodonSpecificParameterTrace(1)
+  etaTrace <- trace$getCodonSpecificParameterTrace(2)
   initiationCostTrace <- trace$getInitiationCostTrace()
-  save(list = c("paramBase", "currentMutation", "currentSelection",
-                "model","mutationPrior", "mutationTrace", "selectionTrace","initiationCostTrace"),
+  elongationCostTrace <- trace$getElongationCostTrace()
+  save(list = c("paramBase", "currentMutation", "currentSelection", "currentEta",
+                "model","mutationPrior", "mutationTrace", "selectionTrace", "etaTrace","initiationCostTrace","elongationCostTrace"),
        file=file)
 }
 
@@ -2485,7 +2529,20 @@ loadFONSEParameterObject <- function(parameter, files)
         }
       }
 
-      
+      # etaTrace (dEta, paramType 2) was added when FONSE gained the third CSP
+      # category; guard so older .Rda files (without it) still load.
+      if (!is.null(tempEnv$etaTrace)) {
+        codonSpecificParameterTraceEta <- vector("list", length=numSelectionCategories)
+        for (j in 1:numSelectionCategories) {
+          codonSpecificParameterTraceEta[[j]] <- vector("list", length=length(tempEnv$etaTrace[[j]]))
+          for (k in 1:length(tempEnv$etaTrace[[j]])){
+            codonSpecificParameterTraceEta[[j]][[k]] <- tempEnv$etaTrace[[j]][[k]][1:max]
+          }
+        }
+      } else {
+        codonSpecificParameterTraceEta <- NULL
+      }
+
     }else{
       curCodonSpecificParameterTraceMut <- tempEnv$mutationTrace
       curCodonSpecificParameterTraceSel <- tempEnv$selectionTrace
@@ -2495,20 +2552,32 @@ loadFONSEParameterObject <- function(parameter, files)
           codonSpecificParameterTraceMut, curCodonSpecificParameterTraceMut, max)
       codonSpecificParameterTraceSel <- combineThreeDimensionalTrace(
           codonSpecificParameterTraceSel, curCodonSpecificParameterTraceSel, max)
+      if (!is.null(codonSpecificParameterTraceEta) && !is.null(tempEnv$etaTrace))
+        codonSpecificParameterTraceEta <- combineThreeDimensionalTrace(
+            codonSpecificParameterTraceEta, tempEnv$etaTrace, max)
     }#end of if-else
   }#end of for loop (files)
 
   trace <- parameter$getTraceObject()
   trace$setCodonSpecificParameterTrace(codonSpecificParameterTraceMut, 0)
   trace$setCodonSpecificParameterTrace(codonSpecificParameterTraceSel, 1)
+  if (!is.null(codonSpecificParameterTraceEta))
+    trace$setCodonSpecificParameterTrace(codonSpecificParameterTraceEta, 2)
   trace$setInitiationCostTrace(tempEnv$initiationCostTrace)
+  # elongationCostTrace was added after some parameter objects were saved;
+  # guard so older .Rda files (without it) still load.
+  if (!is.null(tempEnv$elongationCostTrace))
+    trace$setElongationCostTrace(tempEnv$elongationCostTrace)
 
   parameter$currentMutationParameter <- tempEnv$currentMutation
   parameter$currentSelectionParameter <- tempEnv$currentSelection
+  # currentEta added with the dEta extension; guard for older .Rda files.
+  if (!is.null(tempEnv$currentEta))
+    parameter$currentEtaParameter <- tempEnv$currentEta
   ##parameter$proposedMutationParameter <- tempEnv$proposedMutation
   ##parameter$proposedSelectionParameter <- tempEnv$proposedSelection
   parameter$setTraceObject(trace)
-  return(parameter)  
+  return(parameter)
 }
 
 

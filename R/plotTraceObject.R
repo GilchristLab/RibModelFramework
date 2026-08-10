@@ -20,7 +20,7 @@
 #' 
 #' @description Plots different traces, specified with the \code{what} parameter.
 #'
-plot.Rcpp_Trace <- function(x, what=c("Mutation", "Selection", "MixtureProbability" ,"Sphi", "Mphi", "Aphi", "Sepsilon", "ExpectedPhi", "Expression","NSEProb","NSERate","InitiationCost","PartitionFunction"),
+plot.Rcpp_Trace <- function(x, what=c("Mutation", "Selection", "MixtureProbability" ,"Sphi", "Mphi", "Aphi", "Sepsilon", "ExpectedPhi", "Expression","NSEProb","NSERate","InitiationCost","ElongationCost","PartitionFunction"),
                             geneIndex=1,
                             mixture = 1,
                             log.10.scale=F,
@@ -75,6 +75,10 @@ plot.Rcpp_Trace <- function(x, what=c("Mutation", "Selection", "MixtureProbabili
     plotHyperParameterTrace(x, what = what[1])
   }
   if(what[1] == "InitiationCost")
+  {
+    plotFONSEHyperParameterTrace(x,what=what[1])
+  }
+  if(what[1] == "ElongationCost")
   {
     plotFONSEHyperParameterTrace(x,what=what[1])
   }
@@ -652,10 +656,10 @@ plotHyperParameterTrace <- function(trace, what = c("Sphi", "Mphi", "Aphi", "Sep
 
 plotFONSEHyperParameterTrace <- function(trace, what = c("InitiationCost"))
 {
-#  opar <- par(no.readonly = T) 
+#  opar <- par(no.readonly = T)
 #  par(oma=c(1,1,2,1), mgp=c(2,1,0), mar = c(3,4,2,1), mfrow=c(2, 1))
   xlab <- "Sample"
-  
+
   if (what[1] == "InitiationCost")
   {
     a1 <- unlist(trace$getInitiationCostTrace())
@@ -665,10 +669,23 @@ plotFONSEHyperParameterTrace <- function(trace, what = c("InitiationCost"))
     ylab <- expression("a"[1])
     main <- expression("a"[1]*"Trace")
     plot(NULL, NULL, type="l", xlab = xlab, ylab = ylab, xlim = xlimit, ylim = ylimit, main = main)
-    
+
     lines(a1, col = "black")
   }
-  
+
+  if (what[1] == "ElongationCost")
+  {
+    a2 <- unlist(trace$getElongationCostTrace())
+    a2 <- a2[2:length(a2)]
+    ylimit <- range(a2) + c(-0.1, 0.1)
+    xlimit <- c(1, length(a2))
+    ylab <- expression("a"[2])
+    main <- expression("a"[2]*"Trace")
+    plot(NULL, NULL, type="l", xlab = xlab, ylab = ylab, xlim = xlimit, ylim = ylimit, main = main)
+
+    lines(a2, col = "black")
+  }
+
   #par(opar)
 }
 

@@ -185,6 +185,18 @@ RCPP_EXPOSED_CLASS(CovarianceMatrix)
 //' @title fixedInitiationCost
 //' @description Method of FONSEParameter class (access via parameter$fixedInitiationCost(), where parameter is initialized with model="FONSE"). Fix the initiation cost parameter (a1) at its current value for the remainder of the MCMC run.
 
+//' @name fixedElongationCost
+//' @title fixedElongationCost
+//' @description Method of FONSEParameter class (access via parameter$fixedElongationCost(), where parameter is initialized with model="FONSE"). Fix the elongation cost parameter (a2) at its current value for the remainder of the MCMC run.
+
+//' @name estimateInitiationCost
+//' @title estimateInitiationCost
+//' @description Method of FONSEParameter class (access via parameter$estimateInitiationCost(), where parameter is initialized with model="FONSE"). Enable estimation of the initiation cost parameter (a1), which is held fixed by default.
+
+//' @name estimateElongationCost
+//' @title estimateElongationCost
+//' @description Method of FONSEParameter class (access via parameter$estimateElongationCost(), where parameter is initialized with model="FONSE"). Enable estimation of the elongation cost parameter (a2), which is held fixed by default.
+
 //' @name fixAlpha
 //' @title fixAlpha
 //' @description Method of PAParameter or PANSEParameter class (access via parameter$fixAlpha(), where parameter is initialized with model="PA" or "PANSE"). Fix the pausing shape parameter (alpha) at its current values for the remainder of the MCMC run.
@@ -546,8 +558,8 @@ RCPP_MODULE(Parameter_mod)
 		//Constructors & Destructors:
 		.constructor()
 		.constructor <std::string>()
-		.constructor <std::vector<double>, std::vector<unsigned>, std::vector<unsigned>, bool,double>()
-		.constructor <std::vector<double>, unsigned, std::vector<unsigned>, bool, std::string,double>()
+		.constructor <std::vector<double>, std::vector<unsigned>, std::vector<unsigned>, bool,double,double>()
+		.constructor <std::vector<double>, unsigned, std::vector<unsigned>, bool, std::string,double,double>()
 
 
 
@@ -558,8 +570,12 @@ RCPP_MODULE(Parameter_mod)
 		.method("initMutationCategories", &FONSEParameter::initMutationCategories)
 		.method("initSelection", &FONSEParameter::initSelection)
 		.method("initSelectionCategories", &FONSEParameter::initSelectionCategories)
+		.method("initEtaCategories", &FONSEParameter::initEtaCategories)
 
 		.method("fixedInitiationCost",&FONSEParameter::fixedInitiationCost)
+		.method("fixedElongationCost",&FONSEParameter::fixedElongationCost)
+		.method("estimateInitiationCost",&FONSEParameter::estimateInitiationCost)
+		.method("estimateElongationCost",&FONSEParameter::estimateElongationCost)
 
 		//Prior Functions:
 		.method("getMutationPriorStandardDeviation", &FONSEParameter::getMutationPriorStandardDeviation)
@@ -567,6 +583,8 @@ RCPP_MODULE(Parameter_mod)
 
 		.method("fixDM",&FONSEParameter::fixDM)//Not a R wrapper
 		.method("fixDOmega",&FONSEParameter::fixDOmega)//Not a R wrapper
+		.method("fixDEta",&FONSEParameter::fixDEta)//Not a R wrapper
+		.method("estimateDEta",&FONSEParameter::estimateDEta)//Not a R wrapper
 
 
 		// .property("proposedMutationParameter", &FONSEParameter::getProposedMutationParameter,
@@ -577,6 +595,8 @@ RCPP_MODULE(Parameter_mod)
 		        &FONSEParameter::setCurrentMutationParameter) //R Specific
 		.property("currentSelectionParameter", &FONSEParameter::getCurrentSelectionParameter,
 		        &FONSEParameter::setCurrentSelectionParameter) //R Specific
+		.property("currentEtaParameter", &FONSEParameter::getCurrentEtaParameter,
+		        &FONSEParameter::setCurrentEtaParameter) //R Specific
 		.property("mutation_prior_sd", &FONSEParameter::getMutationPriorStandardDeviation,
 		        &FONSEParameter::setMutationPriorStandardDeviation)
 		;

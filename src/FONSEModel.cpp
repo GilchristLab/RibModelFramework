@@ -23,7 +23,7 @@ FONSEModel::~FONSEModel()
 
 
 
-double FONSEModel::calculateLogLikelihoodRatioPerAA(Gene& gene, std::string grouping, double *mutation, double *selection, double phiValue,double a1_value)
+double FONSEModel::calculateLogLikelihoodRatioPerAA(Gene& gene, std::string grouping, double *mutation, double *selection, double *dEta, double phiValue,double a1_value, double a2_value)
 {
 	unsigned numCodons = SequenceSummary::GetNumCodonsForAA(grouping);
 	double logLikelihood = 0.0;
@@ -48,7 +48,7 @@ double FONSEModel::calculateLogLikelihoodRatioPerAA(Gene& gene, std::string grou
 		positions = gene.geneData.getCodonPositions(i);
 		for (unsigned j = 0; j < positions->size(); j++)
 		{
-			calculateLogCodonProbabilityVector(numCodons, positions->at(j), minIndexVal, mutation, selection, phiValue, a1_value, codonProb);
+			calculateLogCodonProbabilityVector(numCodons, positions->at(j), minIndexVal, mutation, selection, dEta, phiValue, a1_value, a2_value, codonProb);
 			logLikelihood += codonProb[k];
 		}
 		//positions->clear();
@@ -91,6 +91,7 @@ void FONSEModel::calculateLogLikelihoodRatioPerGene(Gene& gene, unsigned geneInd
 	std::string curAA;
 	double mutation[5];
 	double selection[5];
+	double dEta[5];
 
 	//SequenceSummary *sequenceSummary = gene.getSequenceSummary(); //currently unused
 
@@ -102,12 +103,13 @@ void FONSEModel::calculateLogLikelihoodRatioPerGene(Gene& gene, unsigned geneInd
 	double phiValue = parameter->getSynthesisRate(geneIndex, expressionCategory, false);
 	double phiValue_proposed = parameter->getSynthesisRate(geneIndex, expressionCategory, true);
 	double a1_value = getInitiationCost(false);
+	double a2_value = getElongationCost(false);
 
 	SequenceSummary *sequenceSummary = gene.getSequenceSummary();
 
 #ifdef _OPENMP
 //#ifndef __APPLE__
-#pragma omp parallel for private(mutation, selection,curAA) reduction(+:likelihood,likelihood_proposed)
+#pragma omp parallel for private(mutation, selection, dEta, curAA) reduction(+:likelihood,likelihood_proposed)
 #endif
 	for (unsigned i = 0u; i < getGroupListSize(); i++)
 	{
@@ -115,8 +117,9 @@ void FONSEModel::calculateLogLikelihoodRatioPerGene(Gene& gene, unsigned geneInd
 		if (sequenceSummary->getAACountForAA(i) == 0) continue;
 		parameter->getParameterForCategory(mutationCategory, FONSEParameter::dM, curAA, false, mutation);
 		parameter->getParameterForCategory(selectionCategory, FONSEParameter::dOmega, curAA, false, selection);
-		likelihood += calculateLogLikelihoodRatioPerAA(gene, curAA, mutation, selection, phiValue, a1_value);
-		likelihood_proposed += calculateLogLikelihoodRatioPerAA(gene, curAA, mutation, selection, phiValue_proposed, a1_value);
+		parameter->getParameterForCategory(selectionCategory, FONSEParameter::dEtaCSP, curAA, false, dEta);
+		likelihood += calculateLogLikelihoodRatioPerAA(gene, curAA, mutation, selection, dEta, phiValue, a1_value, a2_value);
+		likelihood_proposed += calculateLogLikelihoodRatioPerAA(gene, curAA, mutation, selection, dEta, phiValue_proposed, a1_value, a2_value);
 	}
 
 	unsigned mixture = getMixtureAssignment(geneIndex);
@@ -161,8 +164,10 @@ void FONSEModel::calculateLogLikelihoodRatioPerGroupingPerCategory(std::string g
 
 	double mutation[5];
 	double selection[5];
+	double dEta[5];
 	double mutation_proposed[5];
 	double selection_proposed[5];
+	double dEta_proposed[5];
 
 	std::string curAA;
 
@@ -170,9 +175,10 @@ void FONSEModel::calculateLogLikelihoodRatioPerGroupingPerCategory(std::string g
 	SequenceSummary *sequenceSummary;
 	unsigned aaIndex = SequenceSummary::AAToAAIndex(grouping);
 	double a1_value = getInitiationCost(false);
+	double a2_value = getElongationCost(false);
 #ifdef _OPENMP
 //#ifndef __APPLE__
-#pragma omp parallel for private(mutation, selection, mutation_proposed, selection_proposed, curAA, gene, sequenceSummary) reduction(+:likelihood,likelihood_proposed)
+#pragma omp parallel for private(mutation, selection, dEta, mutation_proposed, selection_proposed, dEta_proposed, curAA, gene, sequenceSummary) reduction(+:likelihood,likelihood_proposed)
 #endif
 	for (unsigned i = 0u; i < numGenes; i++)
 	{
@@ -189,15 +195,17 @@ void FONSEModel::calculateLogLikelihoodRatioPerGroupingPerCategory(std::string g
 		// get phi value, calculate likelihood conditional on phi
 		double phiValue = parameter->getSynthesisRate(i, expressionCategory, false);
 
-		// get current mutation and selection parameter
+		// get current mutation, selection, and eta parameters
 		parameter->getParameterForCategory(mutationCategory, FONSEParameter::dM, grouping, false, mutation);
 		parameter->getParameterForCategory(selectionCategory, FONSEParameter::dOmega, grouping, false, selection);
+		parameter->getParameterForCategory(selectionCategory, FONSEParameter::dEtaCSP, grouping, false, dEta);
 
-		// get proposed mutation and selection parameter
+		// get proposed mutation, selection, and eta parameters
 		parameter->getParameterForCategory(mutationCategory, FONSEParameter::dM, grouping, true, mutation_proposed);
 		parameter->getParameterForCategory(selectionCategory, FONSEParameter::dOmega, grouping, true, selection_proposed);
-		likelihood += calculateLogLikelihoodRatioPerAA(*gene, grouping, mutation, selection, phiValue,a1_value);
-		likelihood_proposed += calculateLogLikelihoodRatioPerAA(*gene, grouping, mutation_proposed, selection_proposed, phiValue,a1_value);
+		parameter->getParameterForCategory(selectionCategory, FONSEParameter::dEtaCSP, grouping, true, dEta_proposed);
+		likelihood += calculateLogLikelihoodRatioPerAA(*gene, grouping, mutation, selection, dEta, phiValue,a1_value,a2_value);
+		likelihood_proposed += calculateLogLikelihoodRatioPerAA(*gene, grouping, mutation_proposed, selection_proposed, dEta_proposed, phiValue,a1_value,a2_value);
 	}
 
 	posterior_proposed = likelihood_proposed + calculateMutationPrior(grouping, true);
@@ -215,24 +223,29 @@ void FONSEModel::calculateLogLikelihoodRatioForHyperParameters(Genome &genome, u
 {
 	double mutation[5];
 	double selection[5];
+	double dEta[5];
 	std::string curAA;
 	Gene *gene;
 
 	double lpr_sphi = 0.0;
 	double lpr_a1 = 0.0;
+	double lpr_a2 = 0.0;
 	double lpr = 0.0;
 	if (withPhi)
 	{
-		// one for each noiseOffset, one for stdDevSynthesisRate, one for initiation_cost a1
-		logProbabilityRatio.resize(getNumPhiGroupings() + 2);
+		// one for each noiseOffset, one for stdDevSynthesisRate, one for
+		// initiation_cost a1, one for elongation_cost a2
+		logProbabilityRatio.resize(getNumPhiGroupings() + 3);
 	}
 	else
 	{
-		logProbabilityRatio.resize(2);
+		logProbabilityRatio.resize(3);
 	}
 
 	double a1_current = getInitiationCost(false);
 	double a1_proposed = getInitiationCost(true);
+	double a2_current = getElongationCost(false);
+	double a2_proposed = getElongationCost(true);
 
 	unsigned selectionCategory = getNumSynthesisRateCategories();
 	std::vector<double> currentStdDevSynthesisRate(selectionCategory, 0.0);
@@ -249,11 +262,22 @@ void FONSEModel::calculateLogLikelihoodRatioForHyperParameters(Genome &genome, u
 		lpr_sphi -= (std::log(currentStdDevSynthesisRate[i]) - std::log(proposedStdDevSynthesisRate[i]));
 	}
 
+	// Jacobian for the log-normal random-walk proposals on a1 and a2.
 	lpr_a1 -= (std::log(a1_current) - std::log(a1_proposed));
+	lpr_a2 -= (std::log(a2_current) - std::log(a2_proposed));
+
+	// When both cost coefficients are held fixed (the default), a1_proposed ==
+	// a1_current and a2_proposed == a2_current, so lpr_a1 == lpr_a2 == 0. The
+	// per-gene/per-AA likelihood-ratio loop below would do ~3 full-genome
+	// position-iterating passes computing guaranteed zeros. Skip it: only the
+	// (cheap) sphi phi-density term still needs the per-gene loop. The guard
+	// flips false the instant a1 or a2 is estimated (or gains codon-specific
+	// terms), restoring the full computation -- no separate code path.
+	bool a1a2Fixed = parameter->isInitiationCostFixed() && parameter->isElongationCostFixed();
 
 #ifdef _OPENMP
 //#ifndef __APPLE__
-#pragma omp parallel for private(gene,mutation, selection, curAA) reduction(+:lpr_sphi,lpr_a1)
+#pragma omp parallel for private(gene,mutation, selection, dEta, curAA) reduction(+:lpr_sphi,lpr_a1,lpr_a2)
 #endif
 	for (unsigned i = 0u; i < genome.getGenomeSize(); i++)
 	{
@@ -264,6 +288,8 @@ void FONSEModel::calculateLogLikelihoodRatioForHyperParameters(Genome &genome, u
 		lpr_sphi += Parameter::densityLogNorm(phi, proposedMphi[expressionCategory], proposedStdDevSynthesisRate[expressionCategory], true)
 			   - Parameter::densityLogNorm(phi, currentMphi[expressionCategory], currentStdDevSynthesisRate[expressionCategory], true);
 
+		if (a1a2Fixed) continue;  // a1/a2 ratios are identically zero; skip the costly AA loop
+
 		unsigned mutationCategory = parameter->getMutationCategory(mixtureElement);
 		unsigned selectionCategory = parameter->getSelectionCategory(mixtureElement);
 
@@ -273,9 +299,16 @@ void FONSEModel::calculateLogLikelihoodRatioForHyperParameters(Genome &genome, u
 
 			parameter->getParameterForCategory(mutationCategory, FONSEParameter::dM, curAA, false, mutation);
 			parameter->getParameterForCategory(selectionCategory, FONSEParameter::dOmega, curAA, false, selection);
+			parameter->getParameterForCategory(selectionCategory, FONSEParameter::dEtaCSP, curAA, false, dEta);
 
-			lpr_a1 += (calculateLogLikelihoodRatioPerAA(*gene, curAA, mutation, selection, phi, a1_proposed) 
-				- calculateLogLikelihoodRatioPerAA(*gene, curAA, mutation, selection, phi, a1_current));
+			// a1 and a2 are each accepted/rejected independently (Metropolis within
+			// Gibbs); each likelihood-ratio term holds the OTHER coefficient at its
+			// current value. Compute the shared (a1_current, a2_current) baseline once.
+			double baseline = calculateLogLikelihoodRatioPerAA(*gene, curAA, mutation, selection, dEta, phi, a1_current, a2_current);
+			lpr_a1 += (calculateLogLikelihoodRatioPerAA(*gene, curAA, mutation, selection, dEta, phi, a1_proposed, a2_current)
+				- baseline);
+			lpr_a2 += (calculateLogLikelihoodRatioPerAA(*gene, curAA, mutation, selection, dEta, phi, a1_current, a2_proposed)
+				- baseline);
 		}
 	}
 	// sphi prior: N(sphiPriorMu, sphiPriorSd)
@@ -292,11 +325,12 @@ void FONSEModel::calculateLogLikelihoodRatioForHyperParameters(Genome &genome, u
 
 	logProbabilityRatio[0] = lpr_sphi;
 	logProbabilityRatio[1] = lpr_a1;
+	logProbabilityRatio[2] = lpr_a2;
 	if (withPhi)
 	{
 		for (unsigned i = 0; i < parameter->getNumObservedPhiSets(); i++)
 		{
-			
+
 			lpr = 0.0;
 			double noiseOffset = getNoiseOffset(i, false);
 			double noiseOffset_proposed = getNoiseOffset(i, true);
@@ -319,7 +353,7 @@ void FONSEModel::calculateLogLikelihoodRatioForHyperParameters(Genome &genome, u
 					lpr += proposed - current;
 				}
 			}
-			logProbabilityRatio[i+2] = lpr;
+			logProbabilityRatio[i+3] = lpr;
 		}
 	}
 
@@ -390,6 +424,12 @@ double FONSEModel::getInitiationCost(bool proposed)
 }
 
 
+double FONSEModel::getElongationCost(bool proposed)
+{
+	return parameter->getElongationCost(proposed);
+}
+
+
 
 //------------------------------------------//
 //---------- Group List Functions ----------//
@@ -457,6 +497,17 @@ void FONSEModel::updateInitiationCost()
 }
 
 
+double FONSEModel::getCurrentElongationCostProposalWidth()
+{
+	return parameter->getCurrentElongationCostProposalWidth();
+}
+
+void FONSEModel::updateElongationCost()
+{
+	parameter->updateElongationCost();
+}
+
+
 
 
 
@@ -515,6 +566,11 @@ void FONSEModel::updateInitiationCostParameterTrace(unsigned sample)
 	parameter->updateInitiationCostParameterTrace(sample);
 }
 
+void FONSEModel::updateElongationCostParameterTrace(unsigned sample)
+{
+	parameter->updateElongationCostParameterTrace(sample);
+}
+
 void FONSEModel::updateSynthesisRateTrace(unsigned sample, unsigned i)
 {
 	parameter->updateSynthesisRateTrace(sample, i);
@@ -543,6 +599,7 @@ void FONSEModel::updateHyperParameterTraces(unsigned sample)
 {
 	updateStdDevSynthesisRateTrace(sample);
 	updateInitiationCostParameterTrace(sample);
+	updateElongationCostParameterTrace(sample);
 	if (withPhi)
 	{
 		updateNoiseOffsetTrace(sample);
@@ -587,6 +644,11 @@ void FONSEModel::adaptInitiationCostProposalWidth(unsigned adaptiveWidth, bool a
 	parameter->adaptInitiationCostProposalWidth(adaptiveWidth, adapt);
 }
 
+void FONSEModel::adaptElongationCostProposalWidth(unsigned adaptiveWidth, bool adapt)
+{
+	parameter->adaptElongationCostProposalWidth(adaptiveWidth, adapt);
+}
+
 void FONSEModel::adaptSynthesisRateProposalWidth(unsigned adaptiveWidth, bool adapt)
 {
 	parameter->adaptSynthesisRateProposalWidth(adaptiveWidth, adapt);
@@ -603,6 +665,7 @@ void FONSEModel::adaptHyperParameterProposalWidths(unsigned adaptiveWidth, bool 
 {
 	adaptStdDevSynthesisRateProposalWidth(adaptiveWidth, adapt);
 	adaptInitiationCostProposalWidth(adaptiveWidth,adapt);
+	adaptElongationCostProposalWidth(adaptiveWidth,adapt);
 	if (withPhi)
 		adaptNoiseOffsetProposalWidth(adaptiveWidth, adapt);
 }
@@ -790,6 +853,7 @@ void FONSEModel::updateAllHyperParameter()
 {
 	updateStdDevSynthesisRate();
 	updateInitiationCost();
+	updateElongationCost();
 	if (withPhi)
 	{
 		for (unsigned i =0; i < parameter->getNumObservedPhiSets(); i++)
@@ -802,6 +866,9 @@ void FONSEModel::updateAllHyperParameter()
 void FONSEModel::updateHyperParameter(unsigned hp)
 {
 	// NOTE: when adding additional hyper parameter, also add to updateAllHyperParameter()
+	// Index scheme matches calculateLogLikelihoodRatioForHyperParameters:
+	//   0 = stdDevSynthesisRate (sphi), 1 = initiation cost a1,
+	//   2 = elongation cost a2, 3+ = noiseOffsets (withPhi only).
 	if (hp == 0)
 	{
 		updateStdDevSynthesisRate();
@@ -809,11 +876,15 @@ void FONSEModel::updateHyperParameter(unsigned hp)
 	else if (hp == 1)
 	{
 		updateInitiationCost();
-	}		
-	else if (hp > 1 and withPhi)
-	{	
-		//subtract off 2 because the first two parameters withh be the updateStdDevSynthesisRate
-		updateNoiseOffset(hp - 2);
+	}
+	else if (hp == 2)
+	{
+		updateElongationCost();
+	}
+	else if (hp > 2 and withPhi)
+	{
+		//subtract off 3 because the first three parameters are sphi, a1, a2
+		updateNoiseOffset(hp - 3);
 	}
 }
 
@@ -834,6 +905,7 @@ void FONSEModel::simulateGenome(Genome & genome)
 		unsigned synthesisRateCategory = getSynthesisRateCategory(mixtureElement);
 		double phi = getSynthesisRate(geneIndex, synthesisRateCategory, false);
 		double a1_value = getInitiationCost(false);
+		double a2_value = getElongationCost(false);
 		std::string geneSeq = gene.getSequence();
 		for (unsigned position = 1; position < (geneSeq.size() / 3); position++)
 		{
@@ -851,6 +923,7 @@ void FONSEModel::simulateGenome(Genome & genome)
 			double* codonProb = new double[numCodons](); //size the arrays to the proper size based on # of codons.
 			double* mutation = new double[numCodons - 1]();
 			double* selection = new double[numCodons - 1]();
+			double* dEta = new double[numCodons - 1]();
 
 
 			if (curAA == "M" || curAA == "W")
@@ -861,7 +934,8 @@ void FONSEModel::simulateGenome(Genome & genome)
 			{
 				getParameterForCategory(mutationCategory, FONSEParameter::dM, curAA, false, mutation);
 				getParameterForCategory(selectionCategory, FONSEParameter::dOmega, curAA, false, selection);
-				calculateCodonProbabilityVector(numCodons, position, mutation, selection, phi, a1_value,codonProb);
+				getParameterForCategory(selectionCategory, FONSEParameter::dEtaCSP, curAA, false, dEta);
+				calculateCodonProbabilityVector(numCodons, position, mutation, selection, dEta, phi, a1_value, a2_value, codonProb);
 			}
 
 
@@ -873,6 +947,7 @@ void FONSEModel::simulateGenome(Genome & genome)
 			delete[] codonProb;
 			delete[] mutation;
 			delete[] selection;
+			delete[] dEta;
 		}
 		std::string codon = sequenceSummary.indexToCodon((unsigned)Parameter::randUnif(61.0, 64.0)); //randomly choose a stop codon, from range 61-63
 		tmpSeq += codon;
@@ -893,6 +968,8 @@ void FONSEModel::printHyperParameters()
 	my_print("\t current stdDevSynthesisRate proposal width: %\n", getCurrentStdDevSynthesisRateProposalWidth());
 	my_print("\t current initiation cost a_1 estimate: %\n",getInitiationCost(false));
 	my_print("\t current initiation cost a_1 proposal width: %\n", getCurrentInitiationCostProposalWidth());
+	my_print("\t current elongation cost a_2 estimate: %\n",getElongationCost(false));
+	my_print("\t current elongation cost a_2 proposal width: %\n", getCurrentElongationCostProposalWidth());
 
 }
 
@@ -931,7 +1008,7 @@ double FONSEModel::calculateAllPriors(bool proposed)
 
 //Calculates the log probability of each codon for an amino acid and puts them in a vector.
 void FONSEModel::calculateLogCodonProbabilityVector(unsigned numCodons, unsigned position, unsigned minIndexValue,
-												 double *mutation, double *selection, double phi, double a1_value, std::vector <double> &codonProb)
+												 double *mutation, double *selection, double *dEta, double phi, double a1_value, double a2_value, std::vector <double> &codonProb)
 {
 	double denominator;
 
@@ -946,16 +1023,19 @@ void FONSEModel::calculateLogCodonProbabilityVector(unsigned numCodons, unsigned
 	 // If the reference codon is the min value (0) then we do not have to adjust the reference codon.
 	 // This is necessary to deal with very large phi values (> 10^4) and avoid producing Inf which then
 	 // causes the denominator to be Inf (Inf / Inf = NaN).
+	// dEta is the position-INDEPENDENT elongation-selection term (-dEta[i]*phi);
+	// it is 0 when dEta is fixed at its default of 0. In the shifted branch it is
+	// re-referenced to the same pivot codon as the mutation/selection terms.
 	if (selection[minIndexValue] < 0.0)
 	{
 		denominator = 0.0;
 		for (unsigned i = 0u; i < (numCodons - 1); i++)
 		{
-			codonProb[i] = -(mutation[i] - mutation[minIndexValue]) - (phi * (a1_value + (4.0 * position)) * (selection[i] - selection[minIndexValue]));
+			codonProb[i] = -(mutation[i] - mutation[minIndexValue]) - ((dEta[i] - dEta[minIndexValue]) * phi) - (phi * (a1_value + (a2_value * position)) * (selection[i] - selection[minIndexValue]));
 			denominator += std::exp(codonProb[i]);
 		}
 		//Alphabetically, the last codon is the reference codon.
-		codonProb[numCodons - 1] = (mutation[minIndexValue]) + (phi * (a1_value + (4.0 * position)) * selection[minIndexValue]);
+		codonProb[numCodons - 1] = (mutation[minIndexValue]) + (dEta[minIndexValue] * phi) + (phi * (a1_value + (a2_value * position)) * selection[minIndexValue]);
 		denominator += std::exp(codonProb[numCodons - 1]);
 	}
 	else
@@ -963,7 +1043,7 @@ void FONSEModel::calculateLogCodonProbabilityVector(unsigned numCodons, unsigned
 		denominator = 1.0;
 		for (unsigned i = 0u; i < (numCodons - 1); i++)
 		{
-			codonProb[i] = -(mutation[i]) - (phi * (a1_value + (4.0 * position)) * selection[i]);
+			codonProb[i] = -(mutation[i]) - (dEta[i] * phi) - (phi * (a1_value + (a2_value * position)) * selection[i]);
 			denominator += std::exp(codonProb[i]);
 		}
 		//Again, the last codon is the reference codon
@@ -983,7 +1063,7 @@ void FONSEModel::calculateLogCodonProbabilityVector(unsigned numCodons, unsigned
 //Since the simulateGenome function utilizes the codon probability vector, but doesn't deal with the log values,
 //this function simply returns the vector with each codon's probability.
 void FONSEModel::calculateCodonProbabilityVector(unsigned numCodons, unsigned position,
-													double *mutation, double *selection, double phi, double a1_value, double codonProb[])
+													double *mutation, double *selection, double *dEta, double phi, double a1_value, double a2_value, double codonProb[])
 {
 	double denominator;
 	unsigned minIndexValue = 0u;
@@ -1013,11 +1093,11 @@ void FONSEModel::calculateCodonProbabilityVector(unsigned numCodons, unsigned po
 		denominator = 0.0;
 		for (unsigned i = 0u; i < (numCodons - 1); i++)
 		{
-			codonProb[i] = std::exp(-(mutation[i] - mutation[minIndexValue]) - (phi * (a1_value + (4.0 * position)) * (selection[i] - selection[minIndexValue])));
+			codonProb[i] = std::exp(-(mutation[i] - mutation[minIndexValue]) - ((dEta[i] - dEta[minIndexValue]) * phi) - (phi * (a1_value + (a2_value * position)) * (selection[i] - selection[minIndexValue])));
 			denominator += codonProb[i];
 		}
 		//Alphabetically, the last codon is the reference codon.
-		codonProb[numCodons - 1] = std::exp((mutation[minIndexValue]) + (phi * (a1_value + (4.0 * position)) * selection[minIndexValue]));
+		codonProb[numCodons - 1] = std::exp((mutation[minIndexValue]) + (dEta[minIndexValue] * phi) + (phi * (a1_value + (a2_value * position)) * selection[minIndexValue]));
 		denominator += codonProb[numCodons - 1];
 	}
 	else
@@ -1025,7 +1105,7 @@ void FONSEModel::calculateCodonProbabilityVector(unsigned numCodons, unsigned po
 		denominator = 1.0;
 		for (unsigned i = 0u; i < (numCodons - 1); i++)
 		{
-			codonProb[i] = std::exp(-(mutation[i]) - (phi * (a1_value + (4.0 * position)) * selection[i]));
+			codonProb[i] = std::exp(-(mutation[i]) - (dEta[i] * phi) - (phi * (a1_value + (a2_value * position)) * selection[i]));
 			denominator += codonProb[i];
 		}
 		//Again, the last codon is the reference codon
@@ -1080,13 +1160,14 @@ bool FONSEModel::isShared(std::string csp_parameters)
 #ifndef STANDALONE
 
 
-std::vector<double> FONSEModel::CalculateProbabilitiesForCodons(std::vector<double> mutation, std::vector<double> selection, double phi, double a1_value, unsigned position)
+std::vector<double> FONSEModel::CalculateProbabilitiesForCodons(std::vector<double> mutation, std::vector<double> selection, std::vector<double> dEta, double phi, double a1_value, double a2_value, unsigned position)
 {
 	unsigned numCodons = mutation.size() + 1;
 	double* _mutation = &mutation[0];
 	double* _selection = &selection[0];
+	double* _dEta = &dEta[0];
 	double* codonProb = new double[numCodons]();
-	calculateCodonProbabilityVector(numCodons, position, _mutation, _selection, phi, a1_value, codonProb);
+	calculateCodonProbabilityVector(numCodons, position, _mutation, _selection, _dEta, phi, a1_value, a2_value, codonProb);
 	std::vector<double> returnVector(codonProb, codonProb + numCodons);
 	return returnVector;
 }

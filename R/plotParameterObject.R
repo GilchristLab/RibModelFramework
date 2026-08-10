@@ -70,7 +70,8 @@ plotParameterObject <- function(x, what = "Mutation", samples = 100, mixture.nam
   means <- data.frame(matrix(0,ncol=numMixtures,nrow=40))
   sd.values <- data.frame(matrix(0,ncol=numMixtures*2,nrow=40))
   names.aa <- aminoAcids()
-  paramType <- ifelse(what == "Mutation", 0, 1)
+  # FONSE "Eta" (dEta) is paramType 2; Mutation 0, Selection 1.
+  paramType <- if (what == "Mutation" || what == "Alpha") 0 else if (what == "Eta") 2 else 1
   #cat("ParamType: ", paramType, "\n")
   
   for (mixture in 1:numMixtures) {
@@ -367,13 +368,13 @@ acfCSP <- function(parameter, what = "Mutation", mixture = 1, samples = NULL,
     paramType <- 0
   } else if (what == "Selection" || what == "LambdaPrime" || what == "Lambda") {
     paramType <- 1
-  } else if (what == "NSERate") {
+  } else if (what == "NSERate" || what == "Eta") {
     paramType <- 2
   } else {
-    stop("what must be one of: Mutation (ROC, FONSE), Selection (ROC, FONSE), Alpha (PA, PANSE), LambdaPrime (PA, PANSE), NSERate (PA, PANSE)")
+    stop("what must be one of: Mutation (ROC, FONSE), Selection (ROC, FONSE), Eta (FONSE), Alpha (PA, PANSE), LambdaPrime (PA, PANSE), NSERate (PA, PANSE)")
   }
 
-  ref.codon    <- what %in% c("Mutation", "Selection")
+  ref.codon    <- what %in% c("Mutation", "Selection", "Eta")
   ROC.or.FONSE <- ref.codon
   trace        <- parameter$getTraceObject()
   names.aa     <- aminoAcids()
